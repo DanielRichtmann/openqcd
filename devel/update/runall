@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [ "$#" != "1" ]; then
+  echo "Syntax: runall <no of processes>"
+  exit 1
+fi
+
+SLEEP=1
+MPIRUN="mpirun -np $1"
+
+run()
+{
+   sleep $SLEEP
+   echo "$1 ..."
+   $MPIRUN "$1" < /dev/null
+}
+
+run check1
+run check2
+run check3
+run check4
+run check5
+run check6
