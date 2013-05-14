@@ -3,7 +3,7 @@
 *
 * File random.h
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -19,6 +19,8 @@ extern void gauss_dble(double r[],int n);
 
 /* RANLUX_C */
 extern void start_ranlux(int level,int seed);
+extern void export_ranlux(int tag,char *out);
+extern int import_ranlux(char *in);
 
 /* RANLXS_C */
 extern void ranlxs(float r[],int n);

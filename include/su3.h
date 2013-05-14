@@ -3,7 +3,7 @@
 *
 * File su3.h
 *
-* Copyright (C) 2005, 2009, 2011 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005, 2009, 2011, 2013 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -16,10 +16,18 @@
 #ifndef SU3_H
 #define SU3_H
 
+#if ((defined AVX)&&(!(defined x64)))
+#define x64
+#endif
+
 #if (defined x64)
+#define ALIGNED8 __attribute__ ((aligned (8)))
 #define ALIGNED16 __attribute__ ((aligned (16)))
+#define ALIGNED32 __attribute__ ((aligned (32)))
 #else
+#define ALIGNED8
 #define ALIGNED16
+#define ALIGNED32
 #endif
 
 typedef struct

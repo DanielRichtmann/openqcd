@@ -308,7 +308,7 @@ void read_mdint_parms(int ilv)
 
 void print_mdint_parms(void)
 {
-   int my_rank,i,j;
+   int my_rank,i,j,n;
    int nfr,*ifr;
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -324,8 +324,11 @@ void print_mdint_parms(void)
             if (mdp[i].integrator==LPFR)
                printf("Leapfrog integrator\n");
             else if (mdp[i].integrator==OMF2)
-               printf("2nd order OMF integrator with lambda = %.4e\n",
-                      mdp[i].lambda);
+            {
+               n=fdigits(mdp[i].lambda);
+               printf("2nd order OMF integrator with lambda = %.*f\n",
+                      IMAX(n,1),mdp[i].lambda);
+            }
             else if (mdp[i].integrator==OMF4)
                printf("4th order OMF integrator\n");
             else

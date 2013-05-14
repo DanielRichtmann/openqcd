@@ -21,11 +21,13 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1
 
+LATTICE = geometry
+
 RANDOM = ranlux ranlxs ranlxd
 
-UTILS = mutils utils
+UTILS = endian mutils utils
 
-MODULES = $(RANDOM) $(UTILS)
+MODULES = $(LATTICE) $(RANDOM) $(UTILS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -37,32 +39,32 @@ LOGOPTION =
 
 MDIR = ../../modules
 
-VPATH = .:$(MDIR)/random:$(MDIR)/utils
+VPATH = .:$(MDIR)/lattice:$(MDIR)/random:$(MDIR)/utils
 
 
 # additional include directories
 
-INCPATH = $(MPIR_HOME)/include ../../include
+INCPATH = $(MPI_INCLUDE) ../../include
 
 
 # additional libraries
 
 LIBS = m
 
-LIBPATH = $(MPIR_HOME)/lib
+LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM 
+         -O -mno-avx -Dx64 -DPM 
 
 
 ############################## do not change ###################################
 
 SHELL=/bin/bash
-CC=$(MPIR_HOME)/bin/mpicc
+CC=$(MPI_HOME)/bin/mpicc
 CLINKER=$(CC)
 
 PGMS= $(MAIN) $(MODULES)

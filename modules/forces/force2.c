@@ -3,7 +3,7 @@
 *
 * File force2.c
 *
-* Copyright (C) 2011, 2012 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -61,9 +61,9 @@
 * and is given by:
 *
 *                  CGNE         SAP_GCR       DFL_SAP_GCR
-*   setpf2()         1             1               4
-*   force2()         1             2               8
-*   action2()        1             1               4
+*   setpf2()         1             1               3
+*   force2()         1             2               6
+*   action2()        1             1               3
 *
 * The solver used in the case of setpf2() is for the Dirac equation with
 * twisted mass mu1, while force2() and action2() use the solver for the
@@ -74,7 +74,7 @@
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
 * [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/sparms.c].
+* have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The program force2() attempts to propagate the solutions of the Dirac
 * equation along the molecular-dynamics trajectories, using the field
@@ -178,10 +178,10 @@ double setpf2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,phi,psi,status);
       mulg5_dble(VOLUME,phi);
       
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+      error_root((status[0]<0)||(status[1]<0),1,
                  "setpf2 [force2.c]","DFL_SAP_GCR solver failed "
-                 "(mu = %.4e, parameter set no %d, status = %d,%d,%d,%d)",
-                 mu1,isp,status[0],status[1],status[2],status[3]);
+                 "(mu = %.4e, parameter set no %d, status = %d,%d,%d)",
+                 mu1,isp,status[0],status[1],status[2]);
    }
    else
       error_root(1,1,"setpf2 [force2.c]","Unknown solver");

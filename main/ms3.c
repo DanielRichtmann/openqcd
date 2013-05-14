@@ -3,7 +3,7 @@
 *
 * File ms3.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -35,6 +35,9 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
 
 static struct
 {
@@ -49,7 +52,8 @@ static struct
 } data;
 
 static int my_rank,noexp,append,endian;
-static int first,last,step,bc,flint;
+static int first,last,step,bc;
+static int ipgrd[2],flint;
 static double *Wact,*Yact,*Qtop;
 
 static char line[NAME_SIZE];
@@ -516,6 +520,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
 {
    int ie,ic,isv;
    int fc,lc,dc,pc;
+   int np[4],bp[4];
    
    fend=fopen(log_file,"r");
    error_root(fend==NULL,1,"check_old_log [ms3.c]",
@@ -532,7 +537,20 @@ static void check_old_log(int *fst,int *lst,int *stp)
          
    while (fgets(line,NAME_SIZE,fend)!=NULL)
    {
-      if (strstr(line,"fully processed")!=NULL)
+      if (strstr(line,"process grid")!=NULL)
+      {
+         if (sscanf(line,"%dx%dx%dx%d process grid, %dx%dx%dx%d",
+                    np,np+1,np+2,np+3,bp,bp+1,bp+2,bp+3)==8)
+         {
+            ipgrd[0]=((np[0]!=NPROC0)||(np[1]!=NPROC1)||
+                      (np[2]!=NPROC2)||(np[3]!=NPROC3));
+            ipgrd[1]=((bp[0]!=NPROC0_BLK)||(bp[1]!=NPROC1_BLK)||
+                      (bp[2]!=NPROC2_BLK)||(bp[3]!=NPROC3_BLK));
+         }
+         else
+            ie|=0x1;
+      }
+      else if (strstr(line,"fully processed")!=NULL)
       {
          pc=lc;
          
@@ -617,6 +635,9 @@ static void check_old_dat(int fst,int lst,int stp)
 static void check_files(void)
 {
    int fst,lst,stp;
+
+   ipgrd[0]=0;
+   ipgrd[1]=0;
    
    if (my_rank==0)
    {
@@ -652,6 +673,7 @@ static void check_files(void)
 
 static void print_info(void)
 {
+   int n;
    long ip;   
    
    if (my_rank==0)
@@ -688,21 +710,38 @@ static void print_info(void)
          printf("Configurations are read in imported file format\n\n");
       else
          printf("Configurations are read in exported file format\n\n");
-         
-      if (append==0)
-      {
-         printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
-         printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
 
-         if (bc==0)
-            printf("Open boundary conditions\n\n");
+      if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
+         printf("Process grid and process block size changed:\n");            
+      else if (ipgrd[0]!=0)
+         printf("Process grid changed:\n");
+      else if (ipgrd[1]!=0)
+         printf("Process block size changed:\n");
+      
+      if ((append==0)||(ipgrd[0]!=0)||(ipgrd[1]!=0))
+      {
+         printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
+         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+         printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
+         printf("%dx%dx%dx%d process block size\n",
+                NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
+
+         if (append)
+            printf("\n");
          else
          {
-            printf("Schroedinger functional boundary conditions\n\n");
-            print_sf_parms();
+            if (bc==0)
+               printf("Open boundary conditions\n\n");
+            else
+            {
+               printf("Schroedinger functional boundary conditions\n\n");
+               print_sf_parms();
+            }
          }
-         
+      }
+      
+      if (append==0)
+      {
          printf("Wilson flow:\n");
          if (flint==0)
             printf("Euler integrator\n");
@@ -710,7 +749,8 @@ static void print_info(void)
             printf("2nd order RK integrator\n");
          else
             printf("3rd order RK integrator\n");
-         printf("eps = %.2e\n",file_head.eps);
+         n=fdigits(file_head.eps);
+         printf("eps = %.*f\n",IMAX(n,1),file_head.eps);
          printf("nstep = %d\n",file_head.dn*file_head.nn);
          printf("dnms = %d\n\n",file_head.dn);
       }

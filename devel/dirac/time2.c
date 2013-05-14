@@ -3,7 +3,7 @@
 *
 * File time2.c
 *
-* Copyright (C) 2005, 2008, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -75,7 +75,11 @@ int main(int argc,char *argv[])
       }
 
 #if (defined x64)
+#if (defined AVX)
+      printf("Using AVX instructions\n");
+#else      
       printf("Using SSE3 instructions and 16 xmm registers\n");
+#endif
 #if (defined P3)
       printf("Assuming SSE prefetch instructions fetch 32 bytes\n");
 #elif (defined PM)

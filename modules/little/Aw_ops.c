@@ -3,7 +3,7 @@
 *
 * File Aw_ops.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -48,7 +48,7 @@
 * parameter data base (see flags/lat_parms.c).
 *
 * The inversion of a double-precision complex matrix is considered to be
-* safe if and only if its Frobenius condition number is less than 1000.
+* safe if and only if its Frobenius condition number is less than 10^6.
 *
 * All programs in this module may involve global communications and must
 * be called simultaneously on all processes.
@@ -73,8 +73,8 @@
 #include "little.h"
 #include "global.h"
 
-#define MAX_FROBENIUS 1.0e3
-#define MAX_UPDATE 8
+#define MAX_FROBENIUS 1.0e6
+#define MAX_UPDATE 128
 
 static int Ns=0,nb,nbh,nbbh;
 static int *idx,(*inn)[8];
@@ -263,7 +263,7 @@ static void update_Awdiag(double m0,double mu,int eo)
    vol=(*b).vol;
    volh=vol/2;
 
-   if ((nupd<MAX_UPDATE)&&(fabs(dm0)<0.1)&&(fabs(dme)<0.1)&&(fabs(dmo)<0.1))
+   if ((nupd<MAX_UPDATE)&&(fabs(dm0)<1.0)&&(fabs(dme)<1.0)&&(fabs(dmo)<1.0))
    {
       for (n=0;n<nb;n++)
       {

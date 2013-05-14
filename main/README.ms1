@@ -3,7 +3,7 @@ Main program ms1
 
 SYNTAX
 
-ms1 -i <filename> [-noexp] [-a]
+ms1 -i <filename> [-noexp] [-a [-norng]]
 
 
 DESCRIPTION
@@ -28,8 +28,15 @@ through an input file. The options are
 
 -a               This option specifies that the run is a continuation of
                  a previous run. All output data are appended to the
-                 previous output files. 
+                 previous output files.
 
+-norng           Continuation runs normally start from the saved state
+                 of the random number generators. This option specifies 
+                 that the traditional initialization of the generators is
+                 to be used (see section RANDOM NUMBER GENERATOR below).
+                 NOTE: starting from the saved state is not possible if
+                 the process grid sizes NPROC0,..,NPROC3 are changed.
+ 
 
 INPUT PARAMETERS
 
@@ -112,10 +119,13 @@ The program writes the results of the computations to the files
   <run name>.ms1.par   Parameter data file
   <run name>.ms1.par~  Backup parameter data file
 
+  <run name>.ms1.rng   Exported state of the random number generators
+  <run name>.ms1.rng~  Backup random number generator state file
+
 in the directories log_dir (log file) and dat_dir (data files). The parameter
 file is created at the beginning of the run and remains unchanged after that.
-The backup log and data files are updated each time a configuration is fully
-processed.
+The backup copies *.log~, *.dat~ and *.rng~ of the *.log, *.dat and *.rng file
+are updated each time a configuration is fully processed.
 
 The directories log_dir and dat_dir, as well as the directory cnfg_dir if the
 -noexp option is not set, must be accessible from process 0. If the -noexp
@@ -178,18 +188,35 @@ RANDOM NUMBER GENERATOR
 
 Random numbers are generated using the ranlux generator. Depending on the
 context, either single- or double-precision random numbers are generated. The
-generator is initialized using the values of the parameters "level" and "seed"
-specified in the input file. If the configurations are read in imported form,
-the state of the generator is *not* set to the one stored on the configuration
-file. The generated random numbers, and consequently the computed reweighting
-factors, are therefore independent of whether the configurations are read in
-imported or exported form.
+initialization of the generator is as follows:
 
-If a run is a continuation run, the seed actually used is "seed"^n (bitwise
-exclusive or), where n is the number of the last configuration processed in
-the previous run. In a sequence of continuation runs, it is thus entirely
-adequate to leave the parameters "level" and "seed" in the input file
-unchanged.
+- In the case of a new run, the program reads the parameters "level" and 
+  "seed" from the input file and uses these to initialize the generator.
+
+- Continuation runs do the following:
+
+  o If the option -norng is set, the parameters "level" and "seed" are read 
+    from the input parameter file and the generator is initialized using 
+    "seed"^n (bitwise exclusive or) as the seed value, where n is the number 
+    of the last field configuration saved in the previous run.
+
+  o Otherwise the state of the generator is read from the file 
+    <run name>.ms1.rng. The generator is thus reset to the state it had at the
+    end of the previous run. Note that the process grid NPROC0x..xNPROC3 must
+    be unchanged in this case from one run to the next (an error occurs if it
+    is not).
+
+In a sequence of continuation runs, it is therefore recommended to leave the
+process grid unchanged and to make no use of the option -norng. If the process
+grid is changed at some point, the next run must start from an exported field
+configuration and the option -norng must be set. In all cases, the parameters
+"level" and "seed" on the input parameter file may be left unchanged.
+
+Note that if the configurations are read in imported form, the state of the
+generator is *not* set to the one stored on the configuration file. The
+generated random numbers, and consequently the computed reweighting factors,
+are therefore independent of whether the configurations are read in imported
+or exported form.
 
 
 SAFETY MEASURES AND ERROR REPORTING

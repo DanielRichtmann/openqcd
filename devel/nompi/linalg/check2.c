@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2007, 2009, 2011 Martin Luescher
+* Copyright (C) 2007, 2009, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -264,11 +264,13 @@ int main(void)
    printf("Check of cmat_vec_dble, cmat_add_dble, ...\n");
    printf("------------------------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
    
-   a1=amalloc(2*NMAX*(3*NMAX+2)*sizeof(*a1),4);
+   a1=amalloc(2*NMAX*(3*NMAX+2)*sizeof(*a1),6);
    error(a1==NULL,1,"main [check2.c]","Unable to allocate auxiliary arrays");
 
    b1=a1+NMAX*NMAX;

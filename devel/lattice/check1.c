@@ -23,6 +23,8 @@
 #include "lattice.h"
 #include "global.h"
 
+#define NPROC_BLK (NPROC0_BLK*NPROC1_BLK*NPROC2_BLK*NPROC3_BLK)
+
 static int ip_test[NPROC];
 static int ix_test[VOLUME];
 static int ia[2][9];
@@ -66,8 +68,10 @@ int main(int argc,char *argv[])
       printf("---------------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
+      printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);      
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-      printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+      printf("%dx%dx%dx%d grid blocks\n\n",
+             NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
    }
 
    geometry();
@@ -110,10 +114,22 @@ int main(int argc,char *argv[])
 
       if (ip_test[in]!=ipr_global(n))
          itest=1;
+
+      n[0]-=(n[0]%NPROC0_BLK);
+      n[1]-=(n[1]%NPROC1_BLK);
+      n[2]-=(n[2]%NPROC2_BLK);
+      n[3]-=(n[3]%NPROC3_BLK);
+      ir=ipr_global(n);
+
+      if ((ip_test[in]<ir)||(ip_test[in]>=(ir+NPROC_BLK)))
+         itest=2;
    }
 
    error(itest==1,1,
-         "main [check1.c]","ipr_global is process dependent");   
+         "main [check1.c]","ipr_global is process dependent");
+
+   error(itest==2,1,
+         "main [check1.c]","Processes are not properly blocked");     
 
    n[0]=cpr[0];
    n[1]=cpr[1];

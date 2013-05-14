@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2007, 2008, 2011, 2012 Martin Luescher
+* Copyright (C) 2007, 2008, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -161,7 +161,6 @@ int main(int argc,char *argv[])
    
    if (my_rank==0)
    {
-      printf("nflds = %d, nt = %d, wdt = %.2e\n",nflds,nt/2,wt2-wt1);      
       printf("Time per application of Awhat(), including communications:\n");
       printf("Total:     %4.3f msec\n",wdt*1.0e-3);
       printf("Per block: %4.3f usec",wdt/(double)(nb));
@@ -202,7 +201,6 @@ int main(int argc,char *argv[])
 
       if (my_rank==0)
       {
-         printf("nt = %d, wdt = %.2e\n",nt/2,wt2-wt1);
          printf("There are %d boundary blocks\n",nbb);
          printf("Time per application of Awhat() for the communications:\n");
          printf("Total:     %4.3f msec\n",wdt*1.0e-3);

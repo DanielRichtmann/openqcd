@@ -3,7 +3,7 @@
 *
 * File Dw_dble.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -141,9 +141,366 @@ typedef union
 
 static double coe,ceo;
 static const spinor_dble sd0={{{0.0}}};
-static spin_t rs ALIGNED16;
+static spin_t rs ALIGNED32;
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+#define _load_cst(c) \
+__asm__ __volatile__ ("vbroadcastsd %0, %%ymm15 \n\t" \
+                      : \
+                      : \
+                      "m" (c) \
+                      : \
+                      "xmm15")
+
+#define _mul_cst() \
+__asm__ __volatile__ ("vmulpd %%ymm15, %%ymm0, %%ymm0 \n\t" \
+                      "vmulpd %%ymm15, %%ymm1, %%ymm1 \n\t" \
+                      "vmulpd %%ymm15, %%ymm2, %%ymm2" \
+                      : \
+                      : \
+                      : \
+                      "xmm0", "xmm1", "xmm2")
+
+#define _mul_cst_up() \
+__asm__ __volatile__ ("vmulpd %%ymm15, %%ymm3, %%ymm3 \n\t" \
+                      "vmulpd %%ymm15, %%ymm4, %%ymm4 \n\t" \
+                      "vmulpd %%ymm15, %%ymm5, %%ymm5" \
+                      : \
+                      : \
+                      : \
+                      "xmm3", "xmm4", "xmm5")
+
+
+static void doe(int *piup,int *pidn,su3_dble *u,spinor_dble *pk)
+{
+   spinor_dble *sp,*sm;
+
+/******************************* direction +0 *********************************/
+
+   sp=pk+(*(piup++));
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_pair_load_up_dble((*sp).c3,(*sp).c4);
+
+   sm=pk+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+
+   _avx_vector_add_dble();
+   sp=pk+(*(piup++));
+   _prefetch_spinor_dble(sp);
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_weyl_store_up_dble(rs.w[0]);
+   _avx_weyl_store_up_dble(rs.w[1]);
+
+/******************************* direction -0 *********************************/
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_pair_load_up_dble((*sm).c3,(*sm).c4);
+
+   _avx_vector_sub_dble();
+   sm=pk+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_sub_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction +1 *********************************/
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_pair_load_up_dble((*sp).c4,(*sp).c3);
+
+   _avx_vector_i_add_dble();
+   sp=pk+(*(piup++));
+   _prefetch_spinor_dble(sp);
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_xch_i_sub_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction -1 *********************************/
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_pair_load_up_dble((*sm).c4,(*sm).c3);
+
+   _avx_vector_i_sub_dble();
+   sm=pk+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_xch_i_add_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction +2 *********************************/
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_pair_load_up_dble((*sp).c4,(*sp).c3);
+
+   _avx_vector_addsub_dble();
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+   sp=pk+(*(piup));
+   _prefetch_spinor_dble(sp);
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_xch_dble();
+   _avx_vector_subadd_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction -2 *********************************/
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_pair_load_up_dble((*sm).c4,(*sm).c3);
+
+   _avx_vector_subadd_dble();
+   sm=pk+(*(pidn));
+   _prefetch_spinor_dble(sm);
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_xch_dble();
+   _avx_vector_addsub_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction +3 *********************************/
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_pair_load_up_dble((*sp).c3,(*sp).c4);
+
+   _avx_vector_i_addsub_dble();
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _avx_weyl_store_dble(rs.w[0]);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_i_subadd_dble();
+   _avx_weyl_store_dble(rs.w[1]);
+
+/******************************* direction -3 *********************************/
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_pair_load_up_dble((*sm).c3,(*sm).c4);
+
+   _avx_vector_i_subadd_dble();
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _load_cst(coe);
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_vector_add_dble();
+   _mul_cst();
+   _avx_pair_store_dble(rs.s.c1,rs.s.c2);
+
+   _avx_weyl_load_dble(rs.w[1]);
+   _avx_vector_i_addsub_dble();
+   _mul_cst();
+   _avx_pair_store_dble(rs.s.c3,rs.s.c4);
+
+   _avx_zeroupper();
+}
+
+
+static void deo(int *piup,int *pidn,su3_dble *u,spinor_dble *pl)
+{
+   spinor_dble *sp,*sm;
+
+/******************************* direction +0 *********************************/
+
+   sp=pl+(*(piup++));
+   _prefetch_spinor_dble(sp);
+
+   _load_cst(ceo);   
+   _avx_pair_load_dble(rs.s.c1,rs.s.c2);
+   _avx_pair_load_up_dble(rs.s.c3,rs.s.c4);
+   _mul_cst();
+   _mul_cst_up();   
+   _avx_weyl_store_dble(rs.w[0]);
+   _avx_weyl_store_up_dble(rs.w[1]);
+
+   sm=pl+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+   _avx_vector_sub_dble();
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sp).c1,(*sp).c2);
+
+   _avx_pair_load_dble((*sp).c3,(*sp).c4);
+   _avx_vector_sub_dble();
+   _avx_pair_store_dble((*sp).c3,(*sp).c4);
+
+/******************************* direction -0 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sp=pl+(*(piup++));
+   _prefetch_spinor_dble(sp);
+   _avx_vector_add_dble();
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sm).c1,(*sm).c2);
+
+   _avx_pair_load_dble((*sm).c3,(*sm).c4);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sm).c3,(*sm).c4);
+
+/******************************* direction +1 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sm=pl+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+   _avx_vector_xch_i_sub_dble();
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sp).c1,(*sp).c2);
+
+   _avx_pair_load_dble((*sp).c3,(*sp).c4);
+   _avx_vector_xch_i_add_dble();
+   _avx_pair_store_dble((*sp).c3,(*sp).c4);
+
+/******************************* direction -1 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sp=pl+(*(piup++));
+   _prefetch_spinor_dble(sp);
+   _avx_vector_xch_i_add_dble();
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sm).c1,(*sm).c2);
+
+   _avx_pair_load_dble((*sm).c3,(*sm).c4);
+   _avx_vector_xch_i_sub_dble();
+   _avx_pair_store_dble((*sm).c3,(*sm).c4);
+
+/******************************* direction +2 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sm=pl+(*(pidn++));
+   _prefetch_spinor_dble(sm);
+   _avx_vector_xch_dble();
+   _avx_vector_subadd_dble();
+   u+=1;
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sp).c1,(*sp).c2);
+
+   _avx_pair_load_dble((*sp).c3,(*sp).c4);
+   _avx_vector_xch_dble();
+   _avx_vector_addsub_dble();
+   _avx_pair_store_dble((*sp).c3,(*sp).c4);
+
+/******************************* direction -2 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sp=pl+(*(piup));
+   _prefetch_spinor_dble(sp);
+   _avx_vector_xch_dble();
+   _avx_vector_addsub_dble();
+   u+=1;   
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sm).c1,(*sm).c2);
+
+   _avx_pair_load_dble((*sm).c3,(*sm).c4);
+   _avx_vector_xch_dble();
+   _avx_vector_subadd_dble();
+   _avx_pair_store_dble((*sm).c3,(*sm).c4);
+
+/******************************* direction +3 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   sm=pl+(*(pidn));
+   _prefetch_spinor_dble(sm);
+   _avx_vector_i_subadd_dble();
+   u+=1;   
+   _avx_su3_inverse_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sp).c1,(*sp).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sp).c1,(*sp).c2);
+
+   _avx_pair_load_dble((*sp).c3,(*sp).c4);
+   _avx_vector_i_addsub_dble();
+   _avx_pair_store_dble((*sp).c3,(*sp).c4);
+
+/******************************* direction -3 *********************************/
+
+   _avx_weyl_load_dble(rs.w[0]);
+   _avx_weyl_load_up_dble(rs.w[1]);
+
+   _avx_vector_i_addsub_dble();
+   u+=1;
+   _avx_su3_multiply_pair_dble(*u);
+
+   _avx_pair_load_dble((*sm).c1,(*sm).c2);
+   _avx_vector_add_dble();
+   _avx_pair_store_dble((*sm).c1,(*sm).c2);
+
+   _avx_pair_load_dble((*sm).c3,(*sm).c4);
+   _avx_vector_i_subadd_dble();
+   _avx_pair_store_dble((*sm).c3,(*sm).c4);
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 #define _load_cst(c) \

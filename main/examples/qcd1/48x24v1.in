@@ -148,15 +148,11 @@ mu           0.01
 ninv         9
 nmr          4
 ncy          4
-nkv          16
-nmx          128
-res          1.0e-3
 
-[Deflation projectors]
+[Deflation projection]
 nkv          16
 nmx          256
-resd         1.0e-12
-res          1.0e-6
+res          1.0e-2
 
 [Deflation update scheme]
 dtau         0.09

@@ -3,7 +3,7 @@
 *
 * File check7.c
 *
-* Copyright (C) 2011, 2012 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -108,10 +108,10 @@ static double dSdt(double mu0,double mu1,int ipf,int isp,int *status)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,isp,status[8],mnkv;
+   int my_rank,isp,status[6],mnkv;
    int bs[4],Ns,nmx,nkv,isolv,nmr,ncy,ninv;
    int isap,idfl;
-   double kappa,mu,mu0,mu1,resd,res;
+   double kappa,mu,mu0,mu1,res;
    double eps,act0,act1,dact,dsdt;
    double dev_act[2],dev_frc,sig_loss,rdmy;
    solver_parms_t sp;
@@ -171,9 +171,6 @@ int main(int argc,char *argv[])
       read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
@@ -181,28 +178,23 @@ int main(int argc,char *argv[])
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);   
-   mnkv=nkv;
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);   
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 
-   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);   
+   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);
+   mnkv=0;
       
    for (isp=0;isp<3;isp++)
    {
@@ -223,10 +215,13 @@ int main(int argc,char *argv[])
    start_ranlux(0,1245);
    geometry();
 
-   if (2*mnkv>4)
-      alloc_ws(2*mnkv+1);
-   else
-      alloc_ws(5);
+   mnkv=2*mnkv+2;
+   if (mnkv<(Ns+2))
+      mnkv=Ns+2;
+   if (mnkv<5)
+      mnkv=5;
+   
+   alloc_ws(mnkv);
    alloc_wsd(6);
    alloc_wv(2*nkv+2);
    alloc_wvd(4);
@@ -264,16 +259,13 @@ int main(int argc,char *argv[])
 
       status[0]=0;
       status[1]=0;
-      status[2]=0;
 
       act0=setpf2(mu0,mu1,0,isp,0,status);
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
-                 "main [check7.c]","setpf2 failed (isp,mu0,mu1=%d,%.2e,%.2e)",
-                 isp,mu0,mu1); 
+      error_root((status[0]<0)||(status[1]<0),1,"main [check7.c]",
+                 "setpf2 failed (isp,mu0,mu1=%d,%.2e,%.2e)",isp,mu0,mu1); 
       act1=action2(mu0,mu1,0,isp,0,status);
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
-                 "main [check7.c]","action2 failed (isp,mu0,mu1=%d,%.2e,%.2e)",
-                 isp,mu0,mu1); 
+      error_root((status[0]<0)||(status[1]<0),1,"main [check7.c]",
+                 "action2 failed (isp,mu0,mu1=%d,%.2e,%.2e)",isp,mu0,mu1); 
       
       rdmy=fabs(act1-act0);
       MPI_Reduce(&rdmy,dev_act,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
@@ -292,9 +284,9 @@ int main(int argc,char *argv[])
          else if (isp==1)
             printf("Status = %d,%d\n",status[0],status[1]);
          else
-            printf("Status = (%d,%d,%d,%d),(%d,%d,%d,%d)\n",
+            printf("Status = (%d,%d,%d),(%d,%d,%d)\n",
                    status[0],status[1],status[2],status[3],
-                   status[4],status[5],status[6],status[7]);
+                   status[4],status[5]);
 
          printf("Absolute action difference |setpf2-action2| = %.1e,",
                 fabs(dev_act[1]));

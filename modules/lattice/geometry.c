@@ -3,7 +3,7 @@
 *
 * File geometry.c
 *
-* Copyright (C) 2005, 2008, 2011 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -69,44 +69,74 @@
 #include "lattice.h"
 #include "global.h"
 
+#define NPROC_BLK (NPROC0_BLK*NPROC1_BLK*NPROC2_BLK*NPROC3_BLK)
+#define NBLK0 (NPROC0/NPROC0_BLK)
+#define NBLK1 (NPROC1/NPROC1_BLK)
+#define NBLK2 (NPROC2/NPROC2_BLK)
+#define NBLK3 (NPROC3/NPROC3_BLK)
+
 static int cbs[4],cbn[4],*cbix=NULL;
 static int *tms=NULL;
 
 
 int ipr_global(int *n)
 {
-   int ip;
+   int ib,ip;
+   int n0,n1,n2,n3;
+   int nb0,nb1,nb2,nb3;
+   int np0,np1,np2,np3;
+   
+   n0=safe_mod(n[0],NPROC0);
+   n1=safe_mod(n[1],NPROC1);
+   n2=safe_mod(n[2],NPROC2);
+   n3=safe_mod(n[3],NPROC3);
 
-   ip=safe_mod(n[0],NPROC0);
-   ip=ip*NPROC1+safe_mod(n[1],NPROC1);
-   ip=ip*NPROC2+safe_mod(n[2],NPROC2);
-   ip=ip*NPROC3+safe_mod(n[3],NPROC3);
+   nb0=n0/NPROC0_BLK;
+   nb1=n1/NPROC1_BLK;
+   nb2=n2/NPROC2_BLK;
+   nb3=n3/NPROC3_BLK;
 
-   return ip;
+   np0=n0%NPROC0_BLK;
+   np1=n1%NPROC1_BLK;
+   np2=n2%NPROC2_BLK;
+   np3=n3%NPROC3_BLK;   
+
+   ib=nb0;
+   ib=ib*NBLK1+nb1;
+   ib=ib*NBLK2+nb2;
+   ib=ib*NBLK3+nb3;
+   
+   ip=np0;
+   ip=ip*NPROC1_BLK+np1;
+   ip=ip*NPROC2_BLK+np2;
+   ip=ip*NPROC3_BLK+np3;
+
+   return ip+ib*NPROC_BLK;
 }
 
 
 void ipt_global(int *x,int *ip,int *ix)
 {
    int x0,x1,x2,x3;
-   int n0,n1,n2,n3;
+   int n[4];
 
    x0=safe_mod(x[0],NPROC0*L0);
    x1=safe_mod(x[1],NPROC1*L1);
    x2=safe_mod(x[2],NPROC2*L2);
    x3=safe_mod(x[3],NPROC3*L3);
 
-   n0=x0/L0;
-   n1=x1/L1;
-   n2=x2/L2;
-   n3=x3/L3;
+   n[0]=x0/L0;
+   n[1]=x1/L1;
+   n[2]=x2/L2;
+   n[3]=x3/L3;
 
-   x0-=(n0*L0);
-   x1-=(n1*L1);
-   x2-=(n2*L2);
-   x3-=(n3*L3);
+   (*ip)=ipr_global(n);
+   
+   x0=x0%L0;
+   x1=x1%L1;
+   x2=x2%L2;
+   x3=x3%L3;
 
-   (*ip)=n3+NPROC3*n2+NPROC2*NPROC3*n1+NPROC1*NPROC2*NPROC3*n0;
    (*ix)=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
 }
 
@@ -126,6 +156,7 @@ int global_time(int ix)
 
 static void set_cpr(void)
 {
+   int ib,ip;
    int np,nr;
 
    MPI_Comm_size(MPI_COMM_WORLD,&np);
@@ -138,13 +169,22 @@ static void set_cpr(void)
    error((nr<0)||(nr>=NPROC),1,"set_cpr [geometry.c]",
          "Rank of process is out of range");
 
-   cpr[3]=nr%NPROC3;
-   nr/=NPROC3;
-   cpr[2]=nr%NPROC2;
-   nr/=NPROC2;
-   cpr[1]=nr%NPROC1;
-   nr/=NPROC1;
-   cpr[0]=nr;
+   ib=nr/NPROC_BLK;
+   ip=nr%NPROC_BLK;
+
+   cpr[3]=(ib%NBLK3)*NPROC3_BLK+(ip%NPROC3_BLK);
+   ib/=NBLK3;
+   ip/=NPROC3_BLK;
+
+   cpr[2]=(ib%NBLK2)*NPROC2_BLK+(ip%NPROC2_BLK);
+   ib/=NBLK2;
+   ip/=NPROC2_BLK;
+
+   cpr[1]=(ib%NBLK1)*NPROC1_BLK+(ip%NPROC1_BLK);
+   ib/=NBLK1;
+   ip/=NPROC1_BLK;
+
+   cpr[0]=ib*NPROC0_BLK+ip;
 }
 
 

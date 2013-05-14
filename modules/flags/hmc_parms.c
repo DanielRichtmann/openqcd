@@ -3,7 +3,7 @@
 *
 * File hmc_parms.c
 *
-* Copyright (C) 2009, 2010, 2011 Martin Luescher
+* Copyright (C) 2009, 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -177,7 +177,7 @@ hmc_parms_t hmc_parms(void)
 
 void print_hmc_parms(void)
 {
-   int my_rank,i;
+   int my_rank,n,i;
    
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
@@ -193,11 +193,15 @@ void print_hmc_parms(void)
       {
          printf("mu =");
          for (i=0;i<hmc.nmu;i++)
-            printf(" %.3e",hmc.mu[i]);
+         {
+            n=fdigits(hmc.mu[i]);
+            printf(" %.*f",IMAX(n,1),hmc.mu[i]);
+         }
          printf("\n");
       }
       printf("nlv = %d\n",hmc.nlv);
-      printf("tau = %.4f\n\n",hmc.tau);
+      n=fdigits(hmc.tau);
+      printf("tau = %.*f\n\n",IMAX(n,1),hmc.tau);
    }
 }
 

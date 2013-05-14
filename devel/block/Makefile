@@ -65,27 +65,27 @@ VPATH = .:$(MDIR)/flags:$(MDIR)/random:$(MDIR)/lattice:$(MDIR)/block:\
 
 # additional include directories
 
-INCPATH = $(MPIR_HOME)/include ../../include
+INCPATH = $(MPI_INCLUDE) ../../include
 
 
 # additional libraries
  
 LIBS = m
 
-LIBPATH = $(MPIR_HOME)/lib
+LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM
+         -O -mno-avx -Dx64 -DPM
 
 
 ############################## do not change ###################################
 
 SHELL=/bin/bash
-CC=$(MPIR_HOME)/bin/mpicc
+CC=$(MPI_HOME)/bin/mpicc
 CLINKER=$(CC) 
 
 PGMS= $(MAIN) $(MODULES)

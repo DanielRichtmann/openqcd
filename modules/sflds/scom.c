@@ -3,7 +3,7 @@
 *
 * File scom.c
 *
-* Copyright (C) 2005, 2008, 2011 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -92,6 +92,9 @@ static void alloc_sbufs(void)
    int ifc,tag,saddr,raddr;
    weyl *w,*wm;
 
+   error(iup[0][0]==0,1,"alloc_sbufs [scom.c]",
+         "Geometry arrays are not initialized");
+   
    wb=amalloc(BNDRY*sizeof(*wb),ALIGN);
    error(wb==NULL,1,"alloc_sbufs [scom.c]",
          "Unable to allocate communication buffers");

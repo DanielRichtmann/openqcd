@@ -25,8 +25,7 @@ ARCHIVE = archive marchive
 
 BLOCK = block blk_grid map_u2blk map_sw2blk map_s2blk
 
-DFL = dfl_geometry dfl_subspace ltl_gcr dfl_projectors dfl_sap_gcr \
-      dfl_modes
+DFL = dfl_geometry dfl_subspace ltl_gcr dfl_sap_gcr dfl_modes
 
 DIRAC = Dw_dble Dw Dw_bnd
 
@@ -93,21 +92,21 @@ VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/archive:$(MDIR)/linalg:\
 
 # additional include directories
 
-INCPATH = $(MPIR_HOME)/include ../../include
+INCPATH = $(MPI_INCLUDE) ../../include
 
 
 # additional libraries
  
 LIBS = m
 
-LIBPATH = $(MPIR_HOME)/lib
+LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM
+         -O -mno-avx -Dx64 -DPM
 
 # -DMDINT_DBG -DRWRAT_DBG
 
@@ -115,7 +114,7 @@ CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
 ############################## do not change ###################################
 
 SHELL=/bin/bash
-CC=$(MPIR_HOME)/bin/mpicc
+CC=$(MPI_HOME)/bin/mpicc
 CLINKER=$(CC) 
 
 PGMS= $(MAIN) $(MODULES)

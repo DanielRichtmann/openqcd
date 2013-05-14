@@ -3,12 +3,12 @@
 *
 * File time1.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of mul_pauli()
+* Timing of mul_pauli() and mul_pauli2()
 *
 *******************************************************************************/
 
@@ -27,8 +27,15 @@ typedef union
    float r[12];
 } spin_t;
 
-static pauli mp1,mp2 ALIGNED16;
+typedef union
+{
+   spinor s;
+   float r[24];
+} spin2_t;
+
+static pauli mp[4] ALIGNED16;
 static spin_t s1,s2,r1,r2 ALIGNED16;
+static spin2_t sd1,sd2,rd1,rd2 ALIGNED16;
 
 
 int main(void)
@@ -38,20 +45,27 @@ int main(void)
    double t1,t2,dt;
 
    printf("\n");
-   printf("Timing of mul_pauli()\n");
-   printf("---------------------\n\n");
+   printf("Timing of mul_pauli() and mul_pauli2()\n");
+   printf("--------------------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");
    
    rlxs_init(0,23456);
-   ranlxs(mp1.u,36);
-   ranlxs(mp2.u,36);
+
+   for (n=0;n<4;n++)
+      ranlxs(mp[n].u,36);
+
    ranlxs(s1.r,12);
    ranlxs(s2.r,12);
+   ranlxs(sd1.r,24);
+   ranlxs(sd2.r,24);
+
    mu1=0.1234f;
    mu2=0.5678f;
 
@@ -63,8 +77,8 @@ int main(void)
       t1=(double)clock();
       for (count=0;count<n;count++)
       {
-         mul_pauli(mu1,&mp1,&(s1.w),&(r1.w));
-         mul_pauli(mu2,&mp2,&(s2.w),&(r2.w));
+         mul_pauli(mu1,mp,&(s1.w),&(r1.w));
+         mul_pauli(mu2,mp+1,&(s2.w),&(r2.w));
       }
       t2=(double)clock();
       dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
@@ -76,6 +90,28 @@ int main(void)
    printf("Time per call of mul_pauli():\n");
    printf("%.4f usec (%d Mflops [%d bit arithmetic])\n\n",
           dt,(int)(276.0/dt),(int)(sizeof(spinor)/3));
+
+   n=(int)(0.5e6);
+   dt=0.0;
+
+   while (dt<2.0)
+   {
+      t1=(double)clock();
+      for (count=0;count<n;count++)
+      {
+         mul_pauli2(mu1,mp,&(sd1.s),&(rd1.s));
+         mul_pauli2(mu2,mp+2,&(sd2.s),&(rd2.s));
+      }
+      t2=(double)clock();
+      dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
+      n*=2;
+   }
+
+   dt*=(1.0e6/(double)(n));
+
+   printf("Time per call of mul_pauli2():\n");
+   printf("%.4f usec (%d Mflops [%d bit arithmetic])\n\n",
+          dt,(int)(552.0/dt),(int)(sizeof(spinor)/3));   
 
    exit(0);
 }

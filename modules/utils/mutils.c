@@ -3,7 +3,7 @@
 *
 * File mutils.c
 *
-* Copyright (C) 2005, 2007, 2008, 2011 Martin Luescher
+* Copyright (C) 2005, 2007, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -17,6 +17,11 @@
 *     argv[1],..,argv[argc-1] and returns the position of the first argument
 *     that matches the string. If there is no matching argument, or if the
 *     program is called from another process, the return value is 0.
+*
+*   int fdigits(double x)
+*     Returns the smallest integer n such that the value of x printed with
+*     print format %.nf coincides with x up to a relative error at most a
+*     few times the machine precision DBL_EPSILON.
 *
 *   void check_dir(char* dir)
 *     This program checks whether the directory dir is locally accessible,
@@ -157,6 +162,36 @@ int find_opt(int argc,char *argv[],char *opt)
    return 0;
 }
 
+
+int fdigits(double x)
+{
+   int m,n,ne,k;
+   double y,z;
+
+   if (x==0.0)
+      return 0;
+   
+   y=fabs(x);
+   z=DBL_EPSILON*y;
+   m=floor(log10(y+z));
+   n=0;
+   ne=1;
+
+   for (k=0;k<(DBL_DIG-m);k++)
+   {
+      z=sqrt((double)(ne))*DBL_EPSILON*y;
+
+      if (((y-floor(y))<=z)||((ceil(y)-y)<=z))
+         break;
+
+      y*=10.0;
+      ne+=1;
+      n+=1;
+   }
+
+   return n;
+}
+   
 
 void check_dir(char* dir)
 {
@@ -715,3 +750,5 @@ int copy_file(char *in,char *out)
       return 1;
    }
 }
+
+

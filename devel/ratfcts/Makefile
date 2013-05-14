@@ -23,13 +23,15 @@ MAIN = check1
 
 FLAGS = flags rat_parms
 
+LATTICE = geometry
+
 RANDOM = ranlux ranlxs ranlxd gauss
 
 RATFCTS = elliptic zolotarev ratfcts
 
 UTILS = endian mutils utils
 
-MODULES = $(FLAGS) $(RANDOM) $(RATFCTS) $(UTILS)
+MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(RATFCTS) $(UTILS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -41,32 +43,33 @@ LOGOPTION =
 
 MDIR = ../../modules
 
-VPATH = .:$(MDIR)/flags:$(MDIR)/random:$(MDIR)/ratfcts:$(MDIR)/utils
+VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/random:$(MDIR)/ratfcts:\
+          $(MDIR)/utils
 
 
 # additional include directories
 
-INCPATH = $(MPIR_HOME)/include ../../include
+INCPATH = $(MPI_INCLUDE) ../../include
 
 
 # additional libraries
  
 LIBS = m
 
-LIBPATH = $(MPIR_HOME)/lib
+LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM
+         -O -mno-avx -Dx64 -DPM
 
 
 ############################## do not change ###################################
 
 SHELL=/bin/bash
-CC=$(MPIR_HOME)/bin/mpicc
+CC=$(MPI_HOME)/bin/mpicc
 CLINKER=$(CC) 
 
 PGMS= $(MAIN) $(MODULES)

@@ -34,10 +34,15 @@ typedef union
    double r[72];
 } mat_t;
 
+#if (defined AVX)
+static pauli_dble mp ALIGNED32;
+static spin_t s1,s2,r1,r2 ALIGNED32;
+static mat_t mv ALIGNED32;
+#else
 static pauli_dble mp ALIGNED16;
 static spin_t s1,s2,r1,r2 ALIGNED16;
 static mat_t mv ALIGNED16;
-
+#endif
 
 static void cpvec(int n,complex_dble *s,complex_dble *r)
 {
@@ -71,7 +76,9 @@ int main(void)
    printf("Check of mul_pauli_dble()\n");
    printf("-------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 

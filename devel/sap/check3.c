@@ -148,7 +148,6 @@ int main(int argc,char *argv[])
 
    error_root(((last-first)%step)!=0,1,"main [check3.c]",
               "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
 
    nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
    error_root(nsize>=NAME_SIZE,1,"main [check3.c]",

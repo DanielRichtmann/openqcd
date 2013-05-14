@@ -3,14 +3,14 @@
 *
 * File ms1.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Measurement of reweighting factors
 *
-* Syntax: ms1 -i <input file> [-noexp] [-a]
+* Syntax: ms1 -i <input file> [-noexp] [-a [-norng]]
 *
 * For usage instructions see the file README.ms1
 *
@@ -34,6 +34,11 @@
 #include "version.h"
 #include "global.h"
 
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
+
 #define MAX(n,m) \
    if ((n)<(m)) \
       (n)=(m)
@@ -50,9 +55,9 @@ static struct
    double **sqn,**lnr;
 } data;
 
-static int my_rank,noexp,append,endian;
+static int my_rank,noexp,append,norng,endian;
 static int first,last,step,level,seed;
-static int **rwstat=NULL,*rlxs_state=NULL,*rlxd_state=NULL;
+static int ipgrd[2],**rwstat=NULL,*rlxs_state=NULL,*rlxd_state=NULL;
 
 static char line[NAME_SIZE];
 static char log_dir[NAME_SIZE],dat_dir[NAME_SIZE];
@@ -60,6 +65,7 @@ static char loc_dir[NAME_SIZE],cnfg_dir[NAME_SIZE];
 static char log_file[NAME_SIZE],log_save[NAME_SIZE],end_file[NAME_SIZE];
 static char par_file[NAME_SIZE],par_save[NAME_SIZE];
 static char dat_file[NAME_SIZE],dat_save[NAME_SIZE];
+static char rng_file[NAME_SIZE],rng_save[NAME_SIZE];
 static char cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fdat=NULL,*fend=NULL;
 
@@ -343,10 +349,12 @@ static void setup_files(void)
    sprintf(log_file,"%s/%s.ms1.log",log_dir,nbase);
    sprintf(par_file,"%s/%s.ms1.par",dat_dir,nbase);   
    sprintf(dat_file,"%s/%s.ms1.dat",dat_dir,nbase);
+   sprintf(rng_file,"%s/%s.ms1.rng",dat_dir,nbase);   
    sprintf(end_file,"%s/%s.ms1.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
    sprintf(par_save,"%s~",par_file);   
    sprintf(dat_save,"%s~",dat_file);
+   sprintf(rng_save,"%s~",rng_file);   
 }
 
 
@@ -441,7 +449,7 @@ static void read_dfl_parms(void)
 {
    int bs[4],Ns;
    int ninv,nmr,ncy,nkv,nmx;
-   double kappa,mu,res,resd;
+   double kappa,mu,res;
 
    if (my_rank==0)
    {
@@ -462,9 +470,6 @@ static void read_dfl_parms(void)
       read_line("ninv","%d",&ninv);     
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -472,25 +477,20 @@ static void read_dfl_parms(void)
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);           
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
    
    if (append)
       check_dfl_parms(fdat);
@@ -562,13 +562,14 @@ static void read_infile(int argc,char *argv[])
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1)),1,"read_infile [ms1.c]",
-                 "Syntax: ms1 -i <input file> [-noexp] [-a]");
+                 "Syntax: ms1 -i <input file> [-noexp] [-a [-norng]]");
 
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [ms1.c]",
                  "Machine has unknown endianness");
 
       noexp=find_opt(argc,argv,"-noexp");      
       append=find_opt(argc,argv,"-a");
+      norng=find_opt(argc,argv,"-norng");
       
       fin=freopen(argv[ifile+1],"r",stdin);
       error_root(fin==NULL,1,"read_infile [ms1.c]",
@@ -578,6 +579,7 @@ static void read_infile(int argc,char *argv[])
    MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&append,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&norng,1,MPI_INT,0,MPI_COMM_WORLD);
    
    read_dirs();
    setup_files();
@@ -612,6 +614,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
 {
    int ie,ic,isv;
    int fc,lc,dc,pc;
+   int np[4],bp[4];
    
    fend=fopen(log_file,"r");
    error_root(fend==NULL,1,"check_old_log [ms1.c]",
@@ -628,7 +631,20 @@ static void check_old_log(int *fst,int *lst,int *stp)
          
    while (fgets(line,NAME_SIZE,fend)!=NULL)
    {
-      if (strstr(line,"fully processed")!=NULL)
+      if (strstr(line,"process grid")!=NULL)
+      {
+         if (sscanf(line,"%dx%dx%dx%d process grid, %dx%dx%dx%d",
+                    np,np+1,np+2,np+3,bp,bp+1,bp+2,bp+3)==8)
+         {
+            ipgrd[0]=((np[0]!=NPROC0)||(np[1]!=NPROC1)||
+                      (np[2]!=NPROC2)||(np[3]!=NPROC3));
+            ipgrd[1]=((bp[0]!=NPROC0_BLK)||(bp[1]!=NPROC1_BLK)||
+                      (bp[2]!=NPROC2_BLK)||(bp[3]!=NPROC3_BLK));
+         }
+         else
+            ie|=0x1;
+      }
+      else if (strstr(line,"fully processed")!=NULL)
       {
          pc=lc;
          
@@ -713,6 +729,9 @@ static void check_old_dat(int fst,int lst,int stp)
 static void check_files(void)
 {
    int fst,lst,stp;
+
+   ipgrd[0]=0;
+   ipgrd[1]=0;
    
    if (my_rank==0)
    {
@@ -748,7 +767,7 @@ static void check_files(void)
 
 static void print_info(void)
 {
-   int isap,idfl;
+   int isap,idfl,n;
    long ip;   
    lat_parms_t lat;
    
@@ -786,30 +805,58 @@ static void print_info(void)
          printf("Configurations are read in imported file format\n\n");
       else
          printf("Configurations are read in exported file format\n\n");
-         
+
+      if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
+         printf("Process grid and process block size changed:\n");            
+      else if (ipgrd[0]!=0)
+         printf("Process grid changed:\n");
+      else if (ipgrd[1]!=0)
+         printf("Process block size changed:\n");
+      
+      if ((append==0)||(ipgrd[0]!=0)||(ipgrd[1]!=0))
+      {
+         printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
+         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+         printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
+         printf("%dx%dx%dx%d process block size\n",
+                NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
+
+         if (append)
+            printf("\n");
+         else
+            printf("SF boundary conditions on the quark fields\n\n");
+      }
+
       if (append)
       {
          printf("Random number generator:\n");
-         printf("level = %d, seed = %d, effective seed = %d\n\n",
-                level,seed,seed^(first-step));
+
+         if (norng)
+            printf("level = %d, seed = %d, effective seed = %d\n\n",
+                   level,seed,seed^(first-step));
+         else
+         {
+            printf("State of ranlxs and ranlxd reset to the\n");
+            printf("last exported state\n\n");
+         }
       }
       else
       {
-         printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
-         printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
-         printf("Open boundary conditions\n\n");
-
          printf("Random number generator:\n");
          printf("level = %d, seed = %d\n\n",level,seed);
          
          lat=lat_parms();
          printf("Lattice parameters:\n");
-         printf("kappa_u = %.6f\n",lat.kappa_u);      
-         printf("kappa_s = %.6f\n",lat.kappa_s);
-         printf("kappa_c = %.6f\n",lat.kappa_c);               
-         printf("csw = %.6f\n",lat.csw);      
-         printf("cF = %.6f\n\n",lat.cF);
+         n=fdigits(lat.kappa_u);
+         printf("kappa_u = %.*f\n",IMAX(n,6),lat.kappa_u);      
+         n=fdigits(lat.kappa_s);
+         printf("kappa_s = %.*f\n",IMAX(n,6),lat.kappa_s);
+         n=fdigits(lat.kappa_c);
+         printf("kappa_c = %.*f\n",IMAX(n,6),lat.kappa_c);               
+         n=fdigits(lat.csw);
+         printf("csw = %.*f\n",IMAX(n,1),lat.csw);      
+         n=fdigits(lat.cF);
+         printf("cF = %.*f\n\n",IMAX(n,1),lat.cF);
 
          print_rw_parms();
          print_rat_parms();
@@ -833,15 +880,12 @@ static void dfl_wsize(int *nws,int *nwv,int *nwvd)
 {
    dfl_parms_t dp;
    dfl_pro_parms_t dpp;
-   dfl_gen_parms_t dgp;
 
    dp=dfl_parms();
    dpp=dfl_pro_parms();
-   dgp=dfl_gen_parms();
 
    MAX(*nws,dp.Ns+2);
    MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwv,2*dgp.nkv+2);
    MAX(*nwvd,4);
 }
 
@@ -876,7 +920,7 @@ static void solver_wsize(int isp,int nsd,int np,
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
-      MAX(*nws,2*sp.nkv+1);      
+      MAX(*nws,2*sp.nkv+2);      
       MAX(*nwsd,nsd+4);
       dfl_wsize(nws,nwv,nwvd);
    }         
@@ -949,7 +993,7 @@ static void alloc_rwstat(void)
 
    nmx*=2;
    pp=malloc(nmx*sizeof(*pp));
-   p=malloc(4*nmx*sizeof(*p));
+   p=malloc(3*nmx*sizeof(*p));
    error((pp==NULL)||(p==NULL),1,"alloc_rwstat [ms1.c]",
          "Unable to allocate status array");
 
@@ -958,7 +1002,7 @@ static void alloc_rwstat(void)
    for (n=0;n<nmx;n++)
    {
       pp[n]=p;
-      p+=4;
+      p+=3;
    }
 }
 
@@ -980,10 +1024,10 @@ static void print_rwstat(int irw)
 
       for (l=0;l<n;l++)
       {
-         for (j=0;j<3;j++)
+         for (j=0;j<2;j++)
             rwstat[l][j]=(rwstat[l][j]+(nsrc/2))/nsrc;
 
-         nrs+=rwstat[l][3];
+         nrs+=rwstat[l][2];
          sp=solver_parms(isp[l]);
          
          if (l==0)
@@ -992,7 +1036,7 @@ static void print_rwstat(int irw)
             printf(";");
          
          if (sp.solver==DFL_SAP_GCR)
-            printf("%d,%d,%d",rwstat[l][0],rwstat[l][1],rwstat[l][2]);
+            printf("%d,%d",rwstat[l][0],rwstat[l][1]);
          else
             printf("%d",rwstat[l][0]);
       }
@@ -1016,26 +1060,26 @@ static void print_status(int irw,int *status)
       rwp=rw_parms(irw);
       nsrc=rwp.nsrc;
 
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
       {
          status[l]=(status[l]+(nsrc/2))/nsrc;
-         status[4+l]=(status[4+l]+(nsrc/2))/nsrc;
+         status[3+l]=(status[3+l]+(nsrc/2))/nsrc;
       }
 
-      nrs=status[3]+status[7];
+      nrs=status[2]+status[5];
       sp=solver_parms(rwp.isp[0]);
       
       printf("RWF %d: status = ",irw);
 
       if (sp.solver==DFL_SAP_GCR)
-         printf("%d,%d,%d",status[0],status[1],status[2]);
+         printf("%d,%d",status[0],status[1]);
       else
          printf("%d",status[0]);
 
       if ((rwp.rwfact==RWTM2)||(rwp.rwfact==RWTM2_EO))
       {
          if (sp.solver==DFL_SAP_GCR)
-            printf(";%d,%d,%d",status[4],status[5],status[6]);
+            printf(";%d,%d",status[3],status[4]);
          else
             printf(";%d",status[1]);
       }
@@ -1051,7 +1095,7 @@ static void print_status(int irw,int *status)
 static void set_data(int nc)
 {
    int nrw,nsrc,irw,isrc;
-   int n,l,j,status[8],stat[8];
+   int n,l,j,status[6],stat[6];
    double *sqn,*lnr;
    rw_parms_t rwp;
 
@@ -1075,7 +1119,7 @@ static void set_data(int nc)
 
          for (l=0;l<(2*n);l++)
          {
-            for (j=0;j<4;j++)
+            for (j=0;j<3;j++)
                rwstat[l][j]=0;
          }
 
@@ -1085,10 +1129,10 @@ static void set_data(int nc)
 
             for (l=0;l<n;l++)
             {
-               for (j=0;j<3;j++)
+               for (j=0;j<2;j++)
                   rwstat[l][j]+=rwstat[n+l][j];
 
-               rwstat[l][3]+=(rwstat[n+l][3]!=0);
+               rwstat[l][2]+=(rwstat[n+l][2]!=0);
             }  
          }
 
@@ -1096,7 +1140,7 @@ static void set_data(int nc)
       }
       else
       {
-         for (l=0;l<8;l++)
+         for (l=0;l<6;l++)
          {
             status[l]=0;
             stat[l]=0;
@@ -1115,14 +1159,14 @@ static void set_data(int nc)
             else
                error_root(1,1,"set_data [ms1.c]","Unknown reweighting factor");
 
-            for (l=0;l<3;l++)
+            for (l=0;l<2;l++)
             {
                status[l]+=stat[l];
-               status[4+l]+=stat[4+l];
+               status[3+l]+=stat[3+l];
             }
 
-            status[3]+=(stat[3]!=0);
-            status[7]+=(stat[7]!=0);
+            status[2]+=(stat[2]!=0);
+            status[5]+=(stat[5]!=0);
          }
 
          print_status(irw,status);
@@ -1148,6 +1192,26 @@ static void set_data(int nc)
          printf("\n");
       }
    }
+}
+
+
+static void init_rng(void)
+{
+   int ic;
+   
+   if (append)
+   {
+      if (norng)
+         start_ranlux(level,seed^(first-step));
+      else
+      {
+         ic=import_ranlux(rng_file);
+         error_root(ic!=(first-step),1,"init_rng [ms1.c]",
+                    "Configuration number mismatch (*.rng file)");
+      }
+   }
+   else
+      start_ranlux(level,seed);
 }
 
 
@@ -1216,11 +1280,8 @@ int main(int argc,char *argv[])
    print_info();
    dfl=dfl_parms();
 
-   if (append)
-      start_ranlux(level,seed^(first-step));
-   else
-      start_ranlux(level,seed);      
    geometry();
+   init_rng();
 
    reweight_wsize(&nws,&nwsd,&nwv,&nwvd);
    alloc_ws(nws);
@@ -1271,10 +1332,12 @@ int main(int argc,char *argv[])
          fclose(fdat);
       }
 
+      export_ranlux(nc,rng_file);
+      error_chk();
+   
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wtavg+=(wt2-wt1);
-      error_chk();
 
       if (my_rank==0)
       {
@@ -1282,23 +1345,21 @@ int main(int argc,char *argv[])
                 nc,wt2-wt1);
          printf("(average = %.2e sec)\n\n",
                 wtavg/(double)((nc-first)/step+1));
-         fflush(flog);         
-
-         copy_file(log_file,log_save);
-         copy_file(dat_file,dat_save);
       }
 
-      check_endflag(&iend);
-   }
+      check_endflag(&iend);      
 
-   error_chk();
+      if (my_rank==0)
+      {
+         fflush(flog);         
+         copy_file(log_file,log_save);
+         copy_file(dat_file,dat_save);
+         copy_file(rng_file,rng_save);
+      }
+   }
       
    if (my_rank==0)
-   {
-      fflush(flog);
-      copy_file(log_file,log_save);
       fclose(flog);
-   }
    
    MPI_Finalize();    
    exit(0);

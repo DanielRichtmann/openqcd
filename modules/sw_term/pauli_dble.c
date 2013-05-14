@@ -3,7 +3,7 @@
 *
 * File pauli_dble.c
 *
-* Copyright (C) 2005, 2009, 2011 Martin Luescher
+* Copyright (C) 2005, 2009, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -58,8 +58,8 @@
 * were unsafe matrix inversions.
 *
 * The programs perform no communications and can be called locally. If SSE
-* instructions are used, the Pauli matrices and Dirac spinors fields must be
-* aligned to a 16 byte boundary.
+* (AVX) instructions are used, the Pauli matrices, Dirac and Weyl spinors
+* must be aligned to a 16 (32) byte boundary.
 *
 *******************************************************************************/
 
@@ -87,6 +87,357 @@ static complex_dble aa[36],cc[6],dd[6] ALIGNED16;
 
 #if (defined x64)
 #include "sse2.h"
+
+#if (defined AVX)
+#include "avx.h"
+
+void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
+{
+   m+=2;
+   _prefetch_pauli_dble(m);
+   m-=2;
+   
+   __asm__ __volatile__ ("vmovsd %0, %%xmm14 \n\t"
+                         "vmovsd %1, %%xmm2 \n\t"
+                         "vmovsd %2, %%xmm3 \n\t"
+                         "vmovapd %3, %%xmm4 \n\t"
+                         "vpermilpd $0x1, %%xmm14, %%xmm14"
+                         :
+                         :
+                         "m" (mu),
+                         "m" ((*m).u[0]),
+                         "m" ((*m).u[1]),
+                         "m" ((*m).u[8]),
+                         "m" ((*m).u[9])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm14");
+
+   __asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm2, %%ymm2 \n\t"
+                         "vinsertf128 $0x1, %0, %%ymm3, %%ymm3 \n\t"
+                         "vinsertf128 $0x1, %2, %%ymm4, %%ymm4 \n\t"
+                         "vmovddup %4, %%ymm0 \n\t"
+                         "vmovddup %5, %%ymm1 \n\t"
+                         "vaddpd %%ymm14, %%ymm2, %%ymm2 \n\t"
+                         "vsubpd %%ymm14, %%ymm3, %%ymm3 \n\t"
+                         "vpermilpd $0x5, %%ymm4, %%ymm10 \n\t"
+                         "vperm2f128 $0x1, %%ymm3, %%ymm3, %%ymm3 \n\t"
+                         "vpermilpd $0x5, %%ymm2, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm3, %%ymm9"
+                         :
+                         :
+                         "m" ((*m).u[6]),                         
+                         "m" ((*m).u[7]),
+                         "m" ((*m).u[16]),
+                         "m" ((*m).u[17]),
+                         "m" ((*s).c1.c1.re),
+                         "m" ((*s).c1.c1.im),
+                         "m" ((*s).c1.c2.re),                         
+                         "m" ((*s).c1.c2.im)
+                         :
+                         "xmm0", "xmm1", "xmm2", "xmm3",
+                         "xmm4", "xmm8", "xmm9", "xmm10");
+   
+   __asm__ __volatile__ ("vmulpd %%ymm0, %%ymm2, %%ymm2 \n\t"
+                         "vmulpd %%ymm1, %%ymm3, %%ymm3 \n\t"
+                         "vmulpd %%ymm1, %%ymm4, %%ymm4 \n\t"
+                         "vmovapd %0, %%xmm5 \n\t"
+                         "vmovapd %2, %%xmm6 \n\t"
+                         "vmovapd %4, %%xmm7"
+                         :
+                         :
+                         "m" ((*m).u[10]),
+                         "m" ((*m).u[11]),
+                         "m" ((*m).u[12]),
+                         "m" ((*m).u[13]),
+                         "m" ((*m).u[14]),
+                         "m" ((*m).u[15])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm5",
+                         "xmm6", "xmm7");
+
+   s+=4;
+   _prefetch_weyl(s);
+   s-=4;
+   
+   __asm__ __volatile__ ("vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10 \n\t"
+                         "vinsertf128 $0x1, %0, %%ymm5, %%ymm5 \n\t"
+                         "vinsertf128 $0x1, %2, %%ymm6, %%ymm6 \n\t"
+                         "vinsertf128 $0x1, %4, %%ymm7, %%ymm7 \n\t"
+                         "vaddsubpd %%ymm8, %%ymm2, %%ymm2 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm3, %%ymm3 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm4, %%ymm4"
+                         :
+                         :
+                         "m" ((*m).u[18]),
+                         "m" ((*m).u[19]),
+                         "m" ((*m).u[20]),
+                         "m" ((*m).u[21]),
+                         "m" ((*m).u[22]),
+                         "m" ((*m).u[23])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm5",
+                         "xmm6", "xmm7", "xmm8", "xmm9",
+                         "xmm10");
+   
+   __asm__ __volatile__ ("vpermilpd $0x5, %%ymm5, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm6, %%ymm9 \n\t"
+                         "vpermilpd $0x5, %%ymm7, %%ymm10 \n\t"
+                         "vpermilpd $0x5, %%ymm3, %%ymm3 \n\t"
+                         "vpermilpd $0x5, %%ymm4, %%ymm4 \n\t"
+                         "vmulpd %%ymm1, %%ymm5, %%ymm5 \n\t"
+                         "vmulpd %%ymm1, %%ymm6, %%ymm6 \n\t"
+                         "vmulpd %%ymm1, %%ymm7, %%ymm7 \n\t"
+                         "vmulpd %%ymm0, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10"  
+                         :
+                         :
+                         :
+                         "xmm3", "xmm4", "xmm5", "xmm6",
+                         "xmm7", "xmm8", "xmm9", "xmm10");
+
+   __asm__ __volatile__ ("vmovsd %0, %%xmm13 \n\t"
+                         "vmovapd %1, %%ymm11"
+                         :
+                         :
+                         "m" ((*m).u[2]),
+                         "m" ((*m).u[8]),
+                         "m" ((*m).u[9]),
+                         "m" ((*m).u[10]),
+                         "m" ((*m).u[11])
+                         :
+                         "xmm11", "xmm13");
+
+   __asm__ __volatile__ ("vmovapd %0, %%ymm12 \n\t"
+                         "vaddsubpd %%ymm8, %%ymm5, %%ymm5 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm6, %%ymm6 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm7, %%ymm7 \n\t"
+                         "vinsertf128 $0x1, %4, %%ymm13, %%ymm13 \n\t"
+                         "vmovddup %6, %%ymm0 \n\t"
+                         "vmovddup %7, %%ymm1 \n\t"
+                         "vaddpd %%ymm14, %%ymm13, %%ymm13 \n\t"
+                         "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
+                         "vpermilpd $0x5, %%ymm13, %%ymm10"
+                         :
+                         :
+                         "m" ((*m).u[16]),
+                         "m" ((*m).u[17]),
+                         "m" ((*m).u[18]),
+                         "m" ((*m).u[19]),
+                         "m" ((*m).u[24]),
+                         "m" ((*m).u[25]),
+                         "m" ((*s).c1.c3.re),
+                         "m" ((*s).c1.c3.im),
+                         "m" ((*s).c2.c1.re),
+                         "m" ((*s).c2.c1.im)                             
+                         :
+                         "xmm0", "xmm1", "xmm5", "xmm6",
+                         "xmm7", "xmm8", "xmm9", "xmm10",
+                         "xmm12", "xmm13");
+   
+   __asm__ __volatile__ ("vmulpd %%ymm0, %%ymm11, %%ymm11 \n\t"
+                         "vmulpd %%ymm0, %%ymm12, %%ymm12 \n\t"
+                         "vmulpd %%ymm0, %%ymm13, %%ymm13 \n\t"
+                         "vaddpd %%ymm11, %%ymm2, %%ymm2 \n\t"
+                         "vaddpd %%ymm12, %%ymm3, %%ymm3 \n\t"
+                         "vaddpd %%ymm13, %%ymm4, %%ymm4 \n\t"
+                         "vmovsd %0, %%xmm11 \n\t"
+                         "vmovapd %1, %%xmm12 \n\t"
+                         "vmovapd %3, %%xmm13 \n\t"
+                         "vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm1, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm1, %%ymm10, %%ymm10"
+                         :
+                         :
+                         "m" ((*m).u[3]),
+                         "m" ((*m).u[26]),
+                         "m" ((*m).u[27]),
+                         "m" ((*m).u[28]),
+                         "m" ((*m).u[29])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm8",
+                         "xmm9", "xmm10", "xmm11", "xmm12",
+                         "xmm13");
+
+   __asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm11, %%ymm11 \n\t"
+                         "vinsertf128 $0x1, %2, %%ymm12, %%ymm12 \n\t"
+                         "vinsertf128 $0x1, %4, %%ymm13, %%ymm13 \n\t"
+                         "vsubpd %%ymm14, %%ymm11, %%ymm11 \n\t"
+                         "vaddsubpd %%ymm8, %%ymm2, %%ymm2 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm3, %%ymm3 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm4, %%ymm4"
+                         :
+                         :
+                         "m" ((*m).u[24]),
+                         "m" ((*m).u[25]),
+                         "m" ((*m).u[30]),
+                         "m" ((*m).u[31]),
+                         "m" ((*m).u[32]),
+                         "m" ((*m).u[33])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm11",
+                         "xmm12", "xmm13");
+   
+   __asm__ __volatile__ ("vperm2f128 $0x1, %%ymm11, %%ymm11, %%ymm11\n\t"
+                         "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
+                         "vpermilpd $0x5, %%ymm13, %%ymm10 \n\t"
+                         "vmulpd %%ymm1, %%ymm11, %%ymm11 \n\t"
+                         "vmulpd %%ymm1, %%ymm12, %%ymm12 \n\t"
+                         "vmulpd %%ymm1, %%ymm13, %%ymm13 \n\t"
+                         "vaddpd %%ymm11, %%ymm5, %%ymm5 \n\t"
+                         "vaddpd %%ymm12, %%ymm6, %%ymm6 \n\t"
+                         "vaddpd %%ymm13, %%ymm7, %%ymm7 \n\t"
+                         "vmulpd %%ymm0, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10"  
+                         :
+                         :
+                         :
+                         "xmm5", "xmm6","xmm7", "xmm8",
+                         "xmm9", "xmm10", "xmm11", "xmm12",
+                         "xmm13");
+
+   __asm__ __volatile__ ("vmovapd %0, %%ymm11 \n\t"
+                         "vmovapd %4, %%ymm12"
+                         :
+                         :
+                         "m" ((*m).u[12]),
+                         "m" ((*m).u[13]),
+                         "m" ((*m).u[14]),
+                         "m" ((*m).u[15]),                         
+                         "m" ((*m).u[20]),
+                         "m" ((*m).u[21]),
+                         "m" ((*m).u[22]),
+                         "m" ((*m).u[23])                         
+                         :
+                         "xmm11", "xmm12");
+   
+   __asm__ __volatile__ ("vmovupd %0, %%ymm13 \n\t"
+                         "vaddsubpd %%ymm8, %%ymm5, %%ymm5 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm6, %%ymm6 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm7, %%ymm7 \n\t"
+                         "vmovddup %4, %%ymm0 \n\t"
+                         "vmovddup %5, %%ymm1 \n\t"                           
+                         "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
+                         "vpermilpd $0x5, %%ymm13, %%ymm10"
+                         :
+                         :
+                         "m" ((*m).u[26]),
+                         "m" ((*m).u[27]),
+                         "m" ((*m).u[28]),
+                         "m" ((*m).u[29]),                         
+                         "m" ((*s).c2.c2.re),
+                         "m" ((*s).c2.c2.im),
+                         "m" ((*s).c2.c3.re),
+                         "m" ((*s).c2.c3.im)
+                         
+                         :
+                         "xmm0", "xmm1", "xmm5", "xmm6",
+                         "xmm7", "xmm8", "xmm9", "xmm10",
+                         "xmm13");
+
+   __asm__ __volatile__ ("vmulpd %%ymm0, %%ymm11, %%ymm11 \n\t"
+                         "vmulpd %%ymm0, %%ymm12, %%ymm12 \n\t"
+                         "vmulpd %%ymm0, %%ymm13, %%ymm13 \n\t"
+                         "vaddpd %%ymm11, %%ymm2, %%ymm2 \n\t"
+                         "vaddpd %%ymm12, %%ymm3, %%ymm3 \n\t"
+                         "vaddpd %%ymm13, %%ymm4, %%ymm4 \n\t"
+                         "vmovupd %0, %%ymm11 \n\t"
+                         "vmovsd %4, %%xmm12 \n\t"
+                         "vmovsd %5, %%xmm13 \n\t" 
+                         "vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm1, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm1, %%ymm10, %%ymm10"
+                         :
+                         :
+                         "m" ((*m).u[30]),
+                         "m" ((*m).u[31]),
+                         "m" ((*m).u[32]),
+                         "m" ((*m).u[33]),                         
+                         "m" ((*m).u[4]),
+                         "m" ((*m).u[5])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm8",
+                         "xmm9", "xmm10", "xmm11", "xmm12",
+                         "xmm13");
+
+   __asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm12, %%ymm12 \n\t"
+                         "vinsertf128 $0x1, %0, %%ymm13, %%ymm13 \n\t"
+                         "vaddsubpd %%ymm8, %%ymm2, %%ymm2 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm3, %%ymm3 \n\t"
+                         "vaddpd %%ymm14, %%ymm12, %%ymm12 \n\t"
+                         "vsubpd %%ymm14, %%ymm13, %%ymm13 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm4, %%ymm4"
+                         :
+                         :
+                         "m" ((*m).u[34]),
+                         "m" ((*m).u[35])
+                         :
+                         "xmm2", "xmm3", "xmm4", "xmm12",
+                         "xmm13");
+   
+   __asm__ __volatile__ ("vperm2f128 $0x1, %%ymm13, %%ymm13, %%ymm13 \n\t"
+                         "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
+                         "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
+                         "vpermilpd $0x5, %%ymm13, %%ymm10 \n\t"
+                         "vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
+                         "vmulpd %%ymm1, %%ymm9, %%ymm9 \n\t"
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10 \n\t"
+                         "vpermilpd $0x5, %%ymm5, %%ymm5 \n\t"
+                         "vpermilpd $0x5, %%ymm6, %%ymm6 \n\t"
+                         "vmulpd %%ymm0, %%ymm11, %%ymm11 \n\t"
+                         "vmulpd %%ymm0, %%ymm12, %%ymm12 \n\t"
+                         "vmulpd %%ymm1, %%ymm13, %%ymm13"
+                         :
+                         :
+                         :
+                         "xmm5", "xmm6", "xmm8", "xmm9",
+                         "xmm10", "xmm11", "xmm12", "xmm13");
+
+   __asm__ __volatile__ ("vaddsubpd %%ymm8, %%ymm5, %%ymm5 \n\t"
+                         "vaddsubpd %%ymm9, %%ymm6, %%ymm6 \n\t"
+                         "vaddsubpd %%ymm10, %%ymm7, %%ymm7 \n\t"
+                         "vaddpd %%ymm11, %%ymm5, %%ymm5 \n\t"
+                         "vaddpd %%ymm12, %%ymm6, %%ymm6 \n\t"
+                         "vaddpd %%ymm13, %%ymm7, %%ymm7 \n\t"
+                         "vpermilpd $0x5, %%ymm7, %%ymm7 \n\t"
+                         "vblendpd $0x3, %%ymm2, %%ymm3, %%ymm8 \n\t"
+                         "vblendpd $0x3, %%ymm3, %%ymm2, %%ymm9 \n\t"
+                         "vblendpd $0x3, %%ymm4, %%ymm5, %%ymm10 \n\t"
+                         "vblendpd $0x3, %%ymm5, %%ymm4, %%ymm11 \n\t"
+                         "vblendpd $0x3, %%ymm6, %%ymm7, %%ymm12 \n\t"
+                         "vblendpd $0x3, %%ymm7, %%ymm6, %%ymm13 \n\t"
+                         "vperm2f128 $0x1, %%ymm9, %%ymm9, %%ymm9 \n\t"
+                         "vperm2f128 $0x1, %%ymm11, %%ymm11, %%ymm11 \n\t"
+                         "vperm2f128 $0x1, %%ymm13, %%ymm13, %%ymm13 \n\t"
+                         "vaddpd %%ymm8, %%ymm9, %%ymm2 \n\t"
+                         "vaddpd %%ymm10, %%ymm11, %%ymm4 \n\t"
+                         "vaddpd %%ymm12, %%ymm13, %%ymm6 \n\t"
+                         "vmovapd %%ymm2, %0 \n\t"
+                         "vmovapd %%ymm4, %2 \n\t"
+                         "vmovapd %%ymm6, %4"                         
+                         :
+                         "=m" ((*r).c1.c1),
+                         "=m" ((*r).c1.c2),
+                         "=m" ((*r).c1.c3),
+                         "=m" ((*r).c2.c1),                         
+                         "=m" ((*r).c2.c2),
+                         "=m" ((*r).c2.c3)                         
+                         :
+                         :
+                         "xmm2", "xmm4", "xmm5", "xmm6",
+                         "xmm7", "xmm8", "xmm9", "xmm10",
+                         "xmm11", "xmm12", "xmm13");
+
+   _avx_zeroupper();
+}
+
+#else
 
 void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
 {
@@ -197,10 +548,6 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
 
-   r+=1;
-   _prefetch_weyl_dble(r);
-   r-=1;
-   
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -646,6 +993,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "=m" ((*r).c2.c3));
 }
 
+#endif
 
 static int fwd_house(double eps)
 {

@@ -3,7 +3,7 @@
 *
 * File force3.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -72,23 +72,23 @@
 *
 *   status        Array of the average status values returned by the
 *                 solver used for the solution of the Dirac equation
-*                 (in the case of the DFL_SAP_GCR solver, status[3] 
-*                 and status[7] are not averaged).
+*                 (in the case of the DFL_SAP_GCR solver, status[2] 
+*                 and status[5] are not averaged).
 *
 * The supported solvers are MSCG, SAP_GCR and DFL_SAP_GCR. Depending
 * on the program and the solver, the number of status variables varies
 * and is given by:
 *
 *                  MSCG         SAP_GCR       DFL_SAP_GCR
-*   setpf3()         1             1               4
-*   force3()         1             2               8
-*   action3()        1             1               4
+*   setpf3()         1             1               3
+*   force3()         1             2               6
+*   action3()        1             1               3
 *
 * Note that, in force3(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
 * [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/sparms.c].
+* have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The required workspaces of double-precision spinor fields are
 *
@@ -239,7 +239,7 @@ static double sdet(void)
 
 double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 {
-   int np,k,l,stat[4];
+   int np,k,l,stat[3];
    double r,act,*nu,*rnu;
    complex_dble z;
    spinor_dble *phi,**wsd,**rsd;
@@ -346,27 +346,26 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
       set_sd2zero(VOLUME/2,wsd[0]);      
       mulg5_dble(VOLUME/2,phi);
 
-      for (l=0;l<4;l++)
+      for (l=0;l<3;l++)
          status[l]=0;      
 
       for (k=0;k<np;k++)
       {
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,nu[k],phi,rsd[0],stat);
 
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[2]<0),1,
+         error_root((stat[0]<0)||(stat[1]<0),1,
                     "setpf3 [force3.c]","DFL_SAP_GCR solver failed "
-                    "(irat=%d,%d,%d, isp=%d, status=%d,%d,%d,%d)",
-                    irat[0],irat[1],irat[2],isp,stat[0],stat[1],
-                    stat[2],stat[3]);
+                    "(irat=%d,%d,%d, isp=%d, status=%d,%d,%d)",
+                    irat[0],irat[1],irat[2],isp,stat[0],stat[1],stat[2]);
 
-         for (l=0;l<4;l++)
+         for (l=0;l<3;l++)
             status[l]+=stat[l];
 
          mulr_spinor_add_dble(VOLUME/2,wsd[0],rsd[0],rnu[k]);         
          act-=2.0*nu[k]*rnu[k]*norm_square_dble(VOLUME/2,0,rsd[0]);
       }
 
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
          status[l]=(status[l]+(np/2))/np;
 
       mulg5_dble(VOLUME/2,phi);
@@ -395,7 +394,7 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
 void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
 {
-   int np,k,l,ifail,stat[8];
+   int np,k,l,ifail,stat[6];
    double *mu,*rmu;
    spinor_dble *phi,**rsd,**wsd;
    mdflds_t *mdfs;
@@ -501,7 +500,7 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
       set_sd2zero(VOLUME/2,phi+(VOLUME/2));      
       set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
 
-      for (l=0;l<8;l++)
+      for (l=0;l<6;l++)
          status[l]=0;
       
       for (k=0;k<np;k++)
@@ -509,27 +508,26 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
          assign_sd2sd(VOLUME/2,rsd[0],wsd[0]);
          mulg5_dble(VOLUME/2,wsd[0]);
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu[k],wsd[0],rsd[1],stat+4);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu[k],wsd[0],rsd[1],stat+3);
 
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[2]<0)||(stat[4]<0)||
-                    (stat[5]<0)||(stat[6]<0),1,"force3 [force3.c]",
-                    "DFL_SAP_GCR solver failed (irat=%d,%d,%d, isp=%d, "
-                    "status=%d,%d,%d,%d;%d,%d,%d,%d)",irat[0],irat[1],irat[2],
-                    isp,stat[0],stat[1],stat[2],stat[3],stat[4],stat[5],
-                    stat[6],stat[7]);
+         error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
+                    "force3 [force3.c]","DFL_SAP_GCR solver failed "
+                    "(irat=%d,%d,%d, isp=%d, ""status=%d,%d,%d;%d,%d,%d)",
+                    irat[0],irat[1],irat[2],isp,
+                    stat[0],stat[1],stat[2],stat[3],stat[4],stat[5]);
          
-         for (l=0;l<8;l++)
+         for (l=0;l<6;l++)
             status[l]+=stat[l];
          
          add_prod2xt(rmu[k],rsd[1],rsd[0]);
          add_prod2xv(rmu[k],rsd[1],rsd[0]);
       }
 
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
+      {
          status[l]=(status[l]+(np/2))/np;      
-
-      for (l=4;l<7;l++)
-         status[l]=(status[l]+(np/2))/np;      
+         status[l+3]=(status[l+3]+(np/2))/np;
+      }
 
       mulg5_dble(VOLUME/2,phi);      
       release_wsd();
@@ -553,7 +551,7 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
 
 double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 {
-   int np,k,l,stat[4];
+   int np,k,l,stat[3];
    double act,r,*mu,*rmu;
    spinor_dble *phi,**rsd,**wsd;
    mdflds_t *mdfs;
@@ -638,26 +636,25 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
       mulg5_dble(VOLUME/2,phi);
       set_sd2zero(VOLUME/2,phi+(VOLUME/2));
 
-      for (l=0;l<4;l++)
+      for (l=0;l<3;l++)
          status[l]=0;
       
       for (k=0;k<np;k++)
       {
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
 
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[2]<0),1,
-                    "action3 [force3.c]","DFL_SAP_GCR solver failed "
-                    "(irat=%d,%d,%d, isp=%d, status=%d,%d,%d,%d)",
-                    irat[0],irat[1],irat[2],isp,
-                    stat[0],stat[1],stat[2],stat[3]);
+         error_root((stat[0]<0)||(stat[1]<0),1,"action3 [force3.c]",
+                    "DFL_SAP_GCR solver failed (irat=%d,%d,%d, isp=%d, "
+                    "status=%d,%d,%d)",irat[0],irat[1],irat[2],isp,
+                    stat[0],stat[1],stat[2]);
 
-         for (l=0;l<4;l++)
+         for (l=0;l<3;l++)
             status[l]+=stat[l];
 
          act+=rmu[k]*norm_square_dble(VOLUME/2,0,rsd[0]);
       }
 
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
          status[l]=(status[l]+(np/2))/np;
 
       mulg5_dble(VOLUME/2,phi);

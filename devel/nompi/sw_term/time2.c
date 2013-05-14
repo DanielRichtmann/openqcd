@@ -27,9 +27,13 @@ typedef union
    double r[12];
 } spin_t;
 
+#if (defined AVX)
+static pauli_dble mp1,mp2 ALIGNED32;
+static spin_t s1,s2,r1,r2 ALIGNED32;
+#else
 static pauli_dble mp1,mp2 ALIGNED16;
 static spin_t s1,s2,r1,r2 ALIGNED16;
-
+#endif
 
 int main(void)
 {
@@ -41,7 +45,9 @@ int main(void)
    printf("Timing of mul_pauli_dble()\n");
    printf("--------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 

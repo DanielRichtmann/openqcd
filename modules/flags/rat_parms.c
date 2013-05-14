@@ -3,7 +3,7 @@
 *
 * File rat_parms.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -188,7 +188,7 @@ void read_rat_parms(int irp)
 
 void print_rat_parms(void)
 {
-   int my_rank,irp;
+   int my_rank,irp,n[2];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    
@@ -200,7 +200,10 @@ void print_rat_parms(void)
          {
             printf("Rational %d:\n",irp);
             printf("degree = %d\n",rp[irp].degree);
-            printf("range = [%.4e,%.4e]\n\n",rp[irp].range[0],rp[irp].range[1]);
+            n[0]=fdigits(rp[irp].range[0]);
+            n[1]=fdigits(rp[irp].range[1]);            
+            printf("range = [%.*f,%.*f]\n\n",IMAX(n[0],1),rp[irp].range[0],
+                   IMAX(n[1],1),rp[irp].range[1]);
          }
       }
    }

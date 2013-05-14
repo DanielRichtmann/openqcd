@@ -61,7 +61,7 @@ LIBPATH =
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64
+         -O -mno-avx -Dx64
 
 
 ############################## do not change ###################################

@@ -23,6 +23,7 @@
 
 /* PAULI_C */
 extern void mul_pauli(float mu,pauli *m,weyl *s,weyl *r);
+extern void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r);
 extern void assign_pauli(int vol,pauli_dble *md,pauli *m);
 extern void apply_sw(int vol,float mu,pauli *m,spinor *s,spinor *r);
 

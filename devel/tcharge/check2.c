@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2009, 2010, 2011 Martin Luescher
+* Copyright (C) 2009, 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -84,9 +84,7 @@ static double Qmt(void)
       si=(si+1)%4+(si==3);      
    }
 
-   sm=sm*xl[0]*xl[1]*xl[2]*xl[3]/(4.0*pi*pi);
-   
-   return sm*(1.0-2.0/(double)(NPROC0*L0));
+   return sm*(xl[0]-1.0)*xl[1]*xl[2]*xl[3]/(4.0*pi*pi);
 }
 
 

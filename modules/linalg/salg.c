@@ -3,7 +3,7 @@
 *
 * File salg.c
 *
-* Copyright (C) 2005, 2007, 2011 Martin Luescher
+* Copyright (C) 2005, 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -56,8 +56,8 @@
 * guaranteed to be exactly the same on all processes.
 *
 * The programs perform no communications except in the case of the scalar
-* products if these are globally summed. If SSE instructions are used, the
-* spinor fields must be aligned to a 16 byte boundary.
+* products if these are globally summed. If SSE (AVX) instructions are used,
+* the spinor fields must be aligned to a 16 (32) byte boundary.
 *
 *******************************************************************************/
 
@@ -98,7 +98,448 @@ static void alloc_wrotate(int n)
    }
 }
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+complex spinor_prod(int vol,int icom,spinor *s,spinor *r)
+{
+   complex z;
+   complex_dble v,w;
+   spinor *sm;
+
+   __asm__ __volatile__ ("vxorpd %%ymm9, %%ymm9, %%ymm9 \n\t"
+                         "vxorpd %%ymm10, %%ymm10, %%ymm10 \n\t"
+                         "vxorpd %%ymm11, %%ymm11, %%ymm11 \n\t"
+                         "vxorps %%ymm12, %%ymm12, %%ymm12 \n\t"
+                         "vxorps %%ymm13, %%ymm13, %%ymm13 \n\t"
+                         "vxorps %%ymm14, %%ymm14, %%ymm14"
+                         :
+                         :
+                         :
+                         "xmm9", "xmm10", "xmm11",
+                         "xmm12", "xmm13", "xmm14");
+   
+   sm=s+vol;
+
+   for (;s<sm;s++)
+   {
+      _avx_spinor_load(*s);
+      _avx_spinor_load_up(*r);
+
+      __asm__ __volatile__ ("vpermilps $0xb1, %%ymm0, %%ymm6 \n\t"
+                            "vpermilps $0xb1, %%ymm1, %%ymm7 \n\t"
+                            "vpermilps $0xb1, %%ymm2, %%ymm8 \n\t"
+                            "vmulps %%ymm3, %%ymm0, %%ymm0 \n\t"
+                            "vmulps %%ymm4, %%ymm1, %%ymm1 \n\t"
+                            "vmulps %%ymm5, %%ymm2, %%ymm2 \n\t"
+                            "vmulps %%ymm3, %%ymm6, %%ymm6 \n\t"
+                            "vmulps %%ymm4, %%ymm7, %%ymm7 \n\t"
+                            "vmulps %%ymm5, %%ymm8, %%ymm8 \n\t"
+                            "vaddsubps %%ymm6, %%ymm12, %%ymm6 \n\t"
+                            "vaddsubps %%ymm7, %%ymm13, %%ymm7 \n\t"
+                            "vaddsubps %%ymm8, %%ymm14, %%ymm8 \n\t"
+                            "vhaddps %%ymm6, %%ymm0, %%ymm0 \n\t"
+                            "vhaddps %%ymm7, %%ymm1, %%ymm1 \n\t"
+                            "vhaddps %%ymm8, %%ymm2, %%ymm2 \n\t"
+                            "vextractf128 $0x1, %%ymm0, %%xmm3 \n\t"
+                            "vextractf128 $0x1, %%ymm1, %%xmm4 \n\t"
+                            "vextractf128 $0x1, %%ymm2, %%xmm5 \n\t"
+                            "vhaddps %%xmm3, %%xmm0, %%xmm0 \n\t"
+                            "vhaddps %%xmm4, %%xmm1, %%xmm1 \n\t"
+                            "vhaddps %%xmm5, %%xmm2, %%xmm2"
+                            :
+                            :
+                            :
+                            "xmm0", "xmm1", "xmm2",
+                            "xmm3", "xmm4", "xmm5",                            
+                            "xmm6", "xmm7", "xmm8");
+
+      __asm__ __volatile__ ("vcvtps2pd %%xmm0, %%ymm6 \n\t"
+                            "vcvtps2pd %%xmm1, %%ymm7 \n\t"
+                            "vcvtps2pd %%xmm2, %%ymm8 \n\t"
+                            "vaddpd %%ymm6, %%ymm9, %%ymm9 \n\t"
+                            "vaddpd %%ymm7, %%ymm10, %%ymm10 \n\t"
+                            "vaddpd %%ymm8, %%ymm11, %%ymm11"
+                            :
+                            :
+                            :
+                            "xmm6", "xmm7", "xmm8",
+                            "xmm9", "xmm10", "xmm11");
+      
+      r+=1;
+   }
+
+   __asm__ __volatile__ ("vaddpd %%ymm9, %%ymm10, %%ymm0 \n\t"
+                         "vaddpd %%ymm11, %%ymm0, %%ymm0 \n\t"
+                         "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                         "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                         "vmovupd %%xmm0, %0"
+                         :
+                         "=m" (v)
+                         :
+                         :
+                         "xmm0", "xmm1");
+
+   _avx_zeroupper();
+   
+   if ((icom==1)&&(NPROC>1))
+   {
+      MPI_Reduce(&v.re,&w.re,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(&w.re,2,MPI_DOUBLE,0,MPI_COMM_WORLD);     
+      z.re=(float)(w.re);
+      z.im=(float)(w.im);
+   }
+   else
+   {
+      z.re=(float)(v.re);
+      z.im=(float)(v.im);
+   }
+   
+   return z;  
+}
+
+
+float spinor_prod_re(int vol,int icom,spinor *s,spinor *r)
+{
+   double x,y;
+   spinor *sm;
+
+   __asm__ __volatile__ ("vxorpd %%ymm9, %%ymm9, %%ymm9 \n\t"
+                         "vxorpd %%ymm10, %%ymm10, %%ymm10 \n\t"
+                         "vxorpd %%ymm11, %%ymm11, %%ymm11 \n\t"
+                         :
+                         :
+                         :
+                         "xmm9", "xmm10", "xmm11");
+   
+   sm=s+vol;
+
+   for (;s<sm;s++)
+   {
+      _avx_spinor_load(*s);
+      _avx_spinor_load_up(*r);
+
+      __asm__ __volatile__ ("vmulps %%ymm3, %%ymm0, %%ymm0 \n\t"
+                            "vmulps %%ymm4, %%ymm1, %%ymm1 \n\t"
+                            "vmulps %%ymm5, %%ymm2, %%ymm2 \n\t"
+                            "vextractf128 $0x1, %%ymm0, %%xmm3 \n\t"
+                            "vextractf128 $0x1, %%ymm1, %%xmm4 \n\t"
+                            "vextractf128 $0x1, %%ymm2, %%xmm5 \n\t"
+                            "vaddps %%xmm3, %%xmm0, %%xmm0 \n\t"
+                            "vaddps %%xmm4, %%xmm1, %%xmm1 \n\t"
+                            "vaddps %%xmm5, %%xmm2, %%xmm2"
+                            :
+                            :
+                            :
+                            "xmm0", "xmm1", "xmm2",
+                            "xmm3", "xmm4", "xmm5");                            
+
+      __asm__ __volatile__ ("vcvtps2pd %%xmm0, %%ymm6 \n\t"
+                            "vcvtps2pd %%xmm1, %%ymm7 \n\t"
+                            "vcvtps2pd %%xmm2, %%ymm8 \n\t"
+                            "vaddpd %%ymm6, %%ymm9, %%ymm9 \n\t"
+                            "vaddpd %%ymm7, %%ymm10, %%ymm10 \n\t"
+                            "vaddpd %%ymm8, %%ymm11, %%ymm11"
+                            :
+                            :
+                            :
+                            "xmm6", "xmm7", "xmm8",
+                            "xmm9", "xmm10", "xmm11");
+      
+      r+=1;
+   }
+
+   __asm__ __volatile__ ("vaddpd %%ymm9, %%ymm10, %%ymm0 \n\t"
+                         "vaddpd %%ymm11, %%ymm0, %%ymm0 \n\t"
+                         "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                         "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                         "vhaddpd %%xmm0, %%xmm0, %%xmm0 \n\t"
+                         "vmovsd %%xmm0, %0"
+                         :
+                         "=m" (x)
+                         :
+                         :
+                         "xmm0", "xmm1");
+
+   _avx_zeroupper();
+   
+   if ((icom==1)&&(NPROC>1))
+   {
+      MPI_Reduce(&x,&y,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(&y,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      return (float)(y);
+   }
+   else
+      return (float)(x);
+}
+
+
+float norm_square(int vol,int icom,spinor *s)
+{
+   double x,y;
+   spinor *sm;
+
+   __asm__ __volatile__ ("vxorpd %%ymm9, %%ymm9, %%ymm9 \n\t"
+                         "vxorpd %%ymm10, %%ymm10, %%ymm10 \n\t"
+                         "vxorpd %%ymm11, %%ymm11, %%ymm11 \n\t"
+                         :
+                         :
+                         :
+                         "xmm9", "xmm10", "xmm11");
+   
+   sm=s+vol;
+
+   for (;s<sm;s++)
+   {
+      _avx_spinor_load(*s);
+
+      __asm__ __volatile__ ("vmulps %%ymm0, %%ymm0, %%ymm0 \n\t"
+                            "vmulps %%ymm1, %%ymm1, %%ymm1 \n\t"
+                            "vmulps %%ymm2, %%ymm2, %%ymm2 \n\t"
+                            "vextractf128 $0x1, %%ymm0, %%xmm3 \n\t"
+                            "vextractf128 $0x1, %%ymm1, %%xmm4 \n\t"
+                            "vextractf128 $0x1, %%ymm2, %%xmm5 \n\t"
+                            "vaddps %%xmm3, %%xmm0, %%xmm0 \n\t"
+                            "vaddps %%xmm4, %%xmm1, %%xmm1 \n\t"
+                            "vaddps %%xmm5, %%xmm2, %%xmm2"
+                            :
+                            :
+                            :
+                            "xmm0", "xmm1", "xmm2",
+                            "xmm3", "xmm4", "xmm5");                            
+
+      __asm__ __volatile__ ("vcvtps2pd %%xmm0, %%ymm6 \n\t"
+                            "vcvtps2pd %%xmm1, %%ymm7 \n\t"
+                            "vcvtps2pd %%xmm2, %%ymm8 \n\t"
+                            "vaddpd %%ymm6, %%ymm9, %%ymm9 \n\t"
+                            "vaddpd %%ymm7, %%ymm10, %%ymm10 \n\t"
+                            "vaddpd %%ymm8, %%ymm11, %%ymm11"
+                            :
+                            :
+                            :
+                            "xmm6", "xmm7", "xmm8",
+                            "xmm9", "xmm10", "xmm11");
+   }
+
+   __asm__ __volatile__ ("vaddpd %%ymm9, %%ymm10, %%ymm0 \n\t"
+                         "vaddpd %%ymm11, %%ymm0, %%ymm0 \n\t"
+                         "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                         "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                         "vhaddpd %%xmm0, %%xmm0, %%xmm0 \n\t"
+                         "vmovsd %%xmm0, %0"
+                         :
+                         "=m" (x)
+                         :
+                         :
+                         "xmm0", "xmm1");
+
+   _avx_zeroupper();
+   
+   if ((icom==1)&&(NPROC>1))
+   {
+      MPI_Reduce(&x,&y,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(&y,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      return (float)(y);
+   }
+   else
+      return (float)(x);
+}
+
+
+void mulc_spinor_add(int vol,spinor *s,spinor *r,complex z)
+{
+   spinor *sm;
+
+   _avx_load_cmplx_up(z);
+   sm=s+vol;
+   
+   for (;s<sm;s++)
+   {
+      _avx_spinor_load(*s);
+      _avx_mulc_spinor_add(*r);
+      _avx_spinor_store(*s);
+
+      r+=1;
+   }
+
+   _avx_zeroupper();   
+}
+
+
+void mulr_spinor_add(int vol,spinor *s,spinor *r,float c)
+{
+   spinor *sm;
+
+   _avx_load_real_up(c);
+   sm=s+vol;
+   
+   for (;s<sm;s++)
+   {
+      _avx_spinor_load(*s);
+      _avx_mulr_spinor_add(*r);
+      _avx_spinor_store(*s);      
+
+      r+=1;
+   }
+
+   _avx_zeroupper();
+}
+
+
+void scale(int vol,float c,spinor *s)
+{
+   spinor *sm;   
+
+   _avx_load_real(c);
+   sm=s+vol;
+   
+   for (;s<sm;s++)
+   {
+      _avx_mulr_spinor(*s);
+      _avx_spinor_store(*s);
+   }
+
+   _avx_zeroupper();
+}
+
+
+void rotate(int vol,int n,spinor **ppk,complex *v)
+{
+   int k,j,ix;
+   complex *z;
+   spinor *pk,*pj;
+
+   if ((n>nrot)&&(ifail==0))
+      alloc_wrotate(n);
+
+   if ((n>0)&&(ifail==0))
+   {     
+      for (ix=0;ix<vol;ix++)
+      {
+         for (k=0;k<n;k++)  
+         {
+            pj=ppk[0]+ix;
+            z=v+k;
+
+            _avx_load_cmplx(*z);
+            _avx_mulc_spinor(*pj);
+
+            for (j=1;j<n;j++)
+            {
+               pj=ppk[j]+ix;
+               z+=n;
+               _avx_load_cmplx_up(*z);
+               _avx_mulc_spinor_add(*pj);
+            }
+
+            pk=psi+k;            
+            _avx_spinor_store(*pk);
+         }
+
+         for (k=0;k<n;k++)
+         {
+            pk=psi+k;
+            _avx_spinor_load(*pk);
+            pj=ppk[k]+ix;
+            _avx_spinor_store(*pj);
+         }
+      }
+   }
+
+   _avx_zeroupper();
+}
+
+
+void mulg5(int vol,spinor *s)
+{
+   spinor *sm;
+
+   __asm__ __volatile__ ("vxorps %%ymm3, %%ymm3, %%ymm3 \n\t"
+                         "vxorps %%ymm4, %%ymm4, %%ymm4"
+                         :
+                         :
+                         :
+                         "xmm3", "xmm4");
+
+   sm=s+vol;
+   
+   for (;s<sm;s++)
+   {
+      __asm__ __volatile__ ("vmovaps %0, %%xmm0 \n\t"
+                            "vmovaps %2, %%ymm1 \n\t"
+                            "vsubps %%xmm0, %%xmm3, %%xmm0 \n\t"
+                            "vsubps %%ymm1, %%ymm4, %%ymm1"
+                            :
+                            :
+                            "m" ((*s).c3.c1),
+                            "m" ((*s).c3.c2),
+                            "m" ((*s).c3.c3),
+                            "m" ((*s).c4.c1),
+                            "m" ((*s).c4.c2),
+                            "m" ((*s).c4.c3)
+                            :
+                            "xmm0", "xmm1");
+
+      __asm__ __volatile__ ("vmovaps %%xmm0, %0 \n\t"
+                            "vmovaps %%ymm1, %2"
+                            :
+                            "=m" ((*s).c3.c1),
+                            "=m" ((*s).c3.c2),
+                            "=m" ((*s).c3.c3),
+                            "=m" ((*s).c4.c1),
+                            "=m" ((*s).c4.c2),
+                            "=m" ((*s).c4.c3));
+   }
+   
+   _avx_zeroupper();
+}
+
+
+void mulmg5(int vol,spinor *s)
+{
+   spinor *sm;
+
+   __asm__ __volatile__ ("vxorps %%ymm3, %%ymm3, %%ymm3 \n\t"
+                         "vxorps %%ymm4, %%ymm4, %%ymm4"
+                         :
+                         :
+                         :
+                         "xmm3", "xmm4");
+
+   sm=s+vol;
+   
+   for (;s<sm;s++)
+   {
+      __asm__ __volatile__ ("vmovaps %0, %%ymm0 \n\t"
+                            "vmovaps %4, %%xmm1 \n\t"
+                            "vsubps %%ymm0, %%ymm3, %%ymm0 \n\t"
+                            "vsubps %%xmm1, %%xmm4, %%xmm1"
+                            :
+                            :
+                            "m" ((*s).c1.c1),
+                            "m" ((*s).c1.c2),
+                            "m" ((*s).c1.c3),
+                            "m" ((*s).c2.c1),
+                            "m" ((*s).c2.c2),
+                            "m" ((*s).c2.c3)
+                            :
+                            "xmm0", "xmm1");
+
+      __asm__ __volatile__ ("vmovaps %%ymm0, %0 \n\t"
+                            "vmovaps %%xmm1, %4"
+                            :
+                            "=m" ((*s).c1.c1),
+                            "=m" ((*s).c1.c2),
+                            "=m" ((*s).c1.c3),
+                            "=m" ((*s).c2.c1),
+                            "=m" ((*s).c2.c2),
+                            "=m" ((*s).c2.c3));
+   }
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 complex spinor_prod(int vol,int icom,spinor *s,spinor *r)

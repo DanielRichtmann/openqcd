@@ -3,7 +3,7 @@
 *
 * File Dw_bnd.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -51,7 +51,373 @@
 #include "dirac.h"
 #include "global.h"
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+#define _load_cst(c)                                  \
+__asm__ __volatile__ ("vbroadcastss %0, %%ymm15 \n\t" \
+                      : \
+                      : \
+                      "m" (c) \
+                      : \
+                      "xmm15")
+
+#define _mul_cst() \
+__asm__ __volatile__ ("vmulps %%ymm15, %%ymm0, %%ymm0 \n\t" \
+                      "vmulps %%ymm15, %%ymm1, %%ymm1 \n\t" \
+                      "vmulps %%ymm15, %%ymm2, %%ymm2" \
+                      : \
+                      : \
+                      : \
+                      "xmm0", "xmm1", "xmm2")
+
+#define _load_zero() \
+__asm__ __volatile__ ("vxorps %%ymm0, %%ymm0, %%ymm0 \n\t" \
+                      "vxorps %%ymm1, %%ymm1, %%ymm1 \n\t" \
+                      "vxorps %%ymm2, %%ymm2, %%ymm2" \
+                      : \
+                      : \
+                      : \
+                      "xmm0", "xmm1", "xmm2")
+
+#define _set_s2zero(s) \
+__asm__ __volatile__ ("vmovaps %%ymm0, %0" \
+                      : \
+                      "=m" ((*s).c1.c1), \
+                      "=m" ((*s).c1.c2), \
+                      "=m" ((*s).c1.c3), \
+                      "=m" ((*s).c2.c1)); \
+__asm__ __volatile__ ("vmovaps %%ymm1, %0" \
+                      : \
+                      "=m" ((*s).c2.c2), \
+                      "=m" ((*s).c2.c3), \
+                      "=m" ((*s).c3.c1), \
+                      "=m" ((*s).c3.c2)); \
+__asm__ __volatile__ ("vmovaps %%ymm2, %0" \
+                      : \
+                      "=m" ((*s).c3.c3), \
+                      "=m" ((*s).c4.c1), \
+                      "=m" ((*s).c4.c2), \
+                      "=m" ((*s).c4.c3))
+
+#define _set_w2zero(w) \
+__asm__ __volatile__ ("vmovaps %%ymm0, %0" \
+                      : \
+                      "=m" ((w[0]).c1.c1), \
+                      "=m" ((w[0]).c1.c2), \
+                      "=m" ((w[0]).c1.c3), \
+                      "=m" ((w[0]).c2.c1)); \
+__asm__ __volatile__ ("vmovaps %%ymm1, %0" \
+                      : \
+                      "=m" ((w[0]).c2.c2), \
+                      "=m" ((w[0]).c2.c3), \
+                      "=m" ((w[1]).c1.c1), \
+                      "=m" ((w[1]).c1.c2));     \
+__asm__ __volatile__ ("vmovaps %%ymm2, %0" \
+                      : \
+                      "=m" ((w[1]).c1.c3), \
+                      "=m" ((w[1]).c2.c1), \
+                      "=m" ((w[1]).c2.c2), \
+                      "=m" ((w[1]).c2.c3))
+
+#define _weyl_pair_store(rl,rh) \
+__asm__ __volatile__ ("vshufps $0x44, %%ymm4, %%ymm3, %%ymm6 \n\t" \
+                      "vshufps $0xe4, %%ymm3, %%ymm5, %%ymm7 \n\t" \
+                      "vshufps $0xee, %%ymm5, %%ymm4, %%ymm8" \
+                      : \
+                      : \
+                      : \
+                      "xmm6", "xmm7", "xmm8"); \
+__asm__ __volatile__ ("vmovaps %%xmm6, %0 \n\t" \
+                      "vmovaps %%xmm7, %2 \n\t" \
+                      "vmovaps %%xmm8, %4" \
+                      : \
+                      "=m" ((rl).c1.c1), \
+                      "=m" ((rl).c1.c2), \
+                      "=m" ((rl).c1.c3), \
+                      "=m" ((rl).c2.c1), \
+                      "=m" ((rl).c2.c2), \
+                      "=m" ((rl).c2.c3)); \
+__asm__ __volatile__ ("vextractf128 $0x1, %%ymm6, %0 \n\t" \
+                      "vextractf128 $0x1, %%ymm7, %2 \n\t" \
+                      "vextractf128 $0x1, %%ymm8, %4" \
+                      : \
+                      "=m" ((rh).c1.c1), \
+                      "=m" ((rh).c1.c2), \
+                      "=m" ((rh).c1.c3), \
+                      "=m" ((rh).c2.c1), \
+                      "=m" ((rh).c2.c2), \
+                      "=m" ((rh).c2.c3))
+
+
+static void mul_umat(su3 *u)
+{
+   _avx_su3_pair_multiply(u[0],u[1]);
+}
+
+
+static void mul_uinv(su3 *u)
+{
+   _avx_su3_pair_inverse_multiply(u[0],u[1]);
+}
+
+
+void Dw_bnd(blk_grid_t grid,int n,int k,int l)
+{
+   int nb,isw,*ipp;
+   float moh;
+   su3 *u;
+   weyl *w,*wm;
+   spinor *s,*sl,*sh;
+   block_t *b;
+   bndry_t *bb;   
+
+   b=blk_list(grid,&nb,&isw);
+
+   if ((n<0)||(n>=nb))
+   {
+      error_loc(1,1,"Dw_bnd [Dw_bnd.c]",
+                "Block grid is not allocated or block number out of range");
+      return;
+   }   
+
+   b+=n;
+   bb=(*b).bb;
+   
+   if ((k<0)||(k>=(*b).ns)||((*b).u==NULL)||(bb==NULL)||(l>=(*bb).nw))
+   {
+      error_loc(1,1,"Dw_bnd [Dw_bnd.c]",
+                "Attempt to access unallocated memory space");
+      return;
+   }       
+
+   moh=-0.5f;
+   _load_cst(moh);   
+   s=(*b).s[k];
+   
+/********************************** face -0 ***********************************/
+
+   ipp=(*bb).ipp;   
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;   
+   
+   if ((cpr[0]==0)&&((*b).bo[0]==0))
+   {
+      _load_zero();
+
+      for (;w<wm;w+=2)
+      {
+         sl=s+ipp[0];
+         sh=s+ipp[1];
+         ipp+=2;
+         _set_s2zero(sl);
+         _set_s2zero(sh);
+         _set_w2zero(w);
+      }
+   }
+   else
+   {
+      u=(*bb).u;
+      
+      for (;w<wm;w+=2)
+      {
+         sl=s+ipp[0];
+         sh=s+ipp[1];
+         ipp+=2;
+         _avx_spinor_pair_load34(*sl,*sh);
+
+         _avx_spinor_add();
+         _mul_cst();
+         mul_umat(u);
+         _weyl_pair_store(w[0],w[1]);         
+
+         u+=2;
+      }
+   }
+
+/********************************** face +0 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;   
+
+   if ((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0))
+   {
+      _load_zero();
+
+      for (;w<wm;w+=2)
+      {
+         sl=s+ipp[0];
+         sh=s+ipp[1];
+         ipp+=2;
+         _set_s2zero(sl);
+         _set_s2zero(sh);
+         _set_w2zero(w);
+      }
+   }
+   else
+   {
+      u=(*bb).u;
+
+      for (;w<wm;w+=2)
+      {
+         sl=s+ipp[0];
+         sh=s+ipp[1];
+         ipp+=2;
+         _avx_spinor_pair_load34(*sl,*sh);
+
+         _avx_spinor_sub();
+         _mul_cst();
+         mul_uinv(u);
+         _weyl_pair_store(w[0],w[1]);         
+
+         u+=2;
+      }
+   }
+
+/********************************** face -1 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load43(*sl,*sh);
+
+      _avx_spinor_i_add();
+      _mul_cst();
+      mul_umat(u);
+      _weyl_pair_store(w[0],w[1]);      
+
+      u+=2;
+   }
+
+/********************************** face +1 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load43(*sl,*sh);
+
+      _avx_spinor_i_sub();
+      _mul_cst();
+      mul_uinv(u);
+      _weyl_pair_store(w[0],w[1]);
+
+      u+=2;
+   }
+
+/********************************** face -2 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load43(*sl,*sh);
+
+      _avx_spinor_addsub();
+      _mul_cst();
+      mul_umat(u);
+      _weyl_pair_store(w[0],w[1]);
+
+      u+=2;
+   }
+
+/********************************** face +2 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load43(*sl,*sh);
+
+      _avx_spinor_subadd();
+      _mul_cst();
+      mul_uinv(u);
+      _weyl_pair_store(w[0],w[1]);
+
+      u+=2;
+   }
+
+/********************************** face -3 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;   
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load34(*sl,*sh);
+
+      _avx_spinor_i_addsub();
+      _mul_cst();
+      mul_umat(u);
+      _weyl_pair_store(w[0],w[1]);      
+
+      u+=2;
+   }
+
+/********************************** face +3 ***********************************/
+
+   bb+=1;
+   ipp=(*bb).ipp;
+   w=(*bb).w[l];
+   wm=w+(*bb).vol;
+   u=(*bb).u;
+
+   for (;w<wm;w+=2)
+   {
+      sl=s+ipp[0];
+      sh=s+ipp[1];
+      ipp+=2;
+      _avx_spinor_pair_load34(*sl,*sh);
+
+      _avx_spinor_i_subadd();
+      _mul_cst();
+      mul_uinv(u);
+      _weyl_pair_store(w[0],w[1]);
+
+      u+=2;
+   }
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 #define _load_cst(c) \

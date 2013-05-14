@@ -3,7 +3,7 @@
 *
 * File check9.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -108,10 +108,10 @@ static double dSdt(int *irat,int ipf,int isw,int isp,int *status)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,irat[3],isw,isp,status[8],mnkv;
+   int my_rank,irat[3],isw,isp,status[6],mnkv;
    int bs[4],Ns,nmx,nkv,isolv,nmr,ncy,ninv;
    int isap,idfl;
-   double kappa,mu,resd,res;
+   double kappa,mu,res;
    double eps,act0,act1,dact,dsdt;
    double dev_act[2],dev_frc,sig_loss,rdmy;
    rat_parms_t rp;
@@ -173,9 +173,6 @@ int main(int argc,char *argv[])
       read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
@@ -183,28 +180,23 @@ int main(int argc,char *argv[])
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);   
-   mnkv=nkv;
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 
-   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);   
+   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);
+   mnkv=0;
       
    for (isp=0;isp<3;isp++)
    {
@@ -228,10 +220,13 @@ int main(int argc,char *argv[])
    rp=rat_parms(0);
    irat[0]=0;
 
-   if (2*mnkv>4)
-      alloc_ws(2*mnkv+1);
-   else
-      alloc_ws(5);
+   mnkv=2*mnkv+2;
+   if (mnkv<(Ns+2))
+      mnkv=Ns+2;
+   if (mnkv<5)
+      mnkv=5;
+   
+   alloc_ws(mnkv);
 
    if (2*rp.degree>4)
       alloc_wsd(2*rp.degree+3);
@@ -276,15 +271,14 @@ int main(int argc,char *argv[])
 
          status[0]=0;
          status[1]=0;
-         status[2]=0;
          
          act0=setpf3(irat,0,isw,isp,0,status);
-         error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+         error_root((status[0]<0)||(status[1]<0),1,
                     "main [check9.c]","setpf3 failed "
                     "(irat=(%d,%d,%d), isp=%d)",irat[0],irat[1],irat[2],isp); 
 
          act1=action3(irat,0,isw,isp,0,status);
-         error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+         error_root((status[0]<0)||(status[1]<0),1,
                     "main [check9.c]","action3 failed "
                     "(irat=(%d,%d,%d), isp=%d)",irat[0],irat[1],irat[2],isp);
          
@@ -307,9 +301,9 @@ int main(int argc,char *argv[])
             else if (isp==1)
                printf("Status = %d,%d\n",status[0],status[1]);
             else
-               printf("Status = (%d,%d,%d,%d),(%d,%d,%d,%d)\n",
+               printf("Status = (%d,%d,%d),(%d,%d,%d)\n",
                       status[0],status[1],status[2],status[3],
-                      status[4],status[5],status[6],status[7]);
+                      status[4],status[5]);
 
             printf("Absolute action difference |setpf3-action3| = %.1e,",
                    fabs(dev_act[1]));

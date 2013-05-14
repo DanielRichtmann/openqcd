@@ -55,9 +55,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -fno-inline \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM
+         -O -mno-avx -Dx64 -DPM
 
 
 ############################## do not change ###################################

@@ -115,7 +115,7 @@ bs           4 4 4 4
 
 [Deflation subspace]
 bs           4 4 4 4
-Ns           8
+Ns           28
 
 [Deflation subspace generation]
 kappa        0.1350
@@ -123,15 +123,11 @@ mu           0.01
 ninv         5
 nmr          4
 ncy          5
-nkv          16
-nmx          96
-res          1.0e-3
 
 [Deflation projectors]
-nkv          16
-nmx          128
-resd         1.0e-13
-res          1.0e-6
+nkv          24
+nmx          512
+res          1.0e-2
 
 [Deflation update scheme]
 dtau         0.3

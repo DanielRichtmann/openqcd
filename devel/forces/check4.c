@@ -4,7 +4,7 @@
 * File check4.c
 *
 * Copyright (C) 2005, 2008, 2009, 2010,    Martin Luescher, Filippo Palombi
-*               2011, 2012                 Stefan Schaefer
+*               2011, 2012, 2012           Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -339,7 +339,7 @@ static double dSdt_det(ptset_t set)
 int main(int argc,char *argv[])
 {
    int my_rank,k;
-   double eps,act0,act1,dact,dsdt;
+   double eps,act0,act1,dsdt;
    double dev_frc,sig_loss,s[2],r[2];
    spinor_dble **phi;
    ptset_t set;
@@ -400,8 +400,6 @@ int main(int argc,char *argv[])
       act1-=action(k,phi)/12.0;
       rot_ud(2.0*eps);
       
-      dact=(act0-act1)/eps;
-
       s[0]=dsdt-(act0-act1)/eps;
       s[1]=dsdt;
 

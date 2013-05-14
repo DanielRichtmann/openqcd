@@ -3,7 +3,7 @@
 *
 * File flags.h
 *
-* Copyright (C) 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2009, 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -12,10 +12,6 @@
 
 #ifndef FLAGS_H
 #define FLAGS_H
-
-#ifndef SU3_H
-#include "su3.h"
-#endif
 
 #ifndef BLOCK_H
 #include "block.h"
@@ -93,14 +89,13 @@ typedef struct
 typedef struct
 {
    int nkv,nmx;
-   double resd,res;
+   double res;
 } dfl_pro_parms_t;
 
 typedef struct
 {
    int ninv,nmr,ncy;
-   int nkv,nmx;
-   double kappa,m0,mu,res;
+   double kappa,m0,mu;
 } dfl_gen_parms_t;
 
 typedef struct
@@ -213,12 +208,10 @@ extern void check_action_parms(FILE *fdat);
 /* DFL_PARMS_C */
 extern dfl_parms_t set_dfl_parms(int *bs,int Ns);
 extern dfl_parms_t dfl_parms(void);
-extern dfl_pro_parms_t set_dfl_pro_parms(int nkv,int nmx,
-                                         double resd,double res);
+extern dfl_pro_parms_t set_dfl_pro_parms(int nkv,int nmx,double res);
 extern dfl_pro_parms_t dfl_pro_parms(void);
 extern dfl_gen_parms_t set_dfl_gen_parms(double kappa,double mu,
-                                         int ninv,int nmr,int ncy,
-                                         int nkv,int nmx,double res);
+                                         int ninv,int nmr,int ncy);
 extern dfl_gen_parms_t dfl_gen_parms(void);
 extern dfl_upd_parms_t set_dfl_upd_parms(double dtau,int nsm);
 extern dfl_upd_parms_t dfl_upd_parms(void);

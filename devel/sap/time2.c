@@ -58,7 +58,11 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
 #if (defined x64)
+#if (defined AVX)
+      printf("Using AVX instructions\n");
+#else      
       printf("Using SSE3 instructions and 16 xmm registers\n");
+#endif
 #if (defined P3)
       printf("Assuming SSE prefetch instructions fetch 32 bytes\n");
 #elif (defined PM)

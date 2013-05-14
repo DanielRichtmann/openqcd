@@ -3,7 +3,7 @@
 *
 * File time2.c
 *
-* Copyright (C) 2007, 2009, 2011 Martin Luescher
+* Copyright (C) 2007, 2009, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,8 +32,10 @@ int main(void)
    printf("Timing of cmat_vec_dble, cmat_mul_dble and cmat_inv_dble\n");
    printf("--------------------------------------------------------\n\n");
 
-#if (defined x64)
-   printf("Using SSE3 instructions and up to 16 xmm registers\n");
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
+   printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");
@@ -44,7 +46,7 @@ int main(void)
    error((ir!=1)||(nm<1),1,"main [time2.c]",
          "Read error or improper matrix size");
 
-   a=amalloc((3*nm*nm+2*nm)*sizeof(*a),4);
+   a=amalloc((3*nm*nm+2*nm)*sizeof(*a),6);
    error(a==NULL,1,"main [time2.c]","Unable to allocate auxiliary arrays");
 
    rlxd_init(1,23456);

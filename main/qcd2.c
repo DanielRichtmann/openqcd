@@ -1,22 +1,22 @@
 
 /*******************************************************************************
- *
- * File qcd2.c
- *
- * Copyright (C) 2012 John Bulava
- *
- * This software is distributed under the terms of the GNU General Public
- * License (GPL)
- *
- * HMC simulation program for QCD with Wilson quarks and Schroedinger
- * functional boundary conditions
- *
- * Syntax: qcd2 -i <filename> [-noloc] [-noexp] [-rmold] [-noms]
- *                            [-c <filename> [-a]]
- *
- * For usage instructions see the file README.qcd2
- *
- *******************************************************************************/
+*
+* File qcd2.c
+*
+* Copyright (C) 2012, 2013 John Bulava, Martin Luescher
+*
+* This software is distributed under the terms of the GNU General Public
+* License (GPL)
+*
+* HMC simulation program for QCD with Wilson quarks and Schroedinger
+* functional boundary conditions
+*
+* Syntax: qcd2 -i <filename> [-noloc] [-noexp] [-rmold] [-noms]
+*                            [-c <filename> [-a [-norng]]]
+*
+* For usage instructions see the file README.qcd2
+*
+*******************************************************************************/
 
 #define MAIN_PROGRAM
 
@@ -62,11 +62,11 @@ static struct
    double **Wsl,**Ysl,**Qsl;
 } data;
 
-static int my_rank,noloc,noexp,rmold,noms;
+static int my_rank,noloc,noexp,rmold,noms,norng;
 static int scnfg,append,endian;
 static int level,seed;
 static int nth,ntr,dtr_log,dtr_ms,dtr_cnfg;
-static int flint;
+static int ipgrd[2],flint;
 static double *Wact,*Yact,*Qtop;
 
 static char line[NAME_SIZE];
@@ -76,6 +76,7 @@ static char log_file[NAME_SIZE],log_save[NAME_SIZE];
 static char par_file[NAME_SIZE],par_save[NAME_SIZE];
 static char dat_file[NAME_SIZE],dat_save[NAME_SIZE];
 static char msdat_file[NAME_SIZE],msdat_save[NAME_SIZE];
+static char rng_file[NAME_SIZE],rng_save[NAME_SIZE];
 static char cnfg_file[NAME_SIZE],end_file[NAME_SIZE];
 static char nbase[NAME_SIZE],cnfg[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fdat=NULL,*fend=NULL;
@@ -416,11 +417,13 @@ static void setup_files(void)
    sprintf(par_file,"%s/%s.par",dat_dir,nbase);
    sprintf(dat_file,"%s/%s.dat",dat_dir,nbase);
    sprintf(msdat_file,"%s/%s.ms.dat",dat_dir,nbase);
+   sprintf(rng_file,"%s/%s.rng",dat_dir,nbase);      
    sprintf(end_file,"%s/%s.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
    sprintf(par_save,"%s~",par_file);
    sprintf(dat_save,"%s~",dat_file);
    sprintf(msdat_save,"%s~",msdat_file);
+   sprintf(rng_save,"%s~",rng_file);   
 }
 
 
@@ -741,7 +744,7 @@ static void read_dfl_parms(void)
 {
    int bs[4],Ns;
    int ninv,nmr,ncy,nkv,nmx,nsm;
-   double kappa,mu,res,resd,dtau;
+   double kappa,mu,res,dtau;
 
    if (my_rank==0)
    {
@@ -762,9 +765,6 @@ static void read_dfl_parms(void)
       read_line("ninv","%d",&ninv);     
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -772,25 +772,20 @@ static void read_dfl_parms(void)
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);           
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 
    if (my_rank==0)
    {
@@ -1051,12 +1046,13 @@ static void read_infile(int argc,char *argv[])
       noms=find_opt(argc,argv,"-noms");      
       scnfg=find_opt(argc,argv,"-c");
       append=find_opt(argc,argv,"-a");
+      norng=find_opt(argc,argv,"-norng");
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1))||(scnfg==(argc-1))||
                  ((append!=0)&&(scnfg==0)),1,"read_infile [qcd2.c]",
                  "Syntax: qcd2 -i <filename> [-noloc] [-noexp] "
-                 "[-rmold] [-noms] [-c <filename> [-a]]");
+                 "[-rmold] [-noms] [-c <filename> [-a [-norng]]]");
 
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [qcd2.c]",
                  "Machine has unknown endianness");
@@ -1083,6 +1079,7 @@ static void read_infile(int argc,char *argv[])
    MPI_Bcast(&noms,1,MPI_INT,0,MPI_COMM_WORLD); 
    MPI_Bcast(&scnfg,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&append,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&norng,1,MPI_INT,0,MPI_COMM_WORLD);    
    MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
 
@@ -1132,6 +1129,7 @@ static void read_infile(int argc,char *argv[])
 static void check_old_log(int ic,int *nl,int *icnfg)
 {
    int ir,isv;
+   int np[4],bp[4];
 
    fend=fopen(log_file,"r");
    error_root(fend==NULL,1,"check_old_log [qcd2.c]",
@@ -1143,7 +1141,17 @@ static void check_old_log(int ic,int *nl,int *icnfg)
 
    while (fgets(line,NAME_SIZE,fend)!=NULL)
    {
-      if (strstr(line,"Trajectory no")!=NULL)
+      if (strstr(line,"process grid")!=NULL)
+      {
+         ir&=(sscanf(line,"%dx%dx%dx%d process grid, %dx%dx%dx%d",
+                     np,np+1,np+2,np+3,bp,bp+1,bp+2,bp+3)==8);
+
+         ipgrd[0]=((np[0]!=NPROC0)||(np[1]!=NPROC1)||
+                   (np[2]!=NPROC2)||(np[3]!=NPROC3));
+         ipgrd[1]=((bp[0]!=NPROC0_BLK)||(bp[1]!=NPROC1_BLK)||
+                   (bp[2]!=NPROC2_BLK)||(bp[3]!=NPROC3_BLK));
+      }
+      else if (strstr(line,"Trajectory no")!=NULL)
       {
          ir&=(sscanf(line,"Trajectory no %d",nl)==1);
          isv=0;
@@ -1240,6 +1248,9 @@ static void check_old_msdat(int nl)
 static void check_files(int *nl,int *icnfg)
 {
    int icmax,ic;
+
+   ipgrd[0]=0;
+   ipgrd[1]=0;
 
    if (my_rank==0)
    {
@@ -1353,6 +1364,29 @@ static void init_ud(void)
 }
 
 
+static void init_rng(int icnfg)
+{
+   int ic;
+   
+   if (append)
+   {
+      if (cnfg[strlen(cnfg)-1]!='*')
+      {
+         if (norng)
+            start_ranlux(level,seed^(icnfg-1));
+         else
+         {
+            ic=import_ranlux(rng_file);
+            error_root(ic!=(icnfg-1),1,"init_rng [qcd2.c]",
+                       "Configuration number mismatch (*.rng file)");
+         }
+      }
+   }
+   else
+      start_ranlux(level,seed);
+}
+
+
 static void store_ud(su3_dble *usv)
 {
    su3_dble *udb;
@@ -1402,9 +1436,9 @@ static void set_data(int nt)
 }
 
 
-static void print_info(int nl)
+static void print_info(int icnfg)
 {
-   int isap,idfl;
+   int isap,idfl,n;
    long ip;
 
    if (my_rank==0)
@@ -1448,28 +1482,56 @@ static void print_info(int nl)
       if (noexp)
          printf("The generated configurations are not exported\n");
       if (rmold)
-         printf("Old configurations are deleted\n\n");
+         printf("Old configurations are deleted\n");
+      printf("\n");
 
-      if (append==0)
+      if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
+         printf("Process grid and process block size changed:\n");            
+      else if (ipgrd[0]!=0)
+         printf("Process grid changed:\n");
+      else if (ipgrd[1]!=0)
+         printf("Process block size changed:\n");
+      
+      if ((append==0)||(ipgrd[0]!=0)||(ipgrd[1]!=0))
       {
          printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
+         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
          printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
-         printf("Schroedinger functional boundary conditions\n\n");
+         printf("%dx%dx%dx%d process block size\n",
+                NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
 
-         print_lat_parms();
+         if (append)
+            printf("\n");
+         else
+         {
+            printf("Open boundary conditions\n\n");
+            print_lat_parms();
+         }
       }
-
+      
       printf("Random number generator:\n");
 
-      if ((scnfg)&&(cnfg[strlen(cnfg)-1]=='*'))
+      if (append)
       {
-         printf("State of ranlxs and ranlxd read from\n");
-         printf("initial field-configuration file\n\n");
+         if (cnfg[strlen(cnfg)-1]!='*')
+         {
+            if (norng)
+               printf("level = %d, seed = %d, effective seed = %d\n\n",
+                      level,seed,seed^(icnfg-1));
+            else
+            {
+               printf("State of ranlxs and ranlxd reset to the\n");
+               printf("last exported state\n\n");
+            }
+         }
+         else
+         {
+            printf("State of ranlxs and ranlxd read from\n");
+            printf("initial field-configuration file\n\n");
+         }
       }
       else
-         printf("level = %d, seed = %d, effective seed = %d\n\n",
-                level,seed,seed^nl);
+         printf("level = %d, seed = %d\n\n",level,seed);
 
       if (append)
       {
@@ -1518,7 +1580,8 @@ static void print_info(int nl)
                printf("2nd order RK integrator\n");
             else
                printf("3rd order RK integrator\n");
-            printf("eps = %.2e\n",file_head.eps);
+            n=fdigits(file_head.eps);
+            printf("eps = %.*f\n",IMAX(n,1),file_head.eps);
             printf("nstep = %d\n",file_head.dn*file_head.nn);
             printf("dnms = %d\n\n",file_head.dn);
          }
@@ -1686,7 +1749,6 @@ int main(int argc,char *argv[])
    if (noms==0)
       alloc_data();
    check_files(&nl,&icnfg);
-   start_ranlux(level,seed^nl);
    geometry();
 
    hmc_wsize(&nwud,&nws,&nwsd,&nwv,&nwvd);
@@ -1702,12 +1764,13 @@ int main(int argc,char *argv[])
    act1=act0+hmc.nact+1;
    error(act0==NULL,1,"main [qcd2.c]","Unable to allocate action arrays");
 
-   print_info(nl);   
+   print_info(icnfg);   
    hmc_sanity_check();
    set_mdsteps();
    setup_counters();
    setup_chrono();
    init_ud();
+   init_rng(icnfg);
 
    npl=(double)(6*(N0-1))*(double)(N1*N2*N3);   
    iend=0;
@@ -1775,6 +1838,7 @@ int main(int argc,char *argv[])
       if (((n+1)>=nth)&&(((ntr-n-1)%dtr_cnfg)==0))
       {
          save_cnfg(icnfg);
+         export_ranlux(icnfg,rng_file);
          check_endflag(&iend);
          error_chk();
 
@@ -1784,7 +1848,8 @@ int main(int argc,char *argv[])
             copy_file(log_file,log_save);
             copy_file(dat_file,dat_save);
             if (noms==0)
-               copy_file(msdat_file,msdat_save);            
+               copy_file(msdat_file,msdat_save);
+            copy_file(rng_file,rng_save);
          }
 
          remove_cnfg(icnfg-1);

@@ -3,7 +3,7 @@
 *
 * File lat_parms.c
 *
-* Copyright (C) 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2009, 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -185,21 +185,31 @@ lat_parms_t lat_parms(void)
 
 void print_lat_parms(void)
 {
-   int my_rank;
+   int my_rank,n;
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    
    if (my_rank==0)
    {
       printf("Lattice parameters:\n");
-      printf("beta = %.6f\n",lat.beta);
-      printf("c0 = %.6f, c1 = %.6f\n",lat.c0,lat.c1);      
-      printf("kappa_u = %.6f\n",lat.kappa_u);      
-      printf("kappa_s = %.6f\n",lat.kappa_s);
-      printf("kappa_c = %.6f\n",lat.kappa_c);            
-      printf("csw = %.6f\n",lat.csw);      
-      printf("cG = %.6f\n",lat.cG);      
-      printf("cF = %.6f\n\n",lat.cF);      
+      n=fdigits(lat.beta);
+      printf("beta = %.*f\n",IMAX(n,1),lat.beta);
+      n=fdigits(lat.c0);
+      printf("c0 = %.*f, ",IMAX(n,1),lat.c0);
+      n=fdigits(lat.c1);
+      printf("c1 = %.*f\n",IMAX(n,1),lat.c1);
+      n=fdigits(lat.kappa_u);
+      printf("kappa_u = %.*f\n",IMAX(n,6),lat.kappa_u);      
+      n=fdigits(lat.kappa_s);
+      printf("kappa_s = %.*f\n",IMAX(n,6),lat.kappa_s);
+      n=fdigits(lat.kappa_c);
+      printf("kappa_c = %.*f\n",IMAX(n,6),lat.kappa_c);
+      n=fdigits(lat.csw);
+      printf("csw = %.*f\n",IMAX(n,1),lat.csw);
+      n=fdigits(lat.cG);
+      printf("cG = %.*f\n",IMAX(n,1),lat.cG);      
+      n=fdigits(lat.cF);
+      printf("cF = %.*f\n\n",IMAX(n,1),lat.cF);      
    }
 }
 

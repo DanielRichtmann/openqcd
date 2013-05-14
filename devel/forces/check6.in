@@ -40,12 +40,8 @@ mu           0.01
 ninv         5
 nmr          4
 ncy          5
-nkv          16
-nmx          96
-res          1.0e-3
 
-[Deflation projectors]
+[Deflation projection]
 nkv          16
 nmx          64
-resd         1.0e-13
-res          1.0e-6
+res          1.0e-2

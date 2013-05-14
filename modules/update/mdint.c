@@ -3,7 +3,8 @@
 *
 * File mdint.c
 *
-* Copyright (C) 2011, 2012 Stefan Schaefer, Martin Luescher, John Bulava
+* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher,
+*                                John Bulava
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -71,17 +72,17 @@ static void chk_mode_regen(int isp,int *status)
 
    if (sp.solver==DFL_SAP_GCR)
    {
-      is=status[3];
+      is=status[2];
 
-      for (i=3;i<6;i++)
+      for (i=2;i<4;i++)
          status[i]=status[i+1];
 
-      status[6]=is;
+      status[4]=is;
 
-      if (status[6]>0)
-         add2counter("modes",2,status+6);
-      if (status[7]>0)
-         add2counter("modes",2,status+7);               
+      if (status[4]>0)
+         add2counter("modes",2,status+4);
+      if (status[5]>0)
+         add2counter("modes",2,status+5);               
    }
 }
 
@@ -231,7 +232,7 @@ static void dfl_upd(int isp)
 void run_mdint(void)
 {
    int my_rank,nop,itu;
-   int iop,status[8];
+   int iop,status[6];
    double *mu,eps,nlk,nrm;
    mdflds_t *mdfs;
    mdstep_t *s,*sm;
@@ -269,8 +270,8 @@ void run_mdint(void)
             dfl_upd(fp.isp[0]);
             set_sw_parms(sea_quark_mass(fp.im0));
             set_frc2zero();
-            status[3]=0;
-            status[7]=0;
+            status[2]=0;
+            status[5]=0;
             
             if (fp.force==FRF_TM1)
                force1(mu[fp.imu[0]],fp.ipf,fp.isp[0],fp.icr[0],
@@ -342,7 +343,7 @@ void run_mdint(void)
 void run_mdint(void)
 {
    int nop,itu;
-   int iop,status[8];
+   int iop,status[6];
    double *mu,eps;
    mdstep_t *s,*sm;
    hmc_parms_t hmc;
@@ -371,8 +372,8 @@ void run_mdint(void)
          {
             dfl_upd(fp.isp[0]);
             set_sw_parms(sea_quark_mass(fp.im0));
-            status[3]=0;
-            status[7]=0;            
+            status[2]=0;
+            status[5]=0;            
             
             if (fp.force==FRF_TM1)
                force1(mu[fp.imu[0]],fp.ipf,fp.isp[0],fp.icr[0],

@@ -20,10 +20,10 @@ check7        Check of expXsu3() using the spectral representation of X
 check8        Check of the programs cm3x3_zero(),...,cm3x3_lc2()
 
 time1         Timing of the SU(3) x SU(3)-vector multiplication 
-              (single-precision programs; also checks SSE macros)
+              (single-precision programs; also checks AVX/SSE macros)
 
-time2         Timing of the SU(3) x SU(3)-vector multiplications 
-              (double-precision programs; also checks SSE macros)
+time2         Timing of the SU(3) x SU(3)-vector multiplication
+              (double-precision programs; also checks AVX/SSE macros)
 
 time3         Timing of su3xsu3, su3dagxsu3, ...
 

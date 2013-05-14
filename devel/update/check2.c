@@ -4,7 +4,7 @@
 * File check2.c
 *
 * Copyright (C) 2005, 2007, 2009, 2010,      Martin Luescher, Filippo Palombi
-*               2011, 2012                   Stefan Schaefer
+*               2011, 2012, 2013             Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -210,7 +210,7 @@ static void read_dfl_parms(void)
 {
    int bs[4],Ns;
    int ninv,nmr,ncy,nkv,nmx,nsm;
-   double kappa,mu,res,resd,dtau;
+   double kappa,mu,res,dtau;
 
    if (my_rank==0)
    {
@@ -231,9 +231,6 @@ static void read_dfl_parms(void)
       read_line("ninv","%d",&ninv);     
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -241,25 +238,20 @@ static void read_dfl_parms(void)
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);           
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 
    if (my_rank==0)
    {
@@ -383,15 +375,15 @@ static void chk_mode_regen(int isp,int *status)
 
    sp=solver_parms(isp);
 
-   if ((sp.solver==DFL_SAP_GCR)&&(status[3]>0))
-      add2counter("modes",2,status+3);
+   if ((sp.solver==DFL_SAP_GCR)&&(status[2]>0))
+      add2counter("modes",2,status+2);
 }
 
 
 static void start_hmc(double *act0,su3_dble *uold)
 {
    int i,n,nact,*iact;
-   int status[4];
+   int status[3];
    double *mu;
    su3_dble *udb;
    dfl_parms_t dfl;
@@ -439,7 +431,7 @@ static void start_hmc(double *act0,su3_dble *uold)
             act0[n]=setpf4(mu[ap.imu[0]],ap.ipf,1,0);
          else if (ap.action==ACF_TM2)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf2(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
             chk_mode_regen(ap.isp[1],status);         
@@ -447,7 +439,7 @@ static void start_hmc(double *act0,su3_dble *uold)
          }
          else if (ap.action==ACF_TM2_EO)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf5(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
             chk_mode_regen(ap.isp[1],status);         
@@ -455,14 +447,14 @@ static void start_hmc(double *act0,su3_dble *uold)
          }
          else if (ap.action==ACF_RAT)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,0,ap.isp[0],0,status);
             chk_mode_regen(ap.isp[0],status);         
             add2counter("field",ap.ipf,status);
          }
          else if (ap.action==ACF_RAT_SDET)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,1,ap.isp[0],0,status);
             chk_mode_regen(ap.isp[0],status);         
             add2counter("field",ap.ipf,status);
@@ -481,7 +473,7 @@ static void start_hmc(double *act0,su3_dble *uold)
 static void end_hmc(double *act1)
 {
    int i,n,nact,*iact;
-   int status[4];
+   int status[3];
    double *mu;
    hmc_parms_t hmc;
    action_parms_t ap;   
@@ -501,7 +493,7 @@ static void end_hmc(double *act1)
       else
       {
          set_sw_parms(sea_quark_mass(ap.im0));
-         status[3]=0;
+         status[2]=0;
             
          if (ap.action==ACF_TM1)
             act1[n]=action1(mu[ap.imu[0]],ap.ipf,ap.isp[0],0,status);

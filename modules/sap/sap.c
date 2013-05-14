@@ -3,7 +3,7 @@
 *
 * File sap.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -60,7 +60,195 @@
 static int vol;
 static spinor **s;
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+static void update_flds0(int *imb,spinor *psi,spinor *rho)
+{
+   spinor *sb,*rb,*sm;
+   spinor *sl,*rl,*sln;
+
+   sb=s[0];
+   rb=s[1];
+   sm=sb+vol;
+   sln=psi+imb[0];
+
+   for (;sb<sm;sb++)
+   {
+      sl=sln;
+      sln=psi+imb[1];
+      _prefetch_spinor(sln);
+      
+      _avx_spinor_load(*sl);
+      _avx_spinor_load_up(*sb);
+      _avx_spinor_add();
+      _avx_spinor_store(*sl);
+
+      rl=rho+imb[0];
+      imb+=1;
+      _avx_spinor_load_up(*rb);
+      _avx_spinor_store_up(*rl);   
+      rb+=1;
+   }
+
+   _avx_zeroupper();
+}
+
+
+static void update_flds1(int *imb,float mu,spinor *psi,spinor *rho)
+{
+   spinor *sb,*rb,*sm;
+   spinor *sl,*rl,*sln;
+
+   sb=s[0];
+   rb=s[1];
+   sm=sb+vol;
+   sln=psi+imb[0];
+
+   for (;sb<sm;sb++)
+   {
+      sl=sln;
+      sln=psi+imb[1];
+      _prefetch_spinor(sln);
+      
+      _avx_spinor_load(*sl);
+      _avx_spinor_load_up(*sb);
+      _avx_spinor_add();
+      _avx_spinor_store(*sl);
+
+      rl=rho+imb[0];
+      imb+=1;
+      _avx_spinor_load_up(*rb);
+      _avx_spinor_store_up(*rl);   
+      rb+=1;
+   }
+
+   __asm__ __volatile__ ("vxorps %%ymm8, %%ymm8, %%ymm8 \n\t"
+                         "vbroadcastss %0, %%ymm7 \n\t"
+                         "vaddsubps %%ymm7, %%ymm8, %%ymm8 \n\t"
+                         "vpermilps $0xb1, %%ymm8, %%ymm6 \n\t"
+                         "vblendps $0xf, %%ymm6, %%ymm8, %%ymm7"
+                         :
+                         :
+                         "m" (mu)
+                         :
+                         "xmm6", "xmm7", "xmm8");
+   
+   sm+=vol;
+   
+   for (;sb<sm;sb++)
+   {
+      sl=sln;
+      sln=psi+imb[1];
+      _prefetch_spinor(sln);
+
+      _avx_spinor_load(*sb);
+      _avx_spinor_load_up(*rb);
+      
+      __asm__ __volatile__ ("vsubps %%ymm0, %%ymm3, %%ymm3 \n\t"
+                            "vsubps %%ymm1, %%ymm4, %%ymm4 \n\t"
+                            "vsubps %%ymm2, %%ymm5, %%ymm5"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5");
+
+      _avx_spinor_load(*sl);
+      _avx_spinor_add();
+      _avx_spinor_store_up(*sb);      
+      _avx_spinor_store(*sl);      
+
+      __asm__ __volatile__ ("vpermilps $0xb1, %%ymm3, %%ymm3 \n\t"
+                            "vpermilps $0xb1, %%ymm4, %%ymm4 \n\t"
+                            "vpermilps $0xb1, %%ymm5, %%ymm5 \n\t"
+                            "vmulps %%ymm6, %%ymm3, %%ymm3 \n\t"
+                            "vmulps %%ymm7, %%ymm4, %%ymm4 \n\t"
+                            "vmulps %%ymm8, %%ymm5, %%ymm5"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5");
+
+      rl=rho+imb[0];
+      imb+=1;      
+      _avx_spinor_store_up(*rl);
+      rb+=1;
+   }
+
+   _avx_zeroupper();
+}
+
+
+static void update_flds2(int *imb,spinor *psi,spinor *rho)
+{
+   spinor *sb,*rb,*sm;
+   spinor *sl,*rl,*sln;
+
+   sb=s[0];
+   rb=s[1];
+   sm=sb+vol;
+   sln=psi+imb[0];
+
+   for (;sb<sm;sb++)
+   {
+      sl=sln;
+      sln=psi+imb[1];
+      _prefetch_spinor(sln);
+      
+      _avx_spinor_load(*sl);
+      _avx_spinor_load_up(*sb);
+      _avx_spinor_add();
+      _avx_spinor_store(*sl);
+
+      rl=rho+imb[0];
+      imb+=1;
+      _avx_spinor_load_up(*rb);
+      _avx_spinor_store_up(*rl);   
+      rb+=1;
+   }
+   
+   sm+=vol;
+   
+   for (;sb<sm;sb++)
+   {
+      sl=sln;
+      sln=psi+imb[1];
+      _prefetch_spinor(sln);
+
+      _avx_spinor_load(*sb);
+      _avx_spinor_load_up(*rb);
+      
+      __asm__ __volatile__ ("vsubps %%ymm0, %%ymm3, %%ymm3 \n\t"
+                            "vsubps %%ymm1, %%ymm4, %%ymm4 \n\t"
+                            "vsubps %%ymm2, %%ymm5, %%ymm5"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5");
+
+      _avx_spinor_load(*sl);
+      _avx_spinor_add();
+      _avx_spinor_store_up(*sb);      
+      _avx_spinor_store(*sl);      
+
+      __asm__ __volatile__ ("vxorps %%ymm3, %%ymm3, %%ymm3 \n\t"
+                            "vxorps %%ymm4, %%ymm4, %%ymm4 \n\t"
+                            "vxorps %%ymm5, %%ymm5, %%ymm5"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5");
+
+      rl=rho+imb[0];
+      imb+=1;      
+      _avx_spinor_store_up(*rl);
+      rb+=1;
+   }
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 static void update_flds0(int *imb,spinor *psi,spinor *rho)

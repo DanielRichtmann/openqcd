@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -48,8 +48,10 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
-#if (defined x64)
-      printf("Using SSE3 instructions and 16 xmm registers\n\n");
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
+   printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
    }
 

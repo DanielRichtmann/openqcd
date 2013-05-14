@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -36,7 +36,7 @@ typedef union
 } spin_dble_t;
 
 static pauli_dble *sswd=NULL;
-static spin_dble_t vd ALIGNED16;
+static spin_dble_t vd ALIGNED32;
 static const weyl_dble vd0={{{0.0}}};
 
 

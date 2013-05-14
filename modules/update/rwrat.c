@@ -3,7 +3,7 @@
 *
 * File rwrat.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -71,8 +71,8 @@
 *  status   Array of the average of the status variables returned by the
 *           solvers. The array status[k] refers to the part R_k and must
 *           have as many elements as are returned by the solver with index
-*           isp[k] (1 for MSCG and SAP_GCR and 4 for DFL_SAP_GCR). In the
-*           case of the DFL_SAP_GCR solver, status[k][3] is accumulated
+*           isp[k] (1 for MSCG and SAP_GCR and 3 for DFL_SAP_GCR). In the
+*           case of the DFL_SAP_GCR solver, status[k][2] is accumulated
 *           but not averaged.
 *
 * It is taken for granted that the solver parameters have been set by
@@ -182,7 +182,7 @@ static void set_res(int np,double res)
 static void apply_Rk(int np,int isp,double *mu,double *rmu,
                      spinor_dble *eta,spinor_dble *psi,int *status)
 {
-   int k,l,stat[8];   
+   int k,l,stat[6];   
    spinor_dble **rsd;   
    solver_parms_t sp;
    sap_parms_t sap;
@@ -244,7 +244,7 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
       mulg5_dble(VOLUME/2,eta);
       set_sd2zero(VOLUME/2,eta+(VOLUME/2));      
 
-      for (l=0;l<4;l++)
+      for (l=0;l<3;l++)
          status[l]=0;
       
       for (k=0;k<np;k++)
@@ -252,24 +252,23 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],eta,rsd[0],stat);
          mulg5_dble(VOLUME/2,rsd[0]);
          set_sd2zero(VOLUME/2,rsd[0]+(VOLUME/2));
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu[k],rsd[0],rsd[1],stat+4);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu[k],rsd[0],rsd[1],stat+3);
 
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[2]<0)||(stat[4]<0)||
-                    (stat[5]<0)||(stat[6]<0),1,"apply_Rk [rwrat.c]",
-                    "DFL_SAP_GCR solver failed (isp=%d, "
-                    "status=%d,%d,%d,%d;%d,%d,%d,%d)",isp,stat[0],stat[1],
-                    stat[2],stat[3],stat[4],stat[5],stat[6],stat[7]);
+         error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
+                    "apply_Rk [rwrat.c]","DFL_SAP_GCR solver failed (isp=%d, "
+                    "status=%d,%d,%d;%d,%d,%d)",isp,stat[0],stat[1],
+                    stat[2],stat[3],stat[4],stat[5]);
          
-         for (l=0;l<4;l++)
+         for (l=0;l<3;l++)
          {
             status[l]+=stat[l];
-            status[l]+=stat[l+4];
+            status[l]+=stat[l+3];
          }
 
          mulr_spinor_add_dble(VOLUME/2,psi,rsd[1],rmu[k]);         
       }
 
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
          status[l]=(status[l]+np)/(2*np);      
 
       mulg5_dble(VOLUME/2,eta);      
@@ -283,7 +282,7 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
 static void apply_QR(int n,int *np,int *isp,ratfct_t *rf, 
                      spinor_dble *eta,spinor_dble *psi,int **status)
 {
-   int k,l,stat[4];
+   int k,l,stat[3];
    double *mu,*rmu;
    spinor_dble **wsd;
    solver_parms_t sp;
@@ -299,7 +298,7 @@ static void apply_QR(int n,int *np,int *isp,ratfct_t *rf,
 
       if (sp.solver==DFL_SAP_GCR)
       {
-         for (l=0;l<4;l++)
+         for (l=0;l<3;l++)
             status[k][l]+=stat[l];
       }
       else
@@ -347,7 +346,7 @@ static void init_stat(int n,int *isp,int **status)
 
       if (sp.solver==DFL_SAP_GCR)
       {
-         for (l=0;l<4;l++)
+         for (l=0;l<3;l++)
             status[k][l]=0;
       }
       else
@@ -367,12 +366,12 @@ static void avg_stat(int nz,int n,int *isp,int **status)
 
       if (sp.solver==DFL_SAP_GCR)
       {
-         for (l=0;l<3;l++)
+         for (l=0;l<2;l++)
             status[k][l]=(status[k][l]+nz)/(2*nz);
          
 #ifdef RWRAT_DBG
-         message("[rwrat]: status[%d] = %d,%d,%d,%d\n",
-                 k,status[k][0],status[k][1],status[k][2],status[k][3]);
+         message("[rwrat]: status[%d] = %d,%d,%d\n",
+                 k,status[k][0],status[k][1],status[k][2]);
 #endif
       }
       else

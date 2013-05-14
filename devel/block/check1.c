@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -163,6 +163,12 @@ static void test2(blk_grid_t grid)
             }
          }
       }
+
+      for (ix=0;ix<vol;ix+=2)
+      {
+         if (global_time(imb[ix])!=global_time(imb[ix+1]))
+            itest=8;         
+      }
    }
 
    error(itest==1,1,"test2 [check1.c]",
@@ -179,6 +185,8 @@ static void test2(blk_grid_t grid)
          "b.idn is incorrect");
    error(itest==7,1,"test2 [check1.c]",
          "b.idn is incorrect at the block boundary");
+   error(itest==8,1,"test2 [check1.c]",
+         "The time-ordering of the points is incorrect");
 }
 
 

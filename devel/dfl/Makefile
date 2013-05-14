@@ -19,7 +19,7 @@ all: rmxeq mkdep mkxeq
 
 # main programs and modules to be compiled
 
-MAIN = check1 check2 check3 check4 check5
+MAIN = check1 check2 check3 check4
 
 FLAGS = flags lat_parms sap_parms dfl_parms sf_parms
 
@@ -51,8 +51,7 @@ SAP = blk_solv sap_com sap sap_gcr
 
 ARCHIVE = archive
 
-DFL = dfl_geometry dfl_subspace ltl_gcr dfl_projectors dfl_sap_gcr \
-      dfl_modes
+DFL = dfl_geometry dfl_subspace ltl_gcr dfl_sap_gcr dfl_modes
 
 VFLDS = vflds vinit vcom vdcom
 
@@ -80,21 +79,21 @@ VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/linalg:$(MDIR)/linsolv:\
 
 # additional include directories
 
-INCPATH = $(MPIR_HOME)/include ../../include
+INCPATH = $(MPI_INCLUDE) ../../include
 
 
 # additional libraries
 
 LIBS = m
 
-LIBPATH = $(MPIR_HOME)/lib
+LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -Dx64 -DPM
+         -O -mno-avx -Dx64 -DPM
 
 # -DFGCR_DBG -DFGCR4VD_DBG -DDFL_MODES_DBG
 
@@ -102,7 +101,7 @@ CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
 ############################## do not change ###################################
 
 SHELL=/bin/bash
-CC=$(MPIR_HOME)/bin/mpicc
+CC=$(MPI_HOME)/bin/mpicc
 CLINKER=$(CC)
 
 PGMS= $(MAIN) $(MODULES)

@@ -35,16 +35,6 @@ extern void dfl_update(int nsm,int *status);
 extern void dfl_modes2(int *status);
 extern void dfl_update2(int nsm,int *status);
 
-/* DFL_PROJECTORS_C */
-extern void dfl_Ppro_dble(spinor_dble *sd,spinor_dble *rd);
-extern void dfl_Qpro_dble(spinor_dble *sd,spinor_dble *rd);
-extern void dfl_Lpro_dble(int nkv,int nmx,double res,double mu,
-                          spinor_dble *sd,spinor_dble *rd,int *status);
-extern void dfl_RLpro_dble(int nkv,int nmx,double res,double mu,
-                           spinor_dble *sd,spinor_dble *rd,int *status);
-extern void dfl_RLpro(int nkv,int nmx,double res,double mu,
-                      spinor *s,spinor *r,int *status);
-
 /* DFL_SAP_GCR_C */
 extern double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
                           spinor_dble *eta,spinor_dble *psi,int *status);

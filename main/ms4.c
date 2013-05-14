@@ -3,7 +3,7 @@
 *
 * File ms4.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -37,6 +37,11 @@
 #include "forces.h"
 #include "version.h"
 #include "global.h"
+
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
 
 #define MAX(n,m) \
    if ((n)<(m)) \
@@ -184,7 +189,7 @@ static void read_dfl_parms(void)
 {
    int bs[4],Ns;
    int ninv,nmr,ncy,nkv,nmx;
-   double kappa,mu,res,resd;
+   double kappa,mu,res;
 
    if (my_rank==0)
    {
@@ -205,9 +210,6 @@ static void read_dfl_parms(void)
       read_line("ninv","%d",&ninv);     
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -215,25 +217,20 @@ static void read_dfl_parms(void)
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);           
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 }
 
 
@@ -302,7 +299,7 @@ static void check_files(void)
 
 static void print_info(void)
 {
-   int isap,idfl;
+   int isap,idfl,n;
    long ip;   
    lat_parms_t lat;
    
@@ -331,22 +328,28 @@ static void print_info(void)
          printf("Configurations are read in imported file format\n\n");
       else
          printf("Configurations are read in exported file format\n\n");
-         
-      printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
-      printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-      printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
-      printf("Open boundary conditions\n\n");
 
+      printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
+      printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+      printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
+      printf("%dx%dx%dx%d process block size\n",
+             NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
+      printf("SF boundary conditions on the quark fields\n\n");
+      
       printf("Random number generator:\n");
       printf("level = %d, seed = %d\n\n",level,seed);
       
       lat=lat_parms();
 
       printf("Dirac operator:\n");
-      printf("kappa = %.6f\n",lat.kappa_u);
-      printf("mu = %.4e\n",mus);
-      printf("csw = %.6f\n",lat.csw);      
-      printf("cF = %.6f\n\n",lat.cF);
+      n=fdigits(lat.kappa_u);
+      printf("kappa = %.*f\n",IMAX(n,6),lat.kappa_u);
+      n=fdigits(mus);
+      printf("mu = %.*f\n",IMAX(n,1),mus);
+      n=fdigits(lat.csw);
+      printf("csw = %.*f\n",IMAX(n,1),lat.csw);      
+      n=fdigits(lat.cF);
+      printf("cF = %.*f\n\n",IMAX(n,1),lat.cF);
 
       printf("Source fields:\n");
       printf("x0 = %d\n",x0);
@@ -371,15 +374,12 @@ static void dfl_wsize(int *nws,int *nwv,int *nwvd)
 {
    dfl_parms_t dp;
    dfl_pro_parms_t dpp;
-   dfl_gen_parms_t dgp;
 
    dp=dfl_parms();
    dpp=dfl_pro_parms();
-   dgp=dfl_gen_parms();
 
    MAX(*nws,dp.Ns+2);
    MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwv,2*dgp.nkv+2);
    MAX(*nwvd,4);
 }
 
@@ -409,7 +409,7 @@ static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
-      MAX(*nws,2*sp.nkv+1);      
+      MAX(*nws,2*sp.nkv+2);      
       MAX(*nwsd,nsd+4);
       dfl_wsize(nws,nwv,nwvd);
    }
@@ -473,10 +473,9 @@ static void solve_dirac(spinor_dble *eta,spinor_dble *psi,int *status)
       
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mus,eta,psi,status);
 
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+      error_root((status[0]<0)||(status[1]<0),1,
                  "solve_dirac [ms4.c]","DFL_SAP_GCR solver failed "
-                 "(status = %d,%d,%d,%d)",status[0],status[1],status[2],
-                 status[3]);
+                 "(status = %d,%d,%d)",status[0],status[1],status[2]);
    }
    else
       error_root(1,1,"solve_dirac [ms4.c]",
@@ -486,7 +485,7 @@ static void solve_dirac(spinor_dble *eta,spinor_dble *psi,int *status)
 
 static void propagator(int nc,int *status,double *time)
 {
-   int isrc,l,stat[4];
+   int isrc,l,stat[3];
    double wt1,wt2,wtsum;
    spinor_dble *eta,*psi,**wsd;
 
@@ -495,7 +494,7 @@ static void propagator(int nc,int *status,double *time)
    psi=wsd[1];
    wtsum=0.0;
 
-   for (l=0;l<4;l++)
+   for (l=0;l<3;l++)
    {
       status[l]=0;
       stat[l]=0;
@@ -514,16 +513,16 @@ static void propagator(int nc,int *status,double *time)
       wt2=MPI_Wtime();
       wtsum+=(wt2-wt1);
       
-      for (l=0;l<3;l++)
+      for (l=0;l<2;l++)
          status[l]+=stat[l];
 
-      status[3]+=(stat[3]!=0);
+      status[2]+=(stat[2]!=0);
 
       sprintf(sfld_file,"%s/%sn%d.s%d",sfld_dir,nbase,nc,isrc);
       export_sfld(sfld_file,psi);
    }
 
-   for (l=0;l<3;l++)
+   for (l=0;l<2;l++)
       status[l]=(status[l]+(nsrc/2))/nsrc;
    
    (*time)=wtsum/(double)(nsrc);
@@ -583,7 +582,7 @@ static void check_endflag(int *iend)
 
 int main(int argc,char *argv[])
 {
-   int nc,iend,status[4];
+   int nc,iend,status[3];
    int nws,nwsd,nwv,nwvd,n;
    double wt1,wt2,wtavg;
    double wts,wtsavg;
@@ -656,10 +655,10 @@ int main(int argc,char *argv[])
 
          if (dfl.Ns)
          {
-            printf("status = %d,%d,%d",status[0],status[1],status[2]);
+            printf("status = %d,%d",status[0],status[1]);
 
-            if (status[3])
-               printf(" (no of subspace regenerations = %d)\n",status[3]);
+            if (status[2])
+               printf(" (no of subspace regenerations = %d)\n",status[2]);
             else
                printf("\n");
          }

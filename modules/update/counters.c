@@ -3,7 +3,7 @@
 *
 * File counters.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -246,7 +246,7 @@ static void set_ns(void)
          if ((sp.solver==CGNE)||(sp.solver==MSCG)||(sp.solver==SAP_GCR))
             act[j].ns=1;
          else if (sp.solver==DFL_SAP_GCR)
-            act[j].ns=3;
+            act[j].ns=2;
          else
             error_root(1,1,"set_ns [counters.c]","Unknown solver");
          
@@ -259,7 +259,7 @@ static void set_ns(void)
             if ((sp.solver==CGNE)||(sp.solver==MSCG)||(sp.solver==SAP_GCR))
                fld[k].ns=1;
             else if (sp.solver==DFL_SAP_GCR)
-               fld[k].ns=3;
+               fld[k].ns=2;
             else
                error_root(1,1,"set_ns [counters.c]","Unknown solver");
          }
@@ -272,7 +272,7 @@ static void set_ns(void)
             if ((sp.solver==CGNE)||(sp.solver==MSCG)||(sp.solver==SAP_GCR))
                fld[k].ns=1;
             else if (sp.solver==DFL_SAP_GCR)
-               fld[k].ns=3;
+               fld[k].ns=2;
             else
                error_root(1,1,"set_ns [counters.c]","Unknown solver");
          }
@@ -305,7 +305,7 @@ static void set_ns(void)
             else if (sp.solver==SAP_GCR)
                frc[k].ns=2;
             else if (sp.solver==DFL_SAP_GCR)
-               frc[k].ns=6;
+               frc[k].ns=4;
             else
                error_root(1,1,"set_ns [counters.c]","Unknown solver");
          }

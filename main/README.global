@@ -26,7 +26,7 @@ Lattice geometry
 Currently the only constants that the user can specify are
 
  NPROC0            The processes are thought to be arranged in a hypercubic
- NPROC1            grid with NPROCO,..,NPROC3 processes in direction 0,..,3.
+ NPROC1            grid with NPROC0,..,NPROC3 processes in direction 0,..,3.
  NPROC2            If NPROCx=1 the lattice is not divided in direction x.  
  NPROC3            Otherwise NPROCx has to be even.
 
@@ -35,8 +35,14 @@ Currently the only constants that the user can specify are
  L2                of the latter are thus (NPROC0*L0),..,(NPROC3*L3). It
  L3                is assumed that L0,..,L3 are all even and at least 4.
 
+ NPROC0_BLK        The process grid is logically divided into hypercubic 
+ NPROC1_BLK        blocks of size NPROC0_BLK,..,NPROC3_BLK in direction 
+ NPROC2_BLK        0,..,3. NPROCx_BLK must be greater or equal to 1 and
+ NPROC3_BLK        NPROCx must be an integer multiple of NPROCx_BLK. 
+
 The program verifies at compilation time that the values of these constants 
-are in the allowed range.
+are in the allowed range. See the section "MPI process ranking" below for
+further explanation of the parameters NPROCx_BLK.
 
 All other macros that are defined in global.h are derived from these input
 values. In particular
@@ -238,3 +244,56 @@ not used in this case and are set to zero. The quark fields at time 0 and
 NPROC0*L0-1 are also set to zero. Programs that modify the fields take care
 that the values of these special field variables are properly initialized and
 are unchanged on exit.
+
+
+MPI process ranking
+-------------------
+
+On a parallel computer with multi-core nodes, the MPI process grid should be
+mapped to the processor cores in such a way that the internode data traffic is
+minimized. This goal is likely to be approximately achieved when each node
+hosts a hypercubic block of lattice points with about equal sizes in all
+directions. Depending on the network, the arrangement of the nodes with
+respect to the lattice may be important too, but is not discussed here.
+
+The available MPI implementation may allow the mapping of the MPI process
+ranks to the nodes to be influenced by the user. The default mapping is
+however usually such that the MPI processes residing on a node are numbered
+consecutively. In the rest of this section, the mapping provided by the system
+is assumed to have this property.
+
+The association of the MPI process ranks to the local sublattices in the
+global lattice is defined by the programs in modules/lattice/geometry.c. As
+already mentioned, the process grid is thought to be divided into blocks of
+size NPROC0_BLK x .. x NPROC3_BLK in the obvious way. The program numbers the
+processes in each of these blocks consecutively. In particular, if the number
+
+ NPROC_BLK = NPROC0_BLK*NPROC1_BLK*NPROC2_BLK*NPROC2_BLK
+
+of processes in a block divides the number of cores per node, the local
+lattices on the nodes form hypercubic blocks of lattice points of size
+
+ NPROCO_BLK*L0 x NPROC1_BLK*L1 x NPROC2_BLK*L2 x NPROC3_BLK*L3.
+
+With 16 cores per node, for example, and if all sizes NPROCx_BLK are set to 2,
+each node will host a single such block of lattice points.
+
+Remarks:
+
+* Independently of the chosen process block sizes NPROCx_BLK, a valid mapping
+  of MPI ranks to the local lattices is guaranteed.
+
+* If no process blocking is desired, i.e. if the behaviour of previous
+  versions of the openQCD package is to be reproduced, the block sizes
+  NPROCx_BLK should be set to 1.
+
+* Probably the best performance is obtained by choosing the block sizes so
+  that each node hosts a single hypercubic block of lattice points. 
+  
+* As far as possible, the block of lattice points hosted on each node should
+  minimize the ratio of the numbers of surface to volume points.
+
+* Simulations with diffent process block sizes but otherwise the same
+  parameters should not be expected to yield bit-identical results, because
+  the MPI_Reduce() function collects the numbers from the local lattices in
+  different orders. 

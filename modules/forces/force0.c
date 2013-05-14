@@ -253,8 +253,8 @@ void plaq_frc(void)
 
 void force0(double c)
 {
-   int n,ix,t,ip[4];
-   double c0,c1,cG,sf;
+   int n,ix,t,ip[4],sf;
+   double c0,c1,cG;
    double r0,r1,r2;
    su3_alg_dble *fdb;
    mdflds_t *mdfs;
@@ -437,8 +437,8 @@ static void wloops(int n,int ix,int t,double c0,double *trU)
 
 double action0(int icom)
 {
-   int n,ix,t;
-   double c0,c1,cG,sf;
+   int n,ix,t,sf;
+   double c0,c1,cG;
    double trU[3],act;
    lat_parms_t lat;
 

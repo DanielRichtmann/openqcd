@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2007, 2008, 2011 Martin Luescher
+* Copyright (C) 2007, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -117,7 +117,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("Imported point field from file %s\n\n",name);
+      printf("Imported field from file %s\n\n",name);
       printf("Deviation = %.1e ",sqrt(d));
       printf("(should be exactly equal to 0.0)\n\n");
       remove(name);      

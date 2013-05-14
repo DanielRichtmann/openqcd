@@ -171,7 +171,7 @@ int main(int argc,char *argv[])
 
          Dw(mu,ps[0],ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[2],-1.0f);
-         mulr_spinor_add(VOLUME,ps[3],ps[1],-1.0f);
+         mulr_spinor_add(VOLUME,ps[3],ps[1],1.0f);
          del[0]=norm_square(VOLUME,1,ps[3]);
          del[0]=(float)(sqrt((double)(del[0])));
 

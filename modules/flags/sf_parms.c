@@ -3,7 +3,7 @@
 *
 * File sf_parms.c
 *
-* Copyright (C) 2012 John Bulava, Martin Luescher
+* Copyright (C) 2012, 2013 John Bulava, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -135,17 +135,25 @@ sf_parms_t sf_parms(void)
 
 void print_sf_parms(void)
 {
-   int my_rank;
+   int my_rank,n[3];
    
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
    {
       printf("Schroedinger functional boundary values:\n");
-      printf("phi = %.4e,%.4e,%.4e\n",
-             sf.phi[0],sf.phi[1],sf.phi[2]);
-      printf("phi' = %.4e,%.4e,%.4e\n\n",
-             sf.phi_prime[0],sf.phi_prime[1],sf.phi_prime[2]);
+
+      n[0]=fdigits(sf.phi[0]);
+      n[1]=fdigits(sf.phi[1]);
+      n[2]=fdigits(sf.phi[2]);      
+      printf("phi = %.*f,%.*f,%.*f\n",IMAX(n[0],1),sf.phi[0],
+             IMAX(n[1],1),sf.phi[1],IMAX(n[2],1),sf.phi[2]);
+
+      n[0]=fdigits(sf.phi_prime[0]);
+      n[1]=fdigits(sf.phi_prime[1]);
+      n[2]=fdigits(sf.phi_prime[2]);      
+      printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),sf.phi_prime[0],
+             IMAX(n[1],1),sf.phi_prime[1],IMAX(n[2],1),sf.phi_prime[2]);
    }
 }
 

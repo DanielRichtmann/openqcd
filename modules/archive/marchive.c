@@ -3,7 +3,7 @@
 *
 * File marchive.c
 *
-* Copyright (C) 2010, 2011 Martin Luescher
+* Copyright (C) 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -245,7 +245,8 @@ static double avg_norm(void)
 
 void export_mfld(char *out)
 {
-   int my_rank,np[4],n,iw,ie,tag;
+   int my_rank,np[4],n,iw,ie;
+   int iwa,dmy,tag0,tag1;
    int x0,x1,x2,x3,y0,y1,y2,ix,iy;
    stdint_t lsize[4];
    double norm;
@@ -257,6 +258,9 @@ void export_mfld(char *out)
    if (mbuf==NULL)
       alloc_mbuf(my_rank);
 
+   dmy=1;
+   tag0=mpi_tag();
+   tag1=mpi_tag();
    ie=check_machine();
    mdfs=mdflds();
    norm=avg_norm();
@@ -284,6 +288,8 @@ void export_mfld(char *out)
       error_root(iw!=5,1,"export_mfld [marchive.c]","Incorrect write count");
    }
 
+   iwa=0;
+   
    for (ix=0;ix<(N0*N1*N2);ix++)
    {
       x0=(ix/(N1*N2));
@@ -298,7 +304,6 @@ void export_mfld(char *out)
       np[0]=x0/L0;
       np[1]=x1/L1;
       np[2]=x2/L2;
-      iw=0;
       
       for (x3=0;x3<N3;x3+=L3)
       {
@@ -306,41 +311,48 @@ void export_mfld(char *out)
          n=ipr_global(np);
          if (my_rank==n)
             get_links(iy);
-         MPI_Barrier(MPI_COMM_WORLD);
 
          if (n>0)
          {
-            tag=mpi_tag();
-
-            if (my_rank==n)
-               MPI_Send(mbuf,4*L3*8,MPI_DOUBLE,0,
-                        tag,MPI_COMM_WORLD);
-
             if (my_rank==0)
-               MPI_Recv(mbuf,4*L3*8,MPI_DOUBLE,n,
-                        tag,MPI_COMM_WORLD,&stat);
+            {
+               MPI_Send(&dmy,1,MPI_INT,n,tag0,
+                        MPI_COMM_WORLD);               
+               MPI_Recv(mbuf,4*L3*8,MPI_DOUBLE,n,tag1,
+                        MPI_COMM_WORLD,&stat);
+            }
+            else if (my_rank==n)
+            {
+               MPI_Recv(&dmy,1,MPI_INT,0,tag0,
+                        MPI_COMM_WORLD,&stat);
+               MPI_Send(mbuf,4*L3*8,MPI_DOUBLE,0,tag1,
+                        MPI_COMM_WORLD);
+            }
          }
 
          if (my_rank==0)
          {
             if (ie==BIG_ENDIAN)
                bswap_double(4*L3*8,mbuf);
-            iw+=fwrite(mbuf,sizeof(su3_alg_dble),4*L3,fout);
+            iw=fwrite(mbuf,sizeof(su3_alg_dble),4*L3,fout);
+            iwa|=(iw!=(4*L3));
          }
       }
-
-      error_root(iw!=(4*N3),1,"export_mfld [marchive.c]",
-                 "Incorrect write count");
    }
 
    if (my_rank==0)
+   {
+      error_root(iwa!=0,1,"export_mfld [marchive.c]",
+                 "Incorrect write count");
       fclose(fout);
+   }
 }
 
 
 void import_mfld(char *in)
 {
-   int my_rank,np[4],n,ir,ie,tag;
+   int my_rank,np[4],n,ir,ie;
+   int ira,dmy,tag0,tag1;
    int k,l,x0,x1,x2,y0,y1,y2,y3,c0,c1,c2,ix,iy,ic;
    int n0,n1,n2,n3,nc0,nc1,nc2,nc3;
    stdint_t lsize[4];
@@ -353,7 +365,10 @@ void import_mfld(char *in)
    if (mbuf==NULL)
       alloc_mbuf(my_rank);
 
-   ie=check_machine();   
+   dmy=1;
+   tag0=mpi_tag();
+   tag1=mpi_tag();
+   ie=check_machine();
    mdfs=mdflds();
    
    if (my_rank==0)
@@ -376,10 +391,12 @@ void import_mfld(char *in)
       np[1]=(int)(lsize[1]);
       np[2]=(int)(lsize[2]);
       np[3]=(int)(lsize[3]);      
-      
-      error_root(((N0%np[0])!=0)||((N1%np[1])!=0)||
-                 ((N2%np[2])!=0)||((N3%np[3])!=0),1,
-                 "import_mfld [marchive.c]","Incompatible lattice sizes");
+
+      error_root((np[0]<1)||((N0%np[0])!=0)||
+                 (np[1]<1)||((N1%np[1])!=0)||
+                 (np[2]<1)||((N2%np[2])!=0)||
+                 (np[3]<1)||((N3%np[3])!=0),1,"import_mfld [marchive.c]",
+                 "Unexpected or incompatible lattice sizes");
    }
 
    MPI_Bcast(np,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -394,6 +411,7 @@ void import_mfld(char *in)
    nc1=N1/n1;
    nc2=N2/n2;
    nc3=N3/n3;
+   ira=0;
 
    for (ix=0;ix<(n0*n1*n2);ix++)
    {
@@ -405,8 +423,7 @@ void import_mfld(char *in)
       {
          n=4*n3;
          ir=fread(nbuf,sizeof(su3_alg_dble),n,fin);
-         error_root(ir!=n,1,"import_mfld [marchive.c]",
-                    "Incorrect read count");
+         ira|=(ir!=n);
 
          if (ie==BIG_ENDIAN)
             bswap_double(n*8,nbuf);
@@ -437,19 +454,23 @@ void import_mfld(char *in)
          {
             np[3]=y3/L3;
             n=ipr_global(np);
-            MPI_Barrier(MPI_COMM_WORLD);
 
             if (n>0)
             {
-               tag=mpi_tag();
-
                if (my_rank==0)
-                  MPI_Send(nbuf+4*y3,4*L3*8,MPI_DOUBLE,n,tag,
+               {
+                  MPI_Send(nbuf+4*y3,4*L3*8,MPI_DOUBLE,n,tag1,
                            MPI_COMM_WORLD);
-
-               if (my_rank==n)
-                  MPI_Recv(mbuf,4*L3*8,MPI_DOUBLE,0,tag,
+                  MPI_Recv(&dmy,1,MPI_INT,n,tag0,
                            MPI_COMM_WORLD,&stat);
+               }
+               else if (my_rank==n)
+               {
+                  MPI_Recv(mbuf,4*L3*8,MPI_DOUBLE,0,tag1,
+                           MPI_COMM_WORLD,&stat);
+                  MPI_Send(&dmy,1,MPI_INT,0,tag0,
+                           MPI_COMM_WORLD);
+               }
             }
             else if (my_rank==0)
                for (l=0;l<(4*L3);l++)
@@ -462,10 +483,14 @@ void import_mfld(char *in)
    }
 
    if (my_rank==0)
+   {
+      error_root(ira!=0,1,"import_mfld [marchive.c]",
+                 "Incorrect read count");
       fclose(fin);
-
+   }
+   
    norm1=avg_norm();
-   eps=128.0*DBL_EPSILON;
+   eps=sqrt((double)(4*N0)*(double)(N1*N2*N3))*DBL_EPSILON;
    error(fabs(norm1-norm0)>(eps*norm0),1,"import_mfld [marchive.c]",
          "Norm test failed");
 }

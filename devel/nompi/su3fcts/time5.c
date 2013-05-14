@@ -3,7 +3,7 @@
 *
 * File time5.c
 *
-* Copyright (C) 2009, 2011 Filippo Palombi, Martin Luescher
+* Copyright (C) 2009, 2011, 2013 Filippo Palombi, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -139,8 +139,10 @@ int main(void)
    printf("\n");
    printf("Timing of chexp_drv*(), ch2mat() and expXsu3()\n");
    printf("----------------------------------------------\n\n");
-
-#if (defined x64)
+   
+#if (defined AVX)
+   printf("Using AVX and SSE3 instructions\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n");
 #endif
    

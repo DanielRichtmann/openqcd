@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2007, 2009, 2011 Martin Luescher
+* Copyright (C) 2007, 2009, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,8 +32,10 @@ int main(void)
    printf("Timing of cmat_vec and cmat_mul\n");
    printf("-------------------------------\n\n");
 
-#if (defined x64)
-   printf("Using SSE3 instructions and up to 16 xmm registers\n");
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
+   printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");

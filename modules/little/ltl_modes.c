@@ -3,7 +3,7 @@
 *
 * File ltl_modes.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -28,7 +28,7 @@
 * modes in each block of the DFL_BLOCKS grid.
 *
 * The inversion of a double-precision complex matrix is considered to be
-* safe if and only if its Frobenius condition number is less than 1000.
+* safe if and only if its Frobenius condition number is less than 10^6.
 *
 * All programs in this module may involve global communications and must
 * be called simultaneously on all processes.
@@ -53,7 +53,7 @@
 #include "little.h"
 #include "global.h"
 
-#define MAX_FROBENIUS 1.0e3
+#define MAX_FROBENIUS 1.0e6
 
 static int Ns=0,nv,nvh;
 static complex **vs;

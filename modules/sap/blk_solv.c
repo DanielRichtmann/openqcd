@@ -3,7 +3,7 @@
 *
 * File blk_solv.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -57,6 +57,262 @@ static spinor **s;
 
 #if (defined x64)
 #include "sse2.h"
+
+#if (defined AVX)
+#include "avx.h"
+
+static float unity=1.0f;
+
+
+static void scalar_prods(float *r,complex *z)
+{
+   spinor *s1,*s2,*sm;
+   
+   __asm__ __volatile__ ("vxorpd %%ymm12, %%ymm12, %%ymm12 \n\t"
+                         "vxorpd %%ymm13, %%ymm13, %%ymm13 \n\t"
+                         "vxorpd %%ymm14, %%ymm14, %%ymm14"
+                         :
+                         :
+                         :
+                         "xmm12", "xmm13", "xmm14");
+
+   s1=s[1];
+   s2=s[2];
+   sm=s1+vol;
+
+   for (;s1<sm;s1++)
+   {
+      _avx_spinor_load(*s2);
+      
+      __asm__ __volatile__ ("vmovsldup %0, %%ymm3 \n\t"
+                            "vmovsldup %4, %%ymm4"
+                            :
+                            :
+                            "m" ((*s1).c1.c1),
+                            "m" ((*s1).c1.c2),
+                            "m" ((*s1).c1.c3),
+                            "m" ((*s1).c2.c1),
+                            "m" ((*s1).c2.c2),
+                            "m" ((*s1).c2.c3),
+                            "m" ((*s1).c3.c1),
+                            "m" ((*s1).c3.c2)                            
+                            :
+                            "xmm3", "xmm4");
+
+      __asm__ __volatile__ ("vmovsldup %0, %%ymm5 \n\t"
+                            "vmovshdup %4, %%ymm6"
+                            :
+                            :
+                            "m" ((*s1).c3.c3),
+                            "m" ((*s1).c4.c1),
+                            "m" ((*s1).c4.c2),
+                            "m" ((*s1).c4.c3),
+                            "m" ((*s1).c1.c1),
+                            "m" ((*s1).c1.c2),
+                            "m" ((*s1).c1.c3),
+                            "m" ((*s1).c2.c1)                            
+                            :
+                            "xmm5", "xmm6");
+
+      __asm__ __volatile__ ("vmovshdup %0, %%ymm7 \n\t"
+                            "vmovshdup %4, %%ymm8"
+                            :
+                            :
+                            "m" ((*s1).c2.c2),
+                            "m" ((*s1).c2.c3),
+                            "m" ((*s1).c3.c1),
+                            "m" ((*s1).c3.c2),
+                            "m" ((*s1).c3.c3),
+                            "m" ((*s1).c4.c1),
+                            "m" ((*s1).c4.c2),
+                            "m" ((*s1).c4.c3)                            
+                            :
+                            "xmm7", "xmm8");
+
+      __asm__ __volatile__ ("vmulps %%ymm0, %%ymm3, %%ymm3 \n\t"
+                            "vmulps %%ymm1, %%ymm4, %%ymm4 \n\t"
+                            "vmulps %%ymm2, %%ymm5, %%ymm5 \n\t"
+                            "vmulps %%ymm0, %%ymm6, %%ymm6 \n\t"
+                            "vmulps %%ymm1, %%ymm7, %%ymm7 \n\t"
+                            "vmulps %%ymm2, %%ymm8, %%ymm8 \n\t"
+                            "vmulps %%ymm0, %%ymm0, %%ymm0 \n\t"
+                            "vmulps %%ymm1, %%ymm1, %%ymm1 \n\t"
+                            "vmulps %%ymm2, %%ymm2, %%ymm2 \n\t"
+                            "vaddps %%ymm4, %%ymm3, %%ymm3 \n\t"
+                            "vaddps %%ymm7, %%ymm6, %%ymm6 \n\t"
+                            "vaddps %%ymm1, %%ymm0, %%ymm0 \n\t"
+                            "vaddps %%ymm5, %%ymm3, %%ymm3 \n\t"
+                            "vaddps %%ymm8, %%ymm6, %%ymm6 \n\t"
+                            "vaddps %%ymm2, %%ymm0, %%ymm0"
+                            :
+                            :
+                            :
+                            "xmm0", "xmm1", "xmm2", "xmm3",
+                            "xmm4", "xmm5", "xmm6", "xmm7",
+                            "xmm8");
+      
+      __asm__ __volatile__ ("vextractf128 $0x1, %%ymm3, %%xmm9 \n\t"
+                            "vextractf128 $0x1, %%ymm6, %%xmm10 \n\t"
+                            "vextractf128 $0x1, %%ymm0, %%xmm11 \n\t"
+                            "vaddps %%xmm9, %%xmm3, %%xmm3 \n\t"
+                            "vaddps %%xmm10, %%xmm6, %%xmm6 \n\t"
+                            "vaddps %%xmm11, %%xmm0, %%xmm0 \n\t"
+                            "vcvtps2pd %%xmm3, %%ymm4 \n\t"
+                            "vcvtps2pd %%xmm6, %%ymm7 \n\t"
+                            "vcvtps2pd %%xmm0, %%ymm1 \n\t"
+                            "vaddpd %%ymm4, %%ymm12, %%ymm12 \n\t"
+                            "vaddpd %%ymm7, %%ymm13, %%ymm13 \n\t"
+                            "vaddpd %%ymm1, %%ymm14, %%ymm14"
+                            :
+                            :
+                            :
+                            "xmm0", "xmm1", "xmm3", "xmm4",
+                            "xmm6", "xmm7", "xmm9", "xmm10",
+                            "xmm11", "xmm12", "xmm13", "xmm14");
+
+      s2+=1;
+   }
+
+   __asm__ __volatile__ ("vextractf128 $0x1, %%ymm12, %%xmm3 \n\t"
+                         "vextractf128 $0x1, %%ymm13, %%xmm4 \n\t"
+                         "vextractf128 $0x1, %%ymm14, %%xmm5 \n\t"
+                         "vaddpd %%xmm3, %%xmm12, %%xmm12 \n\t"
+                         "vaddpd %%xmm4, %%xmm13, %%xmm13 \n\t"
+                         "vaddpd %%xmm5, %%xmm14, %%xmm14"
+                         :
+                         :
+                         :
+                         "xmm3", "xmm4", "xmm5", "xmm12",
+                         "xmm13", "xmm14");
+
+   _avx_zeroupper();
+
+   __asm__ __volatile__ ("shufpd $0x1, %%xmm12, %%xmm12 \n\t"
+                         "haddpd %%xmm14, %%xmm14 \n\t"
+                         "addsubpd %%xmm12, %%xmm13 \n\t"
+                         "cvtsd2ss %%xmm14, %%xmm0 \n\t"                         
+                         "shufpd $0x1, %%xmm13, %%xmm13 \n\t"
+                         "movss %%xmm0, %0 \n\t"                         
+                         "cvtpd2ps %%xmm13, %%xmm1 \n\t"
+                         "movlps %%xmm1, %1"
+                         :
+                         "=m" (*r),
+                         "=m" (*z)
+                         :
+                         :
+                         "xmm0", "xmm1", "xmm12", "xmm13",
+                         "xmm14");
+}
+
+
+static void linear_cmbs(float *r,complex *z)
+{
+   spinor *s0,*s1,*s2,*sm;
+   
+   s0=s[0];
+   s1=s[1];
+   s2=s[2];
+   sm=s0+vol;
+
+   __asm__ __volatile__ ("vmovss %0, %%xmm7 \n\t"
+                         "vmovss %1, %%xmm8 \n\t"
+                         "vdivss %%xmm7, %%xmm8, %%xmm9 \n\t"
+                         "vinsertf128 $0x1, %%xmm9, %%ymm9, %%ymm9 \n\t"
+                         "vpermilps $0x0, %%ymm9, %%ymm10 \n\t"
+                         "vxorps %%ymm13, %%ymm13, %%ymm13 \n\t"
+                         "vbroadcastss %2, %%ymm11 \n\t"
+                         "vbroadcastss %3, %%ymm12 \n\t"                         
+                         "vaddsubps %%ymm11, %%ymm13, %%ymm13 \n\t"
+                         "vmulps %%ymm10, %%ymm12, %%ymm12 \n\t"
+                         "vmulps %%ymm10, %%ymm13, %%ymm13"
+                         :
+                         :
+                         "m" (*r),
+                         "m" (unity),
+                         "m" ((*z).im),
+                         "m" ((*z).re)
+                         :
+                         "xmm7", "xmm8", "xmm9", "xmm10",
+                         "xmm11", "xmm12", "xmm13");
+   
+   for (;s0<sm;s0++)
+   {
+      _avx_mulc_spinor(*s2);
+      _avx_spinor_load_up(*s1);
+      
+      __asm__ __volatile__ ("vsubps %%ymm0, %%ymm3, %%ymm0 \n\t" 
+                            "vsubps %%ymm1, %%ymm4, %%ymm1 \n\t"
+                            "vsubps %%ymm2, %%ymm5, %%ymm2"
+                            : 
+                            : 
+                            : 
+                            "xmm0", "xmm1", "xmm2");
+
+      _avx_spinor_store(*s1);
+
+      __asm__ __volatile__ ("vpermilps $0xb1, %%ymm3, %%ymm6 \n\t"
+                            "vpermilps $0xb1, %%ymm4, %%ymm7 \n\t"
+                            "vpermilps $0xb1, %%ymm5, %%ymm8 \n\t"
+                            "vmulps %%ymm12, %%ymm3, %%ymm3 \n\t"
+                            "vmulps %%ymm13, %%ymm6, %%ymm6 \n\t"
+                            "vmulps %%ymm12, %%ymm4, %%ymm4 \n\t"
+                            "vmulps %%ymm13, %%ymm7, %%ymm7 \n\t"
+                            "vmulps %%ymm12, %%ymm5, %%ymm5 \n\t"
+                            "vmulps %%ymm13, %%ymm8, %%ymm8"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5",
+                            "xmm6", "xmm7", "xmm8");
+
+      __asm__ __volatile__ ("vaddps %0, %%ymm3, %%ymm3 \n\t"
+                            :
+                            :
+                            "m" ((*s0).c1.c1),
+                            "m" ((*s0).c1.c2),
+                            "m" ((*s0).c1.c3),
+                            "m" ((*s0).c2.c1)                            
+                            :
+                            "xmm3");
+
+      __asm__ __volatile__ ("vaddps %0, %%ymm4, %%ymm4 \n\t"
+                            :
+                            :
+                            "m" ((*s0).c2.c2),
+                            "m" ((*s0).c2.c3),
+                            "m" ((*s0).c3.c1),
+                            "m" ((*s0).c3.c2)                            
+                            :
+                            "xmm4");
+
+      __asm__ __volatile__ ("vaddps %0, %%ymm5, %%ymm5 \n\t"
+                            :
+                            :
+                            "m" ((*s0).c3.c3),
+                            "m" ((*s0).c4.c1),
+                            "m" ((*s0).c4.c2),
+                            "m" ((*s0).c4.c3)                            
+                            :
+                            "xmm5");
+      
+      __asm__ __volatile__ ("vaddps %%ymm6, %%ymm3, %%ymm3 \n\t"
+                            "vaddps %%ymm7, %%ymm4, %%ymm4 \n\t"
+                            "vaddps %%ymm8, %%ymm5, %%ymm5"
+                            :
+                            :
+                            :
+                            "xmm3", "xmm4", "xmm5");
+      
+      _avx_spinor_store_up(*s0);
+      
+      s1+=1;
+      s2+=1;
+   }
+
+   _avx_zeroupper();
+}
+
+#else
 
 static void scalar_prods(float *r,complex *z)
 {
@@ -486,6 +742,7 @@ static void linear_cmbs(float *r,complex *z)
    }
 }
 
+#endif
 
 void blk_mres(int n,float mu,int nmr)
 {

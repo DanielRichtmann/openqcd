@@ -52,6 +52,11 @@ int digits(double x,double dx,char *fmt)
   (int)(10^n*dx) is then a two-digit integer that represents the error
   in the last two digits of the printed value.
 
+int fdigits(double x)
+  Returns the smallest integer n such that the value of x printed with
+  print format %.nf coincides with x up to a relative error at most a
+  few times the machine precision DBL_EPSILON.
+
 int name_size(char *format,...)
   This program returns the length of the string that would be printed
   by calling sprintf(*,format,...). The format string can be any

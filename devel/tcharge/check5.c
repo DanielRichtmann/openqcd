@@ -3,7 +3,7 @@
 *
 * File check5.c
 *
-* Copyright (C) 2010 Martin Luescher
+* Copyright (C) 2010, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -35,7 +35,7 @@ static su3_dble ud0={{0.0}};
 static double Amt(void)
 {
    int mu,nu;
-   double smt,sms,pi;
+   double sm,pi;
    double xl[4],phi,ft1,ft2,ft3,tr;
 
    xl[0]=(double)(NPROC0*L0);
@@ -44,8 +44,7 @@ static double Amt(void)
    xl[3]=(double)(NPROC3*L3);
 
    pi=4.0*atan(1.0);
-   smt=0.0;
-   sms=0.0;
+   sm=0.0;
 
    for (mu=1;mu<4;mu++)
    {
@@ -63,14 +62,11 @@ static double Amt(void)
          ft2-=tr;
          ft3-=tr;
 
-         if (nu==0)
-            smt+=ft1*ft1+ft2*ft2+ft3*ft3;
-         else
-            sms+=ft1*ft1+ft2*ft2+ft3*ft3;
+         sm+=ft1*ft1+ft2*ft2+ft3*ft3;
       }
    }
 
-   return xl[1]*xl[2]*xl[3]*(smt*(xl[0]-2.0)+sms*(xl[0]-1.0));
+   return sm*(xl[0]-1.0)*xl[1]*xl[2]*xl[3];
 }
 
 

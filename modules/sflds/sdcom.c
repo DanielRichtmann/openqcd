@@ -3,7 +3,7 @@
 *
 * File sdcom.c
 *
-* Copyright (C) 2005, 2008, 2011 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -92,6 +92,9 @@ static void alloc_sdbufs(void)
    int ifc,tag,saddr,raddr;
    weyl_dble *w,*wm;
 
+   error(iup[0][0]==0,1,"alloc_sdbufs [sdcom.c]",
+         "Geometry arrays are not initialized");
+   
    wb=amalloc(BNDRY*sizeof(*wb),ALIGN);
    error(wb==NULL,1,"alloc_sdbufs [sdcom.c]",
          "Unable to allocate communication buffers");

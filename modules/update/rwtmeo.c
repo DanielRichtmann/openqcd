@@ -3,7 +3,7 @@
 *
 * File rwtmeo.c
 *
-* Copyright (C) 2012 Martin Luescher, Stefan Schaefer
+* Copyright (C) 2012, 2013 Martin Luescher, Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -18,7 +18,7 @@
 *     The twisted-mass Dirac equation is solved using the solver specified
 *     by the parameter set number isp.
 *      The argument status must be pointing to an array of at least 1,1
-*     and 4 elements, respectively, in the case of the CGNE, SAP_GCR and
+*     and 3 elements, respectively, in the case of the CGNE, SAP_GCR and
 *     DFL_SAP_GCR solver. On exit the array elements return the status
 *     values reported by the solver program.
 *
@@ -28,7 +28,7 @@
 *     The twisted-mass Dirac equation is solved using the solver specified
 *     by the parameter set number isp.
 *      The argument status must be pointing to an array of at least 2,2
-*     and 8 elements, respectively, in the case of the CGNE, SAP_GCR and
+*     and 6 elements, respectively, in the case of the CGNE, SAP_GCR and
 *     DFL_SAP_GCR solver. On exit the array elements return the status
 *     values reported by the solver program for twisted mass 0 (first
 *     half of the array) and twisted mass sqrt(2)*mu (second half).
@@ -139,10 +139,10 @@ double rwtm1eo(double mu,int isp,double *sqn,int *status)
       mulg5_dble(VOLUME/2,eta);
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,eta,phi,status);
       
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+      error_root((status[0]<0)||(status[1]<0),1,
                  "rwtm1eo [rwtmeo.c]","DFL_SAP_GCR solver failed "
-                 "(mu = 0.0, parameter set no %d, status = (%d,%d,%d,%d))",
-                 isp,status[0],status[1],status[2],status[3]);
+                 "(mu = 0.0, parameter set no %d, status = (%d,%d,%d))",
+                 isp,status[0],status[1],status[2]);
       
       lnr=norm_square_dble(VOLUME/2,1,phi);
    }
@@ -221,20 +221,20 @@ double rwtm2eo(double mu,int isp,double *sqn,int *status)
       mulg5_dble(VOLUME/2,eta);
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,eta,phi,status);
       
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+      error_root((status[0]<0)||(status[1]<0),1,
                  "rwtm2eo [rwtmeo.c]","DFL_SAP_GCR solver failed "
-                 "(mu = 0.0, parameter set no %d, status = (%d,%d,%d,%d))",
-                 isp,status[0],status[1],status[2],status[3]);
+                 "(mu = 0.0, parameter set no %d, status = (%d,%d,%d))",
+                 isp,status[0],status[1],status[2]);
 
       mulg5_dble(VOLUME/2,phi);
       set_sd2zero(VOLUME/2,phi+(VOLUME/2));
 
-      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,sqrt(2.0)*mu,phi,eta,status+4);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,sqrt(2.0)*mu,phi,eta,status+3);
       
-      error_root((status[4]<0)||(status[5]<0)||(status[6]<0),2,
+      error_root((status[3]<0)||(status[4]<0),2,
                  "rwtm2eo [rwtmeo.c]","DFL_SAP_GCR solver failed "
-                 "(mu = %.4e, parameter set no %d, status = (%d,%d,%d,%d)",
-                 sqrt(2.0)*mu,isp,status[4],status[5],status[6],status[7]);      
+                 "(mu = %.4e, parameter set no %d, status = (%d,%d,%d)",
+                 sqrt(2.0)*mu,isp,status[3],status[4],status[5]);
       
       lnr=norm_square_dble(VOLUME/2,1,eta);
    }

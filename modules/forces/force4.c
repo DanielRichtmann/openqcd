@@ -3,7 +3,7 @@
 *
 * File force4.c
 *
-* Copyright (C) 2012 Martin Luescher, Stefan Schaefer
+* Copyright (C) 2012, 2013 Martin Luescher, Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -72,14 +72,14 @@
 * and is given by:
 *
 *                  CGNE         SAP_GCR       DFL_SAP_GCR
-*   force4()         1             2               8
-*   action4()        1             1               4
+*   force4()         1             2               6
+*   action4()        1             1               3
 *
 * Note that, in force4(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
 * [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/sparms.c].
+* have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The program force4() attempts to propagate the solutions of the Dirac
 * equation along the molecular-dynamics trajectories, using the field
@@ -523,13 +523,13 @@ void force4(double mu,int ipf,int isw,int isp,int icr,double c,int *status)
                      set_sd2zero(VOLUME/2,eta+(VOLUME/2));
                      
                      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res/res1,-mu,eta,rho,
-                                  status+4);
+                                  status+3);
 
                      mulr_spinor_add_dble(VOLUME,chi,rho,-1.0);
                   }
                   else
                   {
-                     for (l=4;l<8;l++)
+                     for (l=3;l<6;l++)
                         status[l]=0;               
                   }
                }
@@ -539,12 +539,12 @@ void force4(double mu,int ipf,int isw,int isp,int icr,double c,int *status)
                   mulg5_dble(VOLUME/2,eta);
                   set_sd2zero(VOLUME/2,eta+(VOLUME/2));
                   
-                  dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+4);
+                  dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+3);
                }
             } 
             else
             {
-               for (l=0;l<8;l++)
+               for (l=0;l<6;l++)
                   status[l]=0;               
             }
          } 
@@ -560,7 +560,7 @@ void force4(double mu,int ipf,int isw,int isp,int icr,double c,int *status)
             mulg5_dble(VOLUME/2,eta);
             set_sd2zero(VOLUME/2,eta+(VOLUME/2));
 
-            dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+4);
+            dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+3);
          }
 
          release_wsd();
@@ -580,17 +580,16 @@ void force4(double mu,int ipf,int isw,int isp,int icr,double c,int *status)
          mulg5_dble(VOLUME/2,eta);
          set_sd2zero(VOLUME/2,eta+(VOLUME/2));
 
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+4);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,eta,chi,status+3);
 
          release_wsd();
       }
 
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0)||(status[4]<0)||
-                 (status[5]<0)||(status[6]<0),1,"force4 [force4.c]",
-                 "DFL_SAP_GCR solver failed (mu = %.4e, parameter set no %d, "
-                 "status = %d,%d,%d,%d;%d,%d,%d,%d)",mu,isp,
-                 status[0],status[1],status[2],status[3],
-                 status[4],status[5],status[6],status[7]);
+      error_root((status[0]<0)||(status[1]<0)||(status[3]<0)||(status[4]<0),1,
+                 "force4 [force4.c]","DFL_SAP_GCR solver failed "
+                 "(mu = %.4e, parameter set no %d, status = %d,%d,%d;%d,%d,%d)",
+                 mu,isp,status[0],status[1],status[2],status[3],
+                 status[4],status[5]);
 
       if (icr)
          add_chrono(icr,chi);
@@ -684,10 +683,10 @@ double action4(double mu,int ipf,int isw,int isp,int icom,int *status)
 
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu,phi,psi,status);
 
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
-                 "action4 [force4.c]","DFL_SAP_GCR solver failed "
-                 "(mu = %.4e, parameter set no %d, status = %d,%d,%d,%d)",
-                 mu,isp,status[0],status[1],status[2],status[3]);
+      error_root((status[0]<0)||(status[1]<0),1,"action4 [force4.c]",
+                 "DFL_SAP_GCR solver failed (mu = %.4e, parameter set "
+                 "no %d, status = %d,%d,%d)",mu,isp,
+                 status[0],status[1],status[2]);
 
       mulg5_dble(VOLUME/2,phi);      
       act+=norm_square_dble(VOLUME/2,0,psi);

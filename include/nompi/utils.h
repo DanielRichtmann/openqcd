@@ -43,6 +43,9 @@ typedef unsigned long int stduint_t;
 #define LITTLE_ENDIAN 1
 #define BIG_ENDIAN 2
 
+#undef IMAX
+#define IMAX(n,m) ((n)+((m)-(n))*((m)>(n)))
+
 typedef enum
 {
    ALL_PTS,EVEN_PTS,ODD_PTS,NO_PTS,PT_SETS
@@ -56,9 +59,13 @@ extern void bswap_double(int n,void *a);
 /* MUTILS_C */
 extern int find_opt(int argc,char *argv[],char *opt);
 extern int digits(double x,double dx,char *fmt);
+extern int fdigits(double x);
 extern int name_size(char *format,...);
 extern long find_section(FILE *stream,char *title);
 extern long read_line(FILE *stream,char *tag,char *format,...);
+extern int count_tokens(FILE *stream,char *tag);
+extern void read_iprms(FILE *stream,char *tag,int n,int *iprms);
+extern void read_dprms(FILE *stream,char *tag,int n,double *dprms);
 
 /* UTILS_C */
 extern int safe_mod(int x,int y);

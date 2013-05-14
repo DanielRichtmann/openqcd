@@ -1,9 +1,9 @@
 
 /*******************************************************************************
 *
-* File check5.c
+* File check7.c
 *
-* Copyright (C) 2012 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2012, 2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -107,20 +107,20 @@ static void divide_pf(double mu,int isp,int *status)
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu,phi,phi,status);
       set_sd2zero(VOLUME/2,phi+VOLUME/2);
 
-      error_root((status[0]<0)||(status[1]<0)||(status[2]<0),1,
+      error_root((status[0]<0)||(status[1]<0),1,
                  "divide_pf [check7.c]","DFL_SAP_GCR solver failed "
-                 "(parameter set no %d, status = (%d,%d,%d,%d))",
-                 isp,status[0],status[1],status[2],status[3]);
+                 "(parameter set no %d, status = (%d,%d,%d))",
+                 isp,status[0],status[1],status[2]);
    }
 }
 
 
 int main(int argc,char *argv[])
 {
-   int my_rank,irw,isp,isp2[3],status[8];
+   int my_rank,irw,isp,isp2[3],status[6];
    int isap,idfl,mnkv;
    int bs[4],Ns,nmx,nkv,nmr,ncy,ninv;
-   double kappa,mu,resd,res;
+   double kappa,mu,res;
    double act0,act1,sqn0,sqn1;
    double da,ds,damx,dsmx;
    solver_parms_t sp;
@@ -186,9 +186,6 @@ int main(int argc,char *argv[])
       read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
@@ -196,27 +193,21 @@ int main(int argc,char *argv[])
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);   
-   mnkv=nkv;
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);   
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
       fclose(fin);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);     
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);  
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 
    set_lat_parms(6.0,1.0,0.0,0.0,0.0,1.234,1.0,1.34);
    set_hmc_parms(0,NULL,1,0,NULL,1,1.0);   
@@ -228,10 +219,13 @@ int main(int argc,char *argv[])
    start_ranlux(0,1245);
    geometry();
 
-   if (2*mnkv>4)
-      alloc_ws(2*mnkv+1);
-   else
-      alloc_ws(5);
+   mnkv=2*mnkv+2;
+   if (mnkv<(Ns+2))
+      mnkv=Ns+2;
+   if (mnkv<5)
+      mnkv=5;
+   
+   alloc_ws(mnkv);
    alloc_wsd(6);
    alloc_wv(2*nkv+2);
    alloc_wvd(4);
@@ -277,7 +271,7 @@ int main(int argc,char *argv[])
             if ((isp==0)||(isp==1))
                divide_pf(mu,isp2[isp],status+1);
             else
-               divide_pf(mu,isp2[isp],status+3);
+               divide_pf(mu,isp2[isp],status+2);
 
             act0=mu*mu*mu*mu*action4(0.0,0,0,isp2[isp],1,status);
          }
@@ -291,8 +285,8 @@ int main(int argc,char *argv[])
             if ((isp2[isp]==0)||(isp2[isp]==1))
                printf("status = %d\n",status[0]);
             else if (isp2[isp]==2)
-               printf("status = (%d,%d,%d,%d)\n",
-                      status[0],status[1],status[2],status[3]);
+               printf("status = (%d,%d,%d)\n",
+                      status[0],status[1],status[2]);
          }
       
          start_ranlux(0,8910+isp);
@@ -319,8 +313,8 @@ int main(int argc,char *argv[])
                if ((isp==0)||(isp==1))
                   printf("status = %d\n",status[0]);
                else if (isp==2)
-                  printf("status = (%d,%d,%d,%d)\n",
-                         status[0],status[1],status[2],status[3]);
+                  printf("status = (%d,%d,%d)\n",
+                         status[0],status[1],status[2]);
             }
             else
             {
@@ -329,9 +323,9 @@ int main(int argc,char *argv[])
                if ((isp==0)||(isp==1))
                   printf("status = %d,%d\n",status[0],status[1]);
                else if (isp==2)
-                  printf("status = (%d,%d,%d,%d),(%d,%d,%d,%d)\n",
+                  printf("status = (%d,%d,%d),(%d,%d,%d)\n",
                          status[0],status[1],status[2],status[3],
-                         status[4],status[5],status[6],status[7]);
+                         status[4],status[5]);
             }
             
             printf("|1-act1/act0| = %.1e, |1-sqn1/sqn0| = %.1e\n\n",da,ds);

@@ -3,7 +3,7 @@
 *
 * File rw_parms.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -390,7 +390,8 @@ void print_rw_parms(void)
             {
                printf("RWTM1 factor\n");
                printf("im0 = %d\n",rw[irw].im0);
-               printf("mu = %.4e\n",rw[irw].mu);
+               n=fdigits(rw[irw].mu);
+               printf("mu = %.*f\n",IMAX(n,1),rw[irw].mu);
                printf("isp = %d\n",rw[irw].isp[0]);
                printf("nsrc = %d\n\n",rw[irw].nsrc);
             }
@@ -398,7 +399,8 @@ void print_rw_parms(void)
             {
                printf("RWTM1_EO factor\n");
                printf("im0 = %d\n",rw[irw].im0);
-               printf("mu = %.4e\n",rw[irw].mu);
+               n=fdigits(rw[irw].mu);
+               printf("mu = %.*f\n",IMAX(n,1),rw[irw].mu);
                printf("isp = %d\n",rw[irw].isp[0]);
                printf("nsrc = %d\n\n",rw[irw].nsrc);
             }
@@ -406,7 +408,8 @@ void print_rw_parms(void)
             {
                printf("RWTM2 factor\n");
                printf("im0 = %d\n",rw[irw].im0);
-               printf("mu = %.4e\n",rw[irw].mu);
+               n=fdigits(rw[irw].mu);
+               printf("mu = %.*f\n",IMAX(n,1),rw[irw].mu);
                printf("isp = %d\n",rw[irw].isp[0]);
                printf("nsrc = %d\n\n",rw[irw].nsrc);               
             }
@@ -414,7 +417,8 @@ void print_rw_parms(void)
             {
                printf("RWTM2_EO factor\n");
                printf("im0 = %d\n",rw[irw].im0);
-               printf("mu = %.4e\n",rw[irw].mu);
+               n=fdigits(rw[irw].mu);
+               printf("mu = %.*f\n",IMAX(n,1),rw[irw].mu);
                printf("isp = %d\n",rw[irw].isp[0]);
                printf("nsrc = %d\n\n",rw[irw].nsrc);
             }

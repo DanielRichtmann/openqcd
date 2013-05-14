@@ -17,7 +17,7 @@ Files
 gauss.c        Generation of single- and double-precision Gaussian
                random numbers 
 
-ranlux.c       Parallel initialization of ranlxs and ranlxd
+ranlux.c       Initialization of ranlxs and ranlxd
 
 ranlxd.c       Double-precision generator plus utility programs
 
@@ -49,6 +49,21 @@ void start_ranlux(int level,int seed)
   or 1 (exceptional) and the seed can be any positive integer less than
   or equal to INT_MAX/NPROC. An error occurs if the seed is not in this
   range.
+
+void export_ranlux(int tag,char *out)
+  Writes the tag, the lattice sizes, the process grid and the state of
+  the random number generators ranlxs and ranlxd to the file "out" from
+  process 0. The state of the generators are collected from all processes
+  and written to the file in the order specified in the notes.
+
+int import_ranlux(char *in)
+  Reads the state of the random number generators ranlxs and ranlxd from
+  the file "in". The file is read from process 0 only and the data on
+  the file are expected in the form written by export_ranlux(). An error
+  occurs if the lattice sizes and process grid read from the file do not
+  coincide with the actual values of these parameters. The program then
+  resets the generators on all processes to the states read from the file.
+  The value returned is the tag read from the file.
 
 void ranlxd(double r[],int n)
   Computes the next n double-precision random numbers and

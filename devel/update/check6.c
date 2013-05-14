@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -83,7 +83,7 @@ static void read_dfl_parms(void)
 {
    int bs[4],Ns;
    int ninv,nmr,ncy,nkv,nmx;
-   double kappa,mu,res,resd;
+   double kappa,mu,res;
 
    if (my_rank==0)
    {
@@ -104,9 +104,6 @@ static void read_dfl_parms(void)
       read_line("ninv","%d",&ninv);     
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -114,25 +111,20 @@ static void read_dfl_parms(void)
    MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy,nkv,nmx,res);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
    
    if (my_rank==0)
    {
-      find_section("Deflation projectors");
+      find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);           
-      read_line("resd","%lf",&resd);
       read_line("res","%lf",&res);
    }
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&resd,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,resd,res);
+   set_dfl_pro_parms(nkv,nmx,res);
 }
 
 
@@ -166,15 +158,12 @@ static void dfl_wsize(int *nws,int *nwv,int *nwvd)
 {
    dfl_parms_t dp;
    dfl_pro_parms_t dpp;
-   dfl_gen_parms_t dgp;
 
    dp=dfl_parms();
    dpp=dfl_pro_parms();
-   dgp=dfl_gen_parms();
 
    MAX(*nws,dp.Ns+2);
    MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwv,2*dgp.nkv+2);
    MAX(*nwvd,4);
 }
 
@@ -199,7 +188,7 @@ static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
-      MAX(*nws,2*sp.nkv+1);      
+      MAX(*nws,2*sp.nkv+2);      
       MAX(*nwsd,nsd+4);
       dfl_wsize(nws,nwv,nwvd);
    }
@@ -211,7 +200,7 @@ static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
 
 static double power1(int pmx,int *status)
 {
-   int k,l,stat[8];
+   int k,l,stat[6];
    double r;
    spinor_dble **wsd;
    solver_parms_t sp;
@@ -226,7 +215,7 @@ static double power1(int pmx,int *status)
       status[0]=0;
    else
    {
-      for (l=0;l<4;l++)
+      for (l=0;l<3;l++)
          status[l]=0;
    }
 
@@ -265,24 +254,23 @@ static double power1(int pmx,int *status)
          set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));                  
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+4);
 
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[2]<0)||
-                    (stat[4]<0)||(stat[5]<0)||(stat[6]<0),1,
+         error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
                     "power2 [check6.c]","DFL_SAP_GCR solver failed "
-                    "(status = %d,%d,%d,%d;%d,%d,%d,%d)",
+                    "(status = %d,%d,%d;%d,%d,%d)",
                     stat[0],stat[1],stat[2],stat[3],
-                    stat[4],stat[5],stat[6],stat[7]);
+                    stat[4],stat[5]);
       
-         for (l=0;l<3;l++)
+         for (l=0;l<2;l++)
          {
             if (status[l]<stat[l])
                status[l]=stat[l];
 
-            if (status[l]<stat[l+4])
-               status[l]=stat[l+4];            
+            if (status[l]<stat[l+3])
+               status[l]=stat[l+3];            
          }
 
-         status[3]+=stat[3];
-         status[3]+=stat[7];
+         status[2]+=stat[2];
+         status[2]+=stat[5];
       }
 
       r=normalize_dble(VOLUME/2,1,wsd[0]);
@@ -327,7 +315,7 @@ int main(int argc,char *argv[])
 {
    int first,last,step;
    int nc,nsize,icnfg;
-   int isap,idfl,pmx,n,status[4];
+   int isap,idfl,pmx,n,status[3];
    int nws,nwsd,nwv,nwvd;
    double ra,ramin,ramax,raavg;
    double rb,rbmin,rbmax,rbavg;
@@ -471,8 +459,8 @@ int main(int argc,char *argv[])
          printf("ra = %.2e, rb = %.2e\n",ra,rb);
 
          if (idfl)
-            printf("status = %d,%d,%d,%d\n\n",
-                   status[0],status[1],status[2],status[3]);
+            printf("status = %d,%d,%d\n\n",
+                   status[0],status[1],status[2]);
          else
             printf("status = %d\n\n",status[0]);
          

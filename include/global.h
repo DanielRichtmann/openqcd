@@ -3,7 +3,7 @@
 *
 * File global.h
 *
-* Copyright (C) 2009, 2011 Martin Luescher
+* Copyright (C) 2009, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -19,10 +19,16 @@
 #define NPROC1 1
 #define NPROC2 1
 #define NPROC3 1
+
 #define L0 8
 #define L1 8
 #define L2 8
 #define L3 8
+
+#define NPROC0_BLK 1
+#define NPROC1_BLK 1
+#define NPROC2_BLK 1
+#define NPROC3_BLK 1
 
 #define NAME_SIZE 128
 
@@ -37,6 +43,13 @@
 #if ((L0<4)||(L1<4)||(L2<4)||(L3<4)|| \
     ((L0%2)!=0)||((L1%2)!=0)||((L2%2)!=0)||((L3%2)!=0))
 #error : The local lattice sizes must be even and not smaller than 4
+#endif
+
+#if ((NPROC0_BLK<1)||(NBROC0_BLK>NPROC0)||((NPROC0%NPROC0_BLK)!=0)|| \
+     (NPROC1_BLK<1)||(NBROC1_BLK>NPROC1)||((NPROC1%NPROC1_BLK)!=0)|| \
+     (NPROC2_BLK<1)||(NBROC2_BLK>NPROC2)||((NPROC2%NPROC2_BLK)!=0)|| \
+     (NPROC3_BLK<1)||(NBROC3_BLK>NPROC3)||((NPROC3%NPROC3_BLK)!=0))   
+#error : Improper processor block sizes NPROC0_BLK,..,NPROC3_BLK
 #endif
 
 #if (NAME_SIZE<128)

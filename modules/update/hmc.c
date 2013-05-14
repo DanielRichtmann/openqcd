@@ -4,7 +4,7 @@
 * File hmc.c
 *
 * Copyright (C) 2005, 2007, 2009, 2010,  Martin Luescher, Filippo Palombi,
-*               2011, 2012               Stefan Schaefer
+*               2011, 2012, 2013         Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -415,15 +415,12 @@ static void dfl_wsize(int *nws,int *nwv,int *nwvd)
 {
    dfl_parms_t dp;
    dfl_pro_parms_t dpp;
-   dfl_gen_parms_t dgp;
 
    dp=dfl_parms();
    dpp=dfl_pro_parms();
-   dgp=dfl_gen_parms();
 
    MAX(*nws,dp.Ns+2);
    MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwv,2*dgp.nkv+2);
    MAX(*nwvd,4);
 }
 
@@ -458,8 +455,8 @@ static void solver_wsize(int isp,int nsd,int np,
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
-      MAX(*nws,2*sp.nkv+1);      
-      MAX(*nwsd,nsd+4);
+      MAX(*nws,2*sp.nkv+2);      
+      MAX(*nwsd,nsd+3);
       dfl_wsize(nws,nwv,nwvd);
    }         
 }
@@ -569,15 +566,15 @@ static void chk_mode_regen(int isp,int *status)
 
    sp=solver_parms(isp);
 
-   if ((sp.solver==DFL_SAP_GCR)&&(status[3]>0))
-      add2counter("modes",2,status+3);
+   if ((sp.solver==DFL_SAP_GCR)&&(status[2]>0))
+      add2counter("modes",2,status+2);
 }
 
 
 static void start_hmc(double *act0,su3_dble *uold)
 {
    int i,n,nact,*iact;
-   int status[4];
+   int status[3];
    double *mu;
    su3_dble *udb;
    dfl_parms_t dfl;
@@ -630,7 +627,7 @@ static void start_hmc(double *act0,su3_dble *uold)
             act0[n]=setpf4(mu[ap.imu[0]],ap.ipf,1,0);
          else if (ap.action==ACF_TM2)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf2(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
             chk_mode_regen(ap.isp[1],status);         
@@ -638,7 +635,7 @@ static void start_hmc(double *act0,su3_dble *uold)
          }
          else if (ap.action==ACF_TM2_EO)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf5(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
             chk_mode_regen(ap.isp[1],status);         
@@ -646,14 +643,14 @@ static void start_hmc(double *act0,su3_dble *uold)
          }
          else if (ap.action==ACF_RAT)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,0,ap.isp[0],0,status);
             chk_mode_regen(ap.isp[0],status);         
             add2counter("field",ap.ipf,status);
          }
          else if (ap.action==ACF_RAT_SDET)
          {
-            status[3]=0;
+            status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,1,ap.isp[0],0,status);
             chk_mode_regen(ap.isp[0],status);         
             add2counter("field",ap.ipf,status);
@@ -670,7 +667,7 @@ static void start_hmc(double *act0,su3_dble *uold)
 static void end_hmc(double *act1)
 {
    int i,n,nact,*iact;
-   int status[4];
+   int status[3];
    double *mu;
    hmc_parms_t hmc;
    action_parms_t ap;   
@@ -692,7 +689,7 @@ static void end_hmc(double *act1)
       else
       {
          set_sw_parms(sea_quark_mass(ap.im0));
-         status[3]=0;
+         status[2]=0;
             
          if (ap.action==ACF_TM1)
             act1[n]=action1(mu[ap.imu[0]],ap.ipf,ap.isp[0],0,status);
@@ -726,8 +723,10 @@ static int accept_hmc(double *act0,double *act1,su3_dble *uold)
    su3_dble *udb;
    hmc_parms_t hmc;
 
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    hmc=hmc_parms();
    nact=hmc.nact;
+   iac=0;
    da=0.0;
 
    for (i=0;i<=nact;i++)
@@ -738,8 +737,6 @@ static int accept_hmc(double *act0,double *act1,su3_dble *uold)
       r=da;
       MPI_Reduce(&r,&da,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
    }
-
-   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    
    if (my_rank==0)
    {
@@ -749,8 +746,6 @@ static int accept_hmc(double *act0,double *act1,su3_dble *uold)
          iac=1;
       else if (r<=exp(-da))
          iac=1;
-      else
-         iac=0;
    }
 
    if (NPROC>1)

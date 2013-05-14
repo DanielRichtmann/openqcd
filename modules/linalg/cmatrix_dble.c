@@ -3,7 +3,7 @@
 *
 * File cmatrix_dble.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -52,8 +52,11 @@
 * The inverse of a given matrix computed by cmat_inv_dble() may suffer
 * from significance losses on the order of its condition number.
 *
-* If SSE2 instructions are to be used, it is taken for granted that the
-* starting addresses of the arrays are multiples of 16.
+* If SSE instructions are to be used, it is taken for granted that the
+* arrays are aligned to a 16 byte boundary.
+*
+* If AVX instructions are to be used, and if n is even, it is taken for
+* granted that the arrays are aligned to a 32 byte boundary.
 *
 *******************************************************************************/
 
@@ -71,7 +74,404 @@ static int nmax=0;
 static double *rsv;
 static complex_dble *dsv;
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
+{
+   complex_dble *vv,*vm,*wm;;
+
+   if ((n&0x3)==0x0)
+   {
+      vm=v+n;
+      wm=w+n;
+   
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vxorpd %%ymm0, %%ymm0, %%ymm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1 \n\t"
+                               "vxorpd %%ymm2, %%ymm2, %%ymm2 \n\t"
+                               "vxorpd %%ymm3, %%ymm3, %%ymm3"
+                               :
+                               :
+                               :
+                               "xmm0", "xmm1", "xmm2", "xmm3");
+      
+         for (vv=v;vv<vm;vv+=4)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovddup %4, %%ymm6 \n\t"
+                                  "vmovddup %6, %%ymm7"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[2].re),
+                                  "m" (a[3].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (a[2].im),
+                                  "m" (a[3].im)
+                                  :
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
+
+            __asm__ __volatile__ ("vmovapd %0, %%ymm8 \n\t"
+                                  "vmovapd %2, %%ymm9 \n\t"
+                                  "vpermilpd $0x5, %0, %%ymm10 \n\t"
+                                  "vpermilpd $0x5, %2, %%ymm11 \n\t"
+                                  "vmulpd %%ymm4, %%ymm8, %%ymm8 \n\t"
+                                  "vmulpd %%ymm5, %%ymm9, %%ymm9 \n\t"
+                                  "vmulpd %%ymm6, %%ymm10, %%ymm10 \n\t"
+                                  "vmulpd %%ymm7, %%ymm11, %%ymm11 \n\t"
+                                  "vaddpd %%ymm8, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm9, %%ymm1, %%ymm1 \n\t"
+                                  "vaddpd %%ymm10, %%ymm2, %%ymm2 \n\t"
+                                  "vaddpd %%ymm11, %%ymm3, %%ymm3"
+                                  :
+                                  :
+                                  "m" (vv[0]),
+                                  "m" (vv[1]),
+                                  "m" (vv[2]),
+                                  "m" (vv[3])                                  
+                                  :
+                                  "xmm0", "xmm1", "xmm2", "xmm3", 
+                                  "xmm8", "xmm9", "xmm10", "xmm11");
+
+            a+=4;
+         }
+
+         __asm__ __volatile__ ("vaddpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vaddpd %%ymm3, %%ymm2, %%ymm2 \n\t"
+                               "vaddsubpd %%ymm2, %%ymm0, %%ymm0 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                               "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               :
+                               "xmm0", "xmm1", "xmm2");
+      }
+   }
+   else if ((n&0x1)==0x0)
+   {
+      vm=v+n;
+      wm=w+n;
+   
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vxorpd %%ymm0, %%ymm0, %%ymm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1"
+                               :
+                               :
+                               :
+                               "xmm0", "xmm1");
+      
+         for (vv=v;vv<vm;vv+=2)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovapd %4, %%ymm6 \n\t"
+                                  "vpermilpd $0x5, %4, %%ymm7 \n\t"
+                                  "vmulpd %%ymm4, %%ymm6, %%ymm6 \n\t"
+                                  "vmulpd %%ymm5, %%ymm7, %%ymm7 \n\t"
+                                  "vaddpd %%ymm6, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm7, %%ymm1, %%ymm1"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (vv[0]),
+                                  "m" (vv[1])
+                                  :
+                                  "xmm0", "xmm1", 
+                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+
+            a+=2;
+         }
+
+         __asm__ __volatile__ ("vaddsubpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm2 \n\t"
+                               "vaddpd %%xmm2, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               :
+                               "xmm0", "xmm2");
+      }
+   }
+   else
+   {
+      vm=v+n-1;
+      wm=w+n;
+
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vxorpd %%ymm0, %%ymm0, %%ymm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1"
+                               :
+                               :
+                               :
+                               "xmm0", "xmm1");
+      
+         for (vv=v;vv<vm;vv+=2)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovupd %4, %%ymm6 \n\t"
+                                  "vpermilpd $0x5, %%ymm6, %%ymm7 \n\t"
+                                  "vmulpd %%ymm4, %%ymm6, %%ymm6 \n\t"
+                                  "vmulpd %%ymm5, %%ymm7, %%ymm7 \n\t"
+                                  "vaddpd %%ymm6, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm7, %%ymm1, %%ymm1"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (vv[0]),
+                                  "m" (vv[1])
+                                  :
+                                  "xmm0", "xmm1", 
+                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+
+            a+=2;
+         }
+
+         __asm__ __volatile__ ("vmovddup %1, %%xmm4 \n\t"
+                               "vmovddup %2, %%xmm5 \n\t"
+                               "vmovupd %3, %%xmm6 \n\t"
+                               "vpermilpd $0x1, %%xmm6, %%xmm7 \n\t"
+                               "vaddsubpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vmulpd %%xmm4, %%xmm6, %%xmm6 \n\t"
+                               "vmulpd %%xmm5, %%xmm7, %%xmm7 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                               "vaddpd %%xmm6, %%xmm0, %%xmm0 \n\t"
+                               "vaddsubpd %%xmm7, %%xmm1, %%xmm1 \n\t"
+                               "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               "m" (a[0].re),
+                               "m" (a[0].im),                               
+                               "m" (vv[0])
+                               :
+                               "xmm0", "xmm1", "xmm4", "xmm5",
+                               "xmm6", "xmm7");
+
+         a+=1;
+      }
+   }
+
+   _avx_zeroupper();
+}
+
+
+void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
+{
+   complex_dble *vv,*vm,*wm;;
+
+   if ((n&0x3)==0x0)
+   {
+      vm=v+n;
+      wm=w+n;
+   
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1 \n\t"
+                               "vxorpd %%ymm2, %%ymm2, %%ymm2 \n\t"
+                               "vxorpd %%ymm3, %%ymm3, %%ymm3"
+                               :
+                               :
+                               "m" (w[0])
+                               :
+                               "xmm0", "xmm1", "xmm2", "xmm3");
+      
+         for (vv=v;vv<vm;vv+=4)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovddup %4, %%ymm6 \n\t"
+                                  "vmovddup %6, %%ymm7"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[2].re),
+                                  "m" (a[3].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (a[2].im),
+                                  "m" (a[3].im)
+                                  :
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
+
+            __asm__ __volatile__ ("vmovapd %0, %%ymm8 \n\t"
+                                  "vmovapd %2, %%ymm9 \n\t"
+                                  "vpermilpd $0x5, %0, %%ymm10 \n\t"
+                                  "vpermilpd $0x5, %2, %%ymm11 \n\t"
+                                  "vmulpd %%ymm4, %%ymm8, %%ymm8 \n\t"
+                                  "vmulpd %%ymm5, %%ymm9, %%ymm9 \n\t"
+                                  "vmulpd %%ymm6, %%ymm10, %%ymm10 \n\t"
+                                  "vmulpd %%ymm7, %%ymm11, %%ymm11 \n\t"
+                                  "vaddpd %%ymm8, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm9, %%ymm1, %%ymm1 \n\t"
+                                  "vaddpd %%ymm10, %%ymm2, %%ymm2 \n\t"
+                                  "vaddpd %%ymm11, %%ymm3, %%ymm3"
+                                  :
+                                  :
+                                  "m" (vv[0]),
+                                  "m" (vv[1]),
+                                  "m" (vv[2]),
+                                  "m" (vv[3])                                  
+                                  :
+                                  "xmm0", "xmm1", "xmm2", "xmm3", 
+                                  "xmm8", "xmm9", "xmm10", "xmm11");
+
+            a+=4;
+         }
+
+         __asm__ __volatile__ ("vaddpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vaddpd %%ymm3, %%ymm2, %%ymm2 \n\t"
+                               "vaddsubpd %%ymm2, %%ymm0, %%ymm0 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                               "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               :
+                               "xmm0", "xmm1", "xmm2");
+      }
+   }
+   else if ((n&0x1)==0x0)
+   {
+      vm=v+n;
+      wm=w+n;
+   
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1"
+                               :
+                               :
+                               "m" (w[0])
+                               :
+                               "xmm0", "xmm1");
+      
+         for (vv=v;vv<vm;vv+=2)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovapd %4, %%ymm6 \n\t"
+                                  "vpermilpd $0x5, %4, %%ymm7 \n\t"
+                                  "vmulpd %%ymm4, %%ymm6, %%ymm6 \n\t"
+                                  "vmulpd %%ymm5, %%ymm7, %%ymm7 \n\t"
+                                  "vaddpd %%ymm6, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm7, %%ymm1, %%ymm1"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (vv[0]),
+                                  "m" (vv[1])
+                                  :
+                                  "xmm0", "xmm1", 
+                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+
+            a+=2;
+         }
+
+         __asm__ __volatile__ ("vaddsubpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm2 \n\t"
+                               "vaddpd %%xmm2, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               :
+                               "xmm0", "xmm2");
+      }
+   }
+   else
+   {
+      vm=v+n-1;
+      wm=w+n;
+
+      for (;w<wm;w++)
+      {
+         __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                               "vxorpd %%ymm1, %%ymm1, %%ymm1"
+                               :
+                               :
+                               "m" (w[0])
+                               :
+                               "xmm0", "xmm1");
+      
+         for (vv=v;vv<vm;vv+=2)
+         {
+            __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
+                                  "vmovddup %2, %%ymm5 \n\t"
+                                  "vmovupd %4, %%ymm6 \n\t"
+                                  "vpermilpd $0x5, %%ymm6, %%ymm7 \n\t"
+                                  "vmulpd %%ymm4, %%ymm6, %%ymm6 \n\t"
+                                  "vmulpd %%ymm5, %%ymm7, %%ymm7 \n\t"
+                                  "vaddpd %%ymm6, %%ymm0, %%ymm0 \n\t"
+                                  "vaddpd %%ymm7, %%ymm1, %%ymm1"
+                                  :
+                                  :
+                                  "m" (a[0].re),
+                                  "m" (a[1].re),
+                                  "m" (a[0].im),
+                                  "m" (a[1].im),
+                                  "m" (vv[0]),
+                                  "m" (vv[1])
+                                  :
+                                  "xmm0", "xmm1", 
+                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+
+            a+=2;
+         }
+
+         __asm__ __volatile__ ("vmovddup %1, %%xmm4 \n\t"
+                               "vmovddup %2, %%xmm5 \n\t"
+                               "vmovupd %3, %%xmm6 \n\t"
+                               "vpermilpd $0x1, %%xmm6, %%xmm7 \n\t"
+                               "vaddsubpd %%ymm1, %%ymm0, %%ymm0 \n\t"
+                               "vmulpd %%xmm4, %%xmm6, %%xmm6 \n\t"
+                               "vmulpd %%xmm5, %%xmm7, %%xmm7 \n\t"
+                               "vextractf128 $0x1, %%ymm0, %%xmm1 \n\t"
+                               "vaddpd %%xmm6, %%xmm0, %%xmm0 \n\t"
+                               "vaddsubpd %%xmm7, %%xmm1, %%xmm1 \n\t"
+                               "vaddpd %%xmm1, %%xmm0, %%xmm0 \n\t"
+                               "vmovapd %%xmm0, %0"
+                               :
+                               "=m" (w[0])
+                               :
+                               "m" (a[0].re),
+                               "m" (a[0].im),                               
+                               "m" (vv[0])
+                               :
+                               "xmm0", "xmm1", "xmm4", "xmm5",
+                               "xmm6", "xmm7");
+
+         a+=1;
+      }
+   }
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)

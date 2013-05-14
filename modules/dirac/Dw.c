@@ -3,7 +3,7 @@
 *
 * File Dw.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -142,9 +142,225 @@ typedef union
 
 static float coe,ceo;
 static const spinor s0={{{0.0}}};
-static spin_t rs ALIGNED16;
+static spin_t rs ALIGNED32;
 
-#if (defined x64)
+#if (defined AVX)
+#include "avx.h"
+
+#define _load_cst(c) \
+__asm__ __volatile__ ("vbroadcastss %0, %%ymm15 \n\t" \
+                      : \
+                      : \
+                      "m" (c) \
+                      : \
+                      "xmm15")
+
+#define _mul_cst() \
+__asm__ __volatile__ ("vmulps %%ymm15, %%ymm0, %%ymm0 \n\t" \
+                      "vmulps %%ymm15, %%ymm1, %%ymm1 \n\t" \
+                      "vmulps %%ymm15, %%ymm2, %%ymm2" \
+                      : \
+                      : \
+                      : \
+                      "xmm0", "xmm1", "xmm2")
+
+
+static void doe(int *piup,int *pidn,su3 *u,spinor *pk)
+{
+   spinor *sp,*sm;
+
+/******************************** direction 0 *********************************/
+
+   sp=pk+piup[0];
+   sm=pk+pidn[0];
+
+   _avx_spinor_pair_load34(*sp,*sm);
+
+   sp=pk+piup[1];
+   sm=pk+pidn[1];
+   _prefetch_spinor(sp);
+   _prefetch_spinor(sm);
+   
+   _avx_spinor_mul_up(_avx_sgn_add);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[0],u[1]);
+
+   _avx_spinor_split();
+   _avx_spinor_unsplit();
+   _avx_spinor_store_up(rs.s);
+
+/******************************** direction 1 *********************************/
+
+   _avx_spinor_pair_load43(*sp,*sm);
+
+   sp=pk+piup[2];
+   sm=pk+pidn[2];
+   _prefetch_spinor(sp);
+   _prefetch_spinor(sm);
+
+   _avx_spinor_imul_up(_avx_sgn_i_add);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[2],u[3]);
+
+   _avx_spinor_split();
+   _avx_spinor_load(rs.s);
+   _avx_weyl_xch_imul(_sse_sgn24);
+   _avx_spinor_unsplit();
+   _avx_spinor_add();
+   _avx_spinor_store(rs.s);
+
+/******************************** direction 2 *********************************/
+
+   _avx_spinor_pair_load43(*sp,*sm);
+
+   sp=pk+piup[3];
+   sm=pk+pidn[3];
+   _prefetch_spinor(sp);
+   _prefetch_spinor(sm);
+
+   _avx_spinor_mul_up(_avx_sgn_addsub);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[4],u[5]);
+
+   _avx_spinor_split();
+   _avx_spinor_load(rs.s);
+   _avx_weyl_xch();
+   _avx_weyl_mul(_sse_sgn12);
+   _avx_spinor_unsplit();
+   _avx_spinor_add();
+   _avx_spinor_store(rs.s);
+
+/******************************** direction 3 *********************************/
+
+   _avx_spinor_pair_load34(*sp,*sm);
+   _avx_spinor_imul_up(_avx_sgn_i_addsub);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[6],u[7]);
+
+   _avx_spinor_split();
+   _avx_spinor_load(rs.s);
+   _avx_weyl_imul(_sse_sgn23);
+   _avx_spinor_unsplit();
+   _load_cst(coe);   
+   _avx_spinor_add();
+   _mul_cst();
+   _avx_weyl_pair_store12(rs.w[0],rs.w[1]);
+
+   _avx_zeroupper();
+}
+
+
+static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
+{
+   spinor *sp,*sm;
+
+   _load_cst(ceo);
+   _avx_spinor_load(rs.s);
+   _mul_cst();
+   _avx_spinor_store(rs.s);
+   
+/******************************** direction 0 *********************************/
+
+   sm=pl+pidn[0];   
+   sp=pl+piup[0];
+
+   _prefetch_spinor(sm);   
+   _prefetch_spinor(sp);
+
+   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_mul_up(_avx_sgn_add);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[1],u[0]);
+
+   _avx_weyl_pair_load12(*sm,*sp);
+   _avx_spinor_add();
+   _avx_weyl_pair_store12(*sm,*sp);
+
+   _avx_weyl_pair_load34(*sm,*sp);
+   _avx_spinor_mul_up(_avx_sgn_add);
+   _avx_spinor_add();   
+   _avx_weyl_pair_store34(*sm,*sp);
+
+/******************************** direction 1 *********************************/
+
+   sm=pl+pidn[1];   
+   sp=pl+piup[1];
+
+   _prefetch_spinor(sm);   
+   _prefetch_spinor(sp);
+
+   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_xch_imul_up(_avx_sgn_i_add);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[3],u[2]);
+
+   _avx_weyl_pair_load12(*sm,*sp);
+   _avx_spinor_add();
+   _avx_weyl_pair_store12(*sm,*sp);
+
+   _avx_weyl_pair_load34(*sm,*sp);
+   _avx_spinor_xch_imul_up(_avx_sgn_i_add);
+   _avx_spinor_sub();   
+   _avx_weyl_pair_store34(*sm,*sp);
+
+/******************************** direction 2 *********************************/
+
+   sm=pl+pidn[2];   
+   sp=pl+piup[2];
+
+   _prefetch_spinor(sm);   
+   _prefetch_spinor(sp);
+
+   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_xch_up();
+   _avx_spinor_mul_up(_avx_sgn_addsub);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[5],u[4]);
+
+   _avx_weyl_pair_load12(*sm,*sp);
+   _avx_spinor_add();
+   _avx_weyl_pair_store12(*sm,*sp);
+
+   _avx_weyl_pair_load34(*sm,*sp);
+   _avx_spinor_xch_up();
+   _avx_spinor_mul_up(_avx_sgn_addsub);   
+   _avx_spinor_sub();   
+   _avx_weyl_pair_store34(*sm,*sp);
+
+/******************************** direction 3 *********************************/
+
+   sm=pl+pidn[3];   
+   sp=pl+piup[3];
+
+   _prefetch_spinor(sm);   
+   _prefetch_spinor(sp);
+
+   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_imul_up(_avx_sgn_i_addsub);
+   _avx_spinor_add();
+
+   _avx_su3_pair_mixed_multiply(u[7],u[6]);
+
+   _avx_weyl_pair_load12(*sm,*sp);
+   _avx_spinor_add();
+   _avx_weyl_pair_store12(*sm,*sp);
+
+   _avx_weyl_pair_load34(*sm,*sp);
+   _avx_spinor_imul_up(_avx_sgn_i_addsub);
+   _avx_spinor_sub();   
+   _avx_weyl_pair_store34(*sm,*sp);
+
+   _avx_zeroupper();
+}
+
+#elif (defined x64)
 #include "sse2.h"
 
 #define _load_cst(c) \
@@ -819,9 +1035,8 @@ void Dw(float mu,spinor *s,spinor *r)
          if ((t>0)&&(t<(NPROC0*L0-1)))
          {
             doe(piup,pidn,u,s);
-      
-            mul_pauli(mu,m,(*so).w,(*ro).w);
-            mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);      
+
+            mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
             _vector_add_assign((*ro).s.c1,rs.s.c1);
             _vector_add_assign((*ro).s.c2,rs.s.c2);
@@ -849,9 +1064,8 @@ void Dw(float mu,spinor *s,spinor *r)
       for (;u<um;u+=8)
       {
          doe(piup,pidn,u,s);
-      
-         mul_pauli(mu,m,(*so).w,(*ro).w);
-         mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);      
+
+         mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
          _vector_add_assign((*ro).s.c1,rs.s.c1);
          _vector_add_assign((*ro).s.c2,rs.s.c2);
@@ -894,10 +1108,7 @@ void Dwee(float mu,spinor *s,spinor *r)
          ix+=1;
          
          if ((t>0)&&(t<(NPROC0*L0-1)))
-         {
-            mul_pauli(mu,m,(*se).w,(*re).w);
-            mul_pauli(-mu,m+1,(*se).w+1,(*re).w+1);             
-         }
+            mul_pauli2(mu,m,&((*se).s),&((*re).s));
          else
          {
             (*se).s=s0;
@@ -912,8 +1123,7 @@ void Dwee(float mu,spinor *s,spinor *r)
    {
       for (;m<mm;m+=2)
       {
-         mul_pauli(mu,m,(*se).w,(*re).w);
-         mul_pauli(-mu,m+1,(*se).w+1,(*re).w+1);             
+         mul_pauli2(mu,m,&((*se).s),&((*re).s));
 
          se+=1;
          re+=1;
@@ -947,10 +1157,7 @@ void Dwoo(float mu,spinor *s,spinor *r)
          ix+=1;
 
          if ((t>0)&&(t<(NPROC0*L0-1)))
-         {
-            mul_pauli(mu,m,(*so).w,(*ro).w);
-            mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);             
-         }
+            mul_pauli2(mu,m,&((*so).s),&((*ro).s));
          else
          {
             (*so).s=s0;
@@ -965,8 +1172,7 @@ void Dwoo(float mu,spinor *s,spinor *r)
    {
       for (;m<mm;m+=2)
       {
-         mul_pauli(mu,m,(*so).w,(*ro).w);
-         mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);             
+         mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
          so+=1;
          ro+=1;
@@ -1118,10 +1324,9 @@ void Dwhat(float mu,spinor *s,spinor *r)
          if ((t>0)&&(t<(NPROC0*L0-1)))
          {
             doe(piup,pidn,u,s);
-      
-            mul_pauli(0.0f,m,rs.w,rs.w);
-            mul_pauli(0.0f,m+1,rs.w+1,rs.w+1);      
-      
+
+            mul_pauli2(0.0f,m,&(rs.s),&(rs.s));                              
+
             deo(piup,pidn,u,r);
          }
 
@@ -1135,9 +1340,8 @@ void Dwhat(float mu,spinor *s,spinor *r)
       for (;u<um;u+=8)
       {
          doe(piup,pidn,u,s);
-      
-         mul_pauli(0.0f,m,rs.w,rs.w);
-         mul_pauli(0.0f,m+1,rs.w+1,rs.w+1);      
+
+         mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
       
          deo(piup,pidn,u,r);
 
@@ -1217,9 +1421,8 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
          if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
          {
             doe(piup,pidn,u,s);
-      
-            mul_pauli(mu,m,(*so).w,(*ro).w);
-            mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);      
+
+            mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
             _vector_add_assign((*ro).s.c1,rs.s.c1);
             _vector_add_assign((*ro).s.c2,rs.s.c2);
@@ -1253,9 +1456,8 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
       for (;u<um;u+=8)
       {
          doe(piup,pidn,u,s);
-      
-         mul_pauli(mu,m,(*so).w,(*ro).w);
-         mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);      
+
+         mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
          _vector_add_assign((*ro).s.c1,rs.s.c1);
          _vector_add_assign((*ro).s.c2,rs.s.c2);
@@ -1315,10 +1517,7 @@ void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
       for (;m<mm;m+=2)
       {
          if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))         
-         {
-            mul_pauli(mu,m,(*se).w,(*re).w);
-            mul_pauli(-mu,m+1,(*se).w+1,(*re).w+1);             
-         }
+            mul_pauli2(mu,m,&((*se).s),&((*re).s));
          else
          {
             (*se).s=s0;
@@ -1335,8 +1534,7 @@ void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
    {
       for (;m<mm;m+=2)
       {
-         mul_pauli(mu,m,(*se).w,(*re).w);
-         mul_pauli(-mu,m+1,(*se).w+1,(*re).w+1);             
+         mul_pauli2(mu,m,&((*se).s),&((*re).s));
 
          se+=1;
          re+=1;
@@ -1391,10 +1589,7 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
       for (;m<mm;m+=2)
       {
          if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib))) 
-         {
-            mul_pauli(mu,m,(*so).w,(*ro).w);
-            mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);             
-         }
+            mul_pauli2(mu,m,&((*so).s),&((*ro).s));
          else
          {
             (*so).s=s0;
@@ -1411,8 +1606,7 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
    {
       for (;m<mm;m+=2)
       {
-         mul_pauli(mu,m,(*so).w,(*ro).w);
-         mul_pauli(-mu,m+1,(*so).w+1,(*ro).w+1);             
+         mul_pauli2(mu,m,&((*so).s),&((*ro).s));
 
          so+=1;
          ro+=1;
@@ -1636,9 +1830,8 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
          if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
          {
             doe(piup,pidn,u,s);
-      
-            mul_pauli(0.0f,m,rs.w,rs.w);
-            mul_pauli(0.0f,m+1,rs.w+1,rs.w+1);      
+
+            mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
       
             deo(piup,pidn,u,r);
          }
@@ -1659,9 +1852,8 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
       for (;u<um;u+=8)
       {
          doe(piup,pidn,u,s);
-      
-         mul_pauli(0.0f,m,rs.w,rs.w);
-         mul_pauli(0.0f,m+1,rs.w+1,rs.w+1);      
+
+         mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
       
          deo(piup,pidn,u,r);
 
