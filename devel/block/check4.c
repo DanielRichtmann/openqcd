@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of assign_swd2swbgr() and assign_swd2swdblk()
+* Check of assign_swd2swbgr() and assign_swd2swdblk().
 *
 *******************************************************************************/
 
@@ -64,7 +64,7 @@ static int check_sw(block_t *b)
    pauli *sw;
 
    sw=swfld();
-   
+
    for (x0=0;x0<(*b).bs[0];x0++)
    {
       for (x1=0;x1<(*b).bs[1];x1++)
@@ -157,9 +157,9 @@ static int check_swd(block_t *b)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,n,nb,isw;
-   int iset,ifail;
-   int bs[4];
+   int my_rank,bc,n,nb,isw;
+   int iset,ifail,bs[4];
+   double phi[2],phi_prime[2];
    ptset_t set;
    block_t *b;
    FILE *flog=NULL,*fin=NULL;
@@ -184,18 +184,34 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check4.c]",
+                    "Syntax: check4 [-bc <type>]");
    }
 
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,1234);
    geometry();
+
    set_sap_parms(bs,0,1,1);
    set_dfl_parms(bs,2);
    alloc_bgr(SAP_BLOCKS);
    alloc_bgr(DFL_BLOCKS);
 
-   set_lat_parms(5.6,1.0,0.0,0.0,0.0,0.1,1.3,1.15);
    set_sw_parms(0.05);
    random_ud();
    ifail=0;
@@ -210,7 +226,7 @@ int main(int argc,char *argv[])
          set=ODD_PTS;
       else
          set=NO_PTS;
-      
+
       sw_term(NO_PTS);
       ifail+=assign_swd2swbgr(SAP_BLOCKS,set);
       ifail+=sw_term(set);
@@ -222,7 +238,7 @@ int main(int argc,char *argv[])
 
       for (n=0;n<nb;n++)
       {
-         sw_term(NO_PTS);         
+         sw_term(NO_PTS);
          ifail+=assign_swd2swdblk(DFL_BLOCKS,n,set);
          sw_term(set);
          error(check_swd(b+n)!=0,1,
@@ -233,10 +249,9 @@ int main(int argc,char *argv[])
    error(ifail!=0,1,"main [check4.c]",
          "Some of the inversions were not safe");
    error_chk();
-   
+
    if (my_rank==0)
    {
-      printf("\n");
       printf("No errors detected\n\n");
       fclose(flog);
    }

@@ -3,13 +3,13 @@
 *
 * File vflds.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Allocation and initialization of the global vector fields related to
-* the deflation subspace
+* the deflation subspace.
 *
 * The externally accessible functions are
 *
@@ -28,7 +28,7 @@
 * The vector fields made available through the programs in this module
 * are arrays complex numbers. Eventually they contain the global modes
 * used to deflate the little Dirac operator that represents the action
-* of the Wilson-Dirac operator in the deflation subspace. 
+* of the Wilson-Dirac operator in the deflation subspace.
 *
 * Each vector field has Ns*nb elements, where Ns is the number of local
 * deflation modes and nb the number blocks in the DFL_BLOCKS grid. The
@@ -73,7 +73,7 @@ static void vfld_size(void)
    dfl=dfl_parms();
    bs=dfl.bs;
    Ns=dfl.Ns;
-   
+
    error_root(dfl.Ns==0,1,"vfld_size [vflds.c]",
          "The deflation subspace parameters are not set");
 
@@ -86,11 +86,11 @@ static void alloc_vflds(void)
 {
    int n;
    complex *w;
-   
+
    if (nv==0)
       vfld_size();
 
-   vs=amalloc(4*Ns*sizeof(*vs),3);
+   vs=malloc(4*Ns*sizeof(*vs));
    w=amalloc(2*Ns*nv*sizeof(*w),ALIGN);
 
    error((vs==NULL)||(w==NULL),1,"alloc_vflds [vflds.c]",
@@ -112,11 +112,11 @@ static void alloc_vdflds(void)
 {
    int n;
    complex_dble *wd;
-   
+
    if (nv==0)
       vfld_size();
 
-   vds=amalloc(2*Ns*sizeof(*vds),3);
+   vds=malloc(2*Ns*sizeof(*vds));
    wd=amalloc(Ns*nv*sizeof(*wd),ALIGN);
 
    error((vds==NULL)||(wd==NULL),1,"alloc_vdflds [vflds.c]",
@@ -124,7 +124,7 @@ static void alloc_vdflds(void)
 
    set_vd2zero(Ns*nv,wd);
    vd=vds+Ns;
-   
+
    for (n=0;n<Ns;n++)
    {
       vd[n]=NULL;
@@ -137,7 +137,7 @@ static void alloc_vdflds(void)
 complex **vflds(void)
 {
    int n;
-   
+
    if (vs==NULL)
       alloc_vflds();
 
@@ -151,7 +151,7 @@ complex **vflds(void)
 complex_dble **vdflds(void)
 {
    int n;
-   
+
    if (vds==NULL)
       alloc_vdflds();
 

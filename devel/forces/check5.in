@@ -9,8 +9,14 @@ step         1
 [Lattice parameters]
 kappa        0.1280
 csw          1.2
-cF           1.0
 mu           1.0
+
+[Boundary conditions]
+type         0
+#phi          0.12 -0.56
+#phi'         0.92 0.76
+cF           0.95
+#cF'          0.90
 
 [CG]
 nmx          256

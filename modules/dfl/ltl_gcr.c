@@ -3,19 +3,19 @@
 *
 * File ltl_gcr.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* GCR solver for the little Dirac equation Aw*psi=eta
+* GCR solver for the little Dirac equation Aw*psi=eta.
 *
 * The externally accessible functions are
 *
 *   double ltl_gcr(int nkv,int nmx,double res,double mu,
 *                  complex_dble *eta,complex_dble *psi,int *status)
 *     Obtains an approximate solution psi of the little Dirac equation for
-*     given source eta using the even-odd preconditioned GCR algorithm. See 
+*     given source eta using the even-odd preconditioned GCR algorithm. See
 *     the notes for the explanation of the parameters of the program.
 *
 * Notes:
@@ -23,9 +23,9 @@
 * The program is based on the flexible GCR algorithm for complex fields (see
 * linsolv/fgcr4vd.c). The improvement coefficients, the quark mass in the SW
 * term and the parameters of the deflation subspace are assumed to be set by
-* set_lat_parms(), set_sw_parms() and set_dfl_parms(). Moreover, it is taken
-* for granted that the deflation subspace has been initialized by calling
-* dfl_subspace().
+* set_lat_parms(), set_bc_parms(), set_sw_parms() and set_dfl_parms(). It is
+* also taken for granted that the deflation subspace has been initialized by
+* calling dfl_subspace().
 *
 * The parameters passed through the argument list are:
 *
@@ -93,20 +93,20 @@ static void set_constants(void)
 {
    dfl_parms_t dfl;
    dfl_grid_t grd;
-   
-   dfl=dfl_parms();   
+
+   dfl=dfl_parms();
    grd=dfl_geometry();
 
    Ns=dfl.Ns;
    nv=Ns*grd.nb;
    nvh=nv/2;
    rvol=1.0/sqrt((double)(nv)*(double)(NPROC));
-   
+
    vs=vflds();
    vds=vdflds();
    awd=ltl_matrix();
 
-   cs1=amalloc(2*Ns*sizeof(*cs1),ALIGN);   
+   cs1=amalloc(2*Ns*sizeof(*cs1),ALIGN);
    error(cs1==NULL,1,"set_constants [ltl_gcr.c]",
          "Unable to allocate auxiliary arrays");
    cs2=cs1+Ns;
@@ -119,9 +119,8 @@ static void sum_vprod(int n,complex_dble *z,complex_dble *w)
 
    if (NPROC>1)
    {
-      MPI_Reduce((double*)(z),(double*)(w),2*n,MPI_DOUBLE,
-                 MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast((double*)(w),2*n,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      MPI_Reduce(z,w,2*n,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(w,2*n,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
    else
    {
@@ -150,7 +149,7 @@ static void Lvd(complex_dble *v,complex_dble *w)
    {
       mulc_vadd_dble(nvh,w,vds[i],cs1[i]);
       z.re=-cs1[i].re;
-      z.im=-cs1[i].im;      
+      z.im=-cs1[i].im;
       mulc_vadd_dble(nvh,v,vds[i]+nvh,z);
    }
 }
@@ -170,7 +169,7 @@ static void RLvd(complex_dble *v,complex_dble *w)
    for (i=0;i<Ns;i++)
    {
       z.re=-cs1[i].re;
-      z.im=-cs1[i].im;      
+      z.im=-cs1[i].im;
       mulc_vadd_dble(nvh,v,vds[i],z);
       mulc_vadd_dble(nvh,w,vds[i]+nvh,z);
    }
@@ -186,7 +185,7 @@ static void Lv(complex *v)
    {
       z=vprod(nvh,0,vs[i],v);
       cs1[i].re=(double)(z.re);
-      cs1[i].im=(double)(z.im);      
+      cs1[i].im=(double)(z.im);
    }
 
    sum_vprod(Ns,cs1,cs2);
@@ -195,7 +194,7 @@ static void Lv(complex *v)
    for (i=0;i<Ns;i++)
    {
       z.re=(float)(-cs1[i].re);
-      z.im=(float)(-cs1[i].im);      
+      z.im=(float)(-cs1[i].im);
       mulc_vadd(nvh,v,vs[i]+nvh,z);
    }
 }
@@ -244,12 +243,12 @@ double ltl_gcr(int nkv,int nmx,double res,double mu,
       Aweo_dble(wvd[0],wvd[0]);
       Aweeinv_dble(wvd[0],wvd[1]);
       fact=rvol*rho0;
-      
+
       if (fact!=0.0)
       {
          vscale_dble(nvh,1.0/fact,wvd[1]);
          Lvd(wvd[1],wvd[2]);
-   
+
          rho=fgcr4vd(nvh,1,Dop,Mop,wv,wvd,nkv,nmx,res,wvd[1],psi,status);
 
          z.re=1.0;
@@ -263,15 +262,15 @@ double ltl_gcr(int nkv,int nmx,double res,double mu,
          rho=0.0;
          set_vd2zero(nv,psi);
       }
-      
+
       Awoe_dble(psi,wvd[0]);
       assign_vd2vd(nvh,eta+nvh,wvd[1]+nvh);
       z.re=-1.0;
       z.im=0.0;
       mulc_vadd_dble(nvh,wvd[1]+nvh,wvd[0]+nvh,z);
-      Awooinv_dble(wvd[1],psi);         
+      Awooinv_dble(wvd[1],psi);
 
-      release_wvd();   
+      release_wvd();
       release_wv();
    }
 

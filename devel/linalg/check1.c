@@ -26,7 +26,7 @@
 #include "lattice.h"
 #include "linalg.h"
 #include "global.h"
-   
+
 #define NMOM 100033
 
 static double var[64],var_all[64];
@@ -41,14 +41,14 @@ int main(int argc,char *argv[])
    double rn,cij,eij;
    su3_dble *M,*m,w;
    su3_alg_dble *X,*Y,*x;
-   FILE *flog=NULL;   
+   FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
    {
-      flog=freopen("check1.log","w",stdout); 
+      flog=freopen("check1.log","w",stdout);
 
       printf("\n");
       printf("Checks of the programs in the module liealg\n");
@@ -57,7 +57,7 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
-      
+
       printf("Number of momenta: %d\n\n",NMOM);
    }
 
@@ -65,7 +65,7 @@ int main(int argc,char *argv[])
    geometry();
 
    X=amalloc(2*NMOM*sizeof(*X),4);
-   M=amalloc(NMOM*sizeof(*M),4);   
+   M=amalloc(NMOM*sizeof(*M),4);
    error((X==NULL)||(M==NULL),1,
          "main [check1.c]","Unable to allocate field arrays");
    Y=X+NMOM;
@@ -82,7 +82,7 @@ int main(int argc,char *argv[])
       r[4]=X[n].c5;
       r[5]=X[n].c6;
       r[6]=X[n].c7;
-      r[7]=X[n].c8;      
+      r[7]=X[n].c8;
 
       for (i=0;i<8;i++)
       {
@@ -93,9 +93,9 @@ int main(int argc,char *argv[])
 
       X[n].c3=1.0;
    }
-   
+
    MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-   
+
    if (my_rank==0)
    {
       printf("Check of set_alg2zero():\n\n");
@@ -109,16 +109,16 @@ int main(int argc,char *argv[])
    {
       printf("Check of norm_square_alg():\n\n");
       printf("Element count = %.1e (should be 0.0)\n\n",dmax_all);
-   }   
+   }
 
    sm=0.0;
    dmax=0.0;
-   
+
    for (n=0;n<NMOM;n++)
    {
       x=X+n;
       m=M+n;
-      
+
       random_alg(1,x);
 
       (*m).c11.re=0.0;
@@ -137,13 +137,13 @@ int main(int argc,char *argv[])
       (*m).c13.im= (*x).c6;
       (*m).c31.re=-(*x).c5;
       (*m).c31.im= (*x).c6;
-      
+
       (*m).c23.re= (*x).c7;
       (*m).c23.im= (*x).c8;
       (*m).c32.re=-(*x).c7;
       (*m).c32.im= (*x).c8;
 
-      su3xsu3(m,m,&w);      
+      su3xsu3(m,m,&w);
       nsq1=norm_square_alg(1,0,x);
       nsq2=-2.0*(w.c11.re+w.c22.re+w.c33.re);
 
@@ -161,10 +161,10 @@ int main(int argc,char *argv[])
       printf("|1.0+2*tr{X^2}/||X||^2| = %.1e (single elements)\n",dmax_all);
       printf("(should be less than %.1e or so)\n\n",DBL_EPSILON*sqrt(8.0));
    }
-   
+
    dmax=fabs(1.0-sm/norm_square_alg(NMOM,0,X));
    MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-   
+
    if (my_rank==0)
    {
       printf("|1.0+2*tr{X^2}/||X||^2| = %.1e (whole vector)\n",dmax_all);
@@ -183,14 +183,14 @@ int main(int argc,char *argv[])
    {
       X[n].c1+=Y[n].c1;
       X[n].c2+=Y[n].c2;
-      X[n].c3+=Y[n].c3; 
+      X[n].c3+=Y[n].c3;
       X[n].c4+=Y[n].c4;
       X[n].c5+=Y[n].c5;
       X[n].c6+=Y[n].c6;
       X[n].c7+=Y[n].c7;
-      X[n].c8+=Y[n].c8;      
+      X[n].c8+=Y[n].c8;
    }
-   
+
    sprod2=0.5*(norm_square_alg(NMOM,1,X)-nsq1-nsq2);
 
    if (my_rank==0)
@@ -200,7 +200,7 @@ int main(int argc,char *argv[])
       printf("(should be less than %.1e or so)\n\n",
              DBL_EPSILON*sqrt(8.0*(double)(NMOM)*(double)(NPROC)));
    }
-   
+
    random_alg(NMOM,X);
 
    for (i=0;i<8;i++)
@@ -218,7 +218,7 @@ int main(int argc,char *argv[])
       r[4]=X[n].c5;
       r[5]=X[n].c6;
       r[6]=X[n].c7;
-      r[7]=X[n].c8; 
+      r[7]=X[n].c8;
 
       for (i=0;i<8;i++)
       {
@@ -228,13 +228,13 @@ int main(int argc,char *argv[])
    }
 
    MPI_Reduce(var,var_all,64,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      
+
    if (my_rank==0)
    {
       printf("Check of random_alg():\n\n");
       dmax=0.0;
       rn=1.0/((double)(NMOM)*(double)(NPROC));
-      
+
       for (i=0;i<8;i++)
       {
          for (j=i;j<8;j++)
@@ -264,7 +264,7 @@ int main(int argc,char *argv[])
                cij=0.0;
                eij=sqrt(rn)/4.0;
             }
-            
+
             var_all[8*i+j]*=rn;
 
             if (cij!=0.0)
@@ -291,7 +291,7 @@ int main(int argc,char *argv[])
 
    rn=-1.2345;
    random_alg(NMOM,X);
-   random_alg(NMOM,Y);   
+   random_alg(NMOM,Y);
 
    nsq1=norm_square_alg(NMOM,1,X);
    nsq2=norm_square_alg(NMOM,1,Y);
@@ -299,7 +299,7 @@ int main(int argc,char *argv[])
 
    muladd_assign_alg(NMOM,rn,X,Y);
    sm=norm_square_alg(NMOM,1,Y)-nsq2-rn*rn*nsq1-2.0*rn*sprod1;
-   sm/=nsq1;
+   sm=fabs(sm)/nsq1;
 
    if (my_rank==0)
    {
@@ -307,7 +307,7 @@ int main(int argc,char *argv[])
       printf("(should be less than 1.0e-15 or so)\n\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

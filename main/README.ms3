@@ -18,7 +18,7 @@ The program has only few options since most of the parameters are passed
 through an input file. The options are
 
 -i <filename>    Specifies the name of the input file. The name can be
-                 a fully qualified name or be specified relative to the 
+                 a fully qualified name or be specified relative to the
                  working directory.
 
 -noexp           Field configurations are normally read in exported
@@ -28,7 +28,7 @@ through an input file. The options are
 
 -a               This option specifies that the run is a continuation of
                  a previous run. All output data are appended to the
-                 previous output files. 
+                 previous output files.
 
 
 INPUT PARAMETERS
@@ -52,12 +52,14 @@ first        1                     # No of the first configuration to consider
 last         4                     # No of the last configuration
 step         1                     # Configuration separation (last-first must
                                    # be an integer multiple of step)
-bc           1                     # Boundary conditions (0: open, 1: Schroe- 
-                                   # dinger functional)
 
-[Boundary values]
-phi          0.0 1.0               # Parameters of the boundary fields at 
-phi'         3.0 4.0               # time 0 (phi) and T (phi')
+[Boundary conditions]
+type         2                     # Type of boundary condition (0: open,
+                                   # 1: SF, 2: open-SF, 3: periodic)
+phi          0.12 -0.56            # Boundary values of the gauge field at
+                                   # time 0
+phi'         0.92 0.76             # Boundary values of the gauge field at
+                                   # time NPROC0*L0
 
 [Wilson flow]
 integrator   RK3                   # EULER: Euler, RK2: 2nd order Runge-Kutta
@@ -67,30 +69,30 @@ nstep        100                   # Number of integration steps
 dnms         10                    # Number of integration steps between
                                    # observable measurements
 
-See flags/sf_parms.c for a description of the boundary values of the gauge
-field. The section [Boundary values] may be omitted if bc=0.
-
+Superfluous parameters may be deleted or commented out. If present they are
+not read by the program and the specified values (if any) have no effect on
+the run.
 
 FILES
 
-The program searches for exported field configurations 
+The program searches for exported field configurations
 
-  <run name>n<int>        
+  <run name>n<int>
 
 in the directory cnfg_dir, where <int> is the configuration number.
-Imported configurations 
+Imported configurations
 
   <run name>n<int>_0       (on process 0)
   <run name>n<int>_1       (on process 1)
   <run name>n<int>_2       (on process 2)
         ...                     ...
 
-are searched in the directory loc_dir. 
+are searched in the directory loc_dir.
 
 The program writes the results of the computations to the files
 
   <run name>.ms3.log   Log file
-  <run name>.ms3.log~  Backup log file	
+  <run name>.ms3.log~  Backup log file
 
   <run name>.ms3.dat   Measurement data file
   <run name>.ms3.dat~  Backup data file
@@ -114,7 +116,8 @@ For each configuration, the Wilson flow is integrated from flow time 0 to time
 "nstep"*"eps" in steps of eps using the specified integrator. After every
 "dnms" integration steps, the time-slice sums of the densities of the Wilson
 plaquette action, the Yang-Mills action and the topological charge are
-computed (see uflds/plaq_sum.c, tcharge/ftensor.c and tcharge/tcharge.c).
+computed (see uflds/plaq_sum.c, tcharge/ftensor.c, tcharge/ym_action.c and
+tcharge/tcharge.c).
 
 At the beginning of the measurement data file the program writes the data
 contained in the header structure

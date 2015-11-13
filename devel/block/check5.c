@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of assign_s2sblk(),...,assign_sdblk2sd()
+* Check of assign_s2sblk(),...,assign_sdblk2sd().
 *
 *******************************************************************************/
 
@@ -303,7 +303,7 @@ int main(int argc,char *argv[])
                "main [check5.c]","assign_sblk2s() changes the input field");
          assign_s2sblk(SAP_BLOCKS,n,set,ps[1],k);
          assign_sblk2s(SAP_BLOCKS,n,set,k,ps[0]);
-         
+
          error(diff_s(VOLUME,ps[0],ps[1]),1,
                "main [check5.c]",
                "Unexpected change of the global field by assign_s2sblk()");
@@ -350,7 +350,7 @@ int main(int argc,char *argv[])
 
          error(diff_sd(VOLUME,psd[0],psd[1]),1,
                "main [check5.c]","assign_sd2sdblk() changes the input field");
-         
+
          random_sd(vol,(*b).sd[k],0.1f);
          assign_sd2sd(vol,(*b).sd[k],(*b).sd[l]);
          assign_sdblk2sd(DFL_BLOCKS,n,set,k,psd[0]);
@@ -361,7 +361,7 @@ int main(int argc,char *argv[])
                "main [check5.c]","assign_sdblk2sd() changes the input field");
          assign_sd2sdblk(DFL_BLOCKS,n,set,psd[1],k);
          assign_sdblk2sd(DFL_BLOCKS,n,set,k,psd[0]);
-         
+
          error(diff_sd(VOLUME,psd[0],psd[1]),1,
                "main [check5.c]",
                "Unexpected change of the global field by assign_sd2sdblk()");
@@ -416,7 +416,7 @@ int main(int argc,char *argv[])
 
       b+=1;
    }
-   
+
    error_chk();
 
    if (my_rank==0)

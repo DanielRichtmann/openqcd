@@ -3,12 +3,12 @@
 *
 * File time1.c
 *
-* Copyright (C) 2005, 2008, 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2008-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of plaq_frc(), sw_frc() and hop_frc()
+* Timing of plaq_frc(), sw_frc() and hop_frc().
 *
 *******************************************************************************/
 
@@ -33,18 +33,19 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,n,count;
+   int my_rank,bc,n,count;
+   double phi[2],phi_prime[2];
    double wt1,wt2,wdt;
    FILE *flog=NULL;
    spinor_dble **wsd;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   
+
    if (my_rank==0)
    {
       flog=freopen("time1.log","w",stdout);
-      
+
       printf("\n");
       printf("Timing of plaq_frc(), sw_frc() and hop_frc()\n");
       printf("--------------------------------------------\n\n");
@@ -52,18 +53,34 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
+                    "Syntax: time1 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
 
-   set_lat_parms(6.0,1.0,0.0,0.0,0.0,1.2300,0.23,1.34);
    set_sw_parms(-0.1235);
-
    alloc_wsd(2);
    wsd=reserve_wsd(2);
-   
+
    random_ud();
+   chs_ubnd(-1);
    random_sd(VOLUME,wsd[0],1.0);
    random_sd(VOLUME,wsd[1],1.0);
    bnd_sd2zero(ALL_PTS,wsd[0]);
@@ -72,11 +89,11 @@ int main(int argc,char *argv[])
    plaq_frc();
    set_frc2zero();
    set_xt2zero();
-   add_prod2xt(-0.5,wsd[0],wsd[1]);   
-   add_prod2xv(-0.5,wsd[0],wsd[1]);   
+   add_prod2xt(-0.5,wsd[0],wsd[1]);
+   add_prod2xv(-0.5,wsd[0],wsd[1]);
    sw_frc(1.0);
    hop_frc(1.0);
-   
+
    n=(int)(3.0e6/(double)(4*VOLUME));
    if (n<2)
       n=2;
@@ -85,7 +102,7 @@ int main(int argc,char *argv[])
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<n;count++)
          plaq_frc();
       MPI_Barrier(MPI_COMM_WORLD);
@@ -109,16 +126,16 @@ int main(int argc,char *argv[])
       n=2;
    wdt=0.0;
    set_xt2zero();
-         
+
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<n;count++)
-         add_prod2xt(0.0,wsd[0],wsd[1]);         
+         add_prod2xt(0.0,wsd[0],wsd[1]);
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
-      
+
       wdt=wt2-wt1;
       n*=2;
    }
@@ -134,16 +151,16 @@ int main(int argc,char *argv[])
       n=2;
    wdt=0.0;
    set_xv2zero();
-         
+
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<n;count++)
-         add_prod2xv(0.0,wsd[0],wsd[1]);         
+         add_prod2xv(0.0,wsd[0],wsd[1]);
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
-      
+
       wdt=wt2-wt1;
       n*=2;
    }
@@ -156,14 +173,14 @@ int main(int argc,char *argv[])
 
    n=(int)(3.0e6/(double)(4*VOLUME));
    if (n<2)
-      n=2;   
+      n=2;
    wdt=0.0;
    set_frc2zero();
-         
+
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<n;count++)
          sw_frc(0.0);
       MPI_Barrier(MPI_COMM_WORLD);
@@ -183,11 +200,12 @@ int main(int argc,char *argv[])
    if (n<2)
       n=2;
    wdt=0.0;
+   set_frc2zero();
 
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<n;count++)
          hop_frc(0.0);
       MPI_Barrier(MPI_COMM_WORLD);
@@ -205,7 +223,7 @@ int main(int argc,char *argv[])
       printf("hop_frc():       %4.3f usec\n\n",wdt);
       fclose(flog);
    }
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

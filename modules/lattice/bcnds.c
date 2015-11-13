@@ -3,54 +3,12 @@
 *
 * File bcnds.c
 *
-* Copyright (C) 2005, 2010, 2011, 2012 Martin Luescher, John Bulava
+* Copyright (C) 2005, 2010-2014 Martin Luescher, John Bulava
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Programs related to the boundary conditions in the time direction
-*
-*   void openbc(void)
-*     Sets the time-like single-precision link variables at time
-*     NPROC0*L0-1 to zero.
-*     
-*   void openbcd(void)
-*     Sets the time-like double-precision link variables at time
-*     NPROC0*L0-1 to zero.
-*
-*   void sfbc(void)
-*     Sets the time-like single-precision link variables at time
-*     NPROC0*L0-1 to zero and the spatial link variables there and
-*     at time 0 to the values specified in the parameter data base
-*     (see flags/sw_parms.c).
-*
-*   void sfbcd(void)
-*     Sets the time-like double-precision link variables at time
-*     NPROC0*L0-1 to zero and the spatial link variables there and
-*     at time 0 to the values specified in the parameter data base
-*     (see flags/sw_parms.c).
-*
-*   int check_bc(void)
-*     Returns 1 if the time-like single-precision link variables at time
-*     NPROC0*L0-1 are all equal to zero and 0 otherwise. An error occurs
-*     if only some of these link variables vanish.
-*
-*   int check_bcd(void)
-*     Returns 1 if the time-like double-precision link variables at time
-*     NPROC0*L0-1 are all equal to zero and 0 otherwise. An error occurs
-*     if only some of these link variables vanish.
-*
-*   int check_sfbc(void)
-*     Returns 1 if checkbc() returns 1 and if the single-precision gauge
-*     field has the Schroedinger functional boundary values specified in
-*     the parameter data base. In all other cases the program returns 0.
-*     An error occurs if the boundary values are not set.
-*
-*   int check_sfbcd(void)
-*     Returns 1 if checkbcd() returns 1 and if the double-precision gauge
-*     field has the Schroedinger functional boundary values specified in
-*     the parameter data base. In all other cases the program returns 0.
-*     An error occurs if the boundary values are not set.
+* Programs related to the boundary conditions in the time direction.
 *
 *   int *bnd_lks(int *n)
 *     Returns the starting address of an array of length n whose elements
@@ -60,26 +18,71 @@
 *   int *bnd_pts(int *n)
 *     Returns the starting address of an array of length n whose elements
 *     are the indices of the points on the local lattice at global time 0
-*     and NPROC0*L0-1. The ordering of the indices is such that the first
-*     and the second n/2 indices are, respectively, those of the even and
-*     the odd points at these times.
+*     (boundary conditions type 0,1 or 2) and time NPROC0*L0-1 (boundary
+*     conditions type 0). The ordering of the indices is such that the n/2
+*     even points come first.
+*
+*   void set_bc(void)
+*     Sets the double-precision link variables at time 0 and T to the
+*     values required by the chosen boundary conditions (see the notes).
+*
+*   int check_bc(double tol)
+*     Returns 1 if the double-precision gauge field has the proper boundary
+*     values and if no active link variables are equal to zero. Otherwise
+*     the program returns 0. The parameter tol>=0.0 sets an upper bound on
+*     the tolerated difference of the boundary values of the gauge field from
+*     the expected ones in the case of SF and open-SF boundary conditions.
+*
+*   int chs_ubnd(int ibc)
+*     Multiplies the double-precision link variables on the time-like links
+*     at time NPROC0*L0-1 by -1 if the following conditions are met: (1) ibc
+*     and the determinants of the link variables have opposite sign, (2) the
+*     boundary conditions are of type 3 (periodic for the gauge field). The
+*     program returns 1 if the link variables are changed and 0 otherwise.
 *
 *   void bnd_s2zero(ptset_t set,spinor *s)
 *     Sets the components of the single-precision spinor field s on the
-*     specified set of points at global time 0 and NPROC0*L0-1 to zero.
+*     specified set of points at global time 0 (boundary conditions type
+*     0,1 or 2) and time NPROC0*L0-1 (boundary conditions type 0) to zero.
 *
 *   void bnd_sd2zero(ptset_t set,spinor_dble *sd)
 *     Sets the components of the double-precision spinor field sd on the
-*     specified set of points at global time 0 and NPROC0*L0-1 to zero.
+*     specified set of points at global time 0 (boundary conditions type
+*     0,1 or 2) and time NPROC0*L0-1 (boundary conditions type 0) to zero.
 *
 * Notes:
 *
-* These programs act globally and should therefore be called simultaneously
-* on all processes. 
+* The time extent T of the lattice is
 *
-* Only the basic field variables on the local lattices (those with address
-* offsets less than 4*VOLUME) are modified by openbc(), openbcd(), sfbc()
-* and sfbcd(). 
+*  NPROC0*L0-1      for open boundary conditions,
+*
+*  NPROC0*L0        for SF, open-SF and periodic boundary conditions.
+*
+* Note that in the latter cases the points at time T are not in the local
+* lattice and are omitted in the programs bnd_pts(), bnd_s2zero() and
+* bnd_sd2zero().
+*
+* The action performed by set_bc() is the following:
+*
+*  Open bc:         Set all link variables U(x,0) at time T to zero.
+*
+*  SF bc:           Reads the boundary values of the gauge field from the
+*                   data base and assigns them to the link variables at
+*                   time 0 and T. At time T the link variables are stored
+*                   in the buffers appended to the local field on the MPI
+*                   processes where cpr[0]=NPROC0-1.
+*
+*  Open-SF bc:      Same as SF bc, but omitting the assignment of the link
+*                   variables at time 0.
+*
+*  Periodic bc:     No action is performed.
+*
+* Then the program checks whether any active link variables are equal to
+* zero and, if some are found, aborts the program with an error message.
+*
+* The programs in this module act globally and should be called simultaneously
+* on all MPI processes. After the first time, the programs bnd_s2zero() and
+* bnd_sd2zero() may be locally called.
 *
 *******************************************************************************/
 
@@ -98,23 +101,26 @@
 
 #define N0 (NPROC0*L0)
 
-static int init0=0,nlks=0,*lks=NULL;
-static int init1=0,npts=0,*pts=NULL;
+typedef union
+{
+   su3_dble u;
+   double r[18];
+} umat_t;
+
+static int init0=0,nlks,*lks;
+static int init1=0,npts,*pts;
 static int init2=0;
-static const su3 u0={{0.0f}};
 static const su3_dble ud0={{0.0}};
 static const spinor s0={{{0.0f}}};
 static const spinor_dble sd0={{{0.0}}};
-static su3 ubnd[6];
-static su3_dble udbnd[6];
+static su3_dble ubnd[2][3];
 
 
 static void alloc_lks(void)
 {
    int ix,t,*lk;
 
-   if (iup[0][0]==0)
-      geometry();
+   error(iup[0][0]==0,1,"alloc_lks [bcnds.c]","Geometry arrays are not set");
 
    if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
    {
@@ -123,12 +129,12 @@ static void alloc_lks(void)
       else
          nlks=L1*L2*L3;
 
-      lks=amalloc(nlks*sizeof(*lks),3);
+      lks=malloc(nlks*sizeof(*lks));
 
       if (lks!=NULL)
       {
          lk=lks;
-         
+
          for (ix=(VOLUME/2);ix<VOLUME;ix++)
          {
             t=global_time(ix);
@@ -138,14 +144,18 @@ static void alloc_lks(void)
                (*lk)=8*(ix-(VOLUME/2))+1;
                lk+=1;
             }
-
-            if (t==(N0-1))
+            else if (t==(N0-1))
             {
                (*lk)=8*(ix-(VOLUME/2));
                lk+=1;
             }
          }
       }
+   }
+   else
+   {
+      nlks=0;
+      lks=NULL;
    }
 
    error((nlks>0)&&(lks==NULL),1,"alloc_lks [bcnds.c]",
@@ -156,29 +166,29 @@ static void alloc_lks(void)
 
 static void alloc_pts(void)
 {
-   int ix,t,*pt;
+   int bc,ix,t,*pt;
 
-   if (iup[0][0]==0)
-      geometry();
+   error(iup[0][0]==0,1,"alloc_pts [bcnds.c]","Geometry arrays are not set");
+   bc=bc_type();
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
-      if (NPROC0>1)
-         npts=L1*L2*L3;
-      else
+      if ((NPROC0==1)&&(bc==0))
          npts=2*L1*L2*L3;
+      else
+         npts=L1*L2*L3;
 
-      pts=amalloc(npts*sizeof(*pts),3);
+      pts=malloc(npts*sizeof(*pts));
 
       if (pts!=NULL)
       {
          pt=pts;
-         
+
          for (ix=0;ix<VOLUME;ix++)
          {
             t=global_time(ix);
 
-            if ((t==0)||(t==(N0-1)))
+            if ((t==0)||((t==(N0-1))&&(bc==0)))
             {
                (*pt)=ix;
                pt+=1;
@@ -186,494 +196,15 @@ static void alloc_pts(void)
          }
       }
    }
+   else
+   {
+      npts=0;
+      pts=NULL;
+   }
 
    error((npts>0)&&(pts==NULL),1,"alloc_pts [bcnds.c]",
          "Unable to allocate index array");
    init1=1;
-}
-
-
-static void set_ubnd(void)
-{
-   int k;
-   double s[3];
-   sf_parms_t sf;
-
-   if (init0==0)
-      alloc_lks();
-   if (init1==0)
-      alloc_pts();
-   
-   sf=sf_parms();
-   error_root(sf.flg!=1,1,"set_ubnd [bcnds.c]",
-              "SF boundary values are not set");
-
-   s[0]=(double)(NPROC1*L1);
-   s[1]=(double)(NPROC2*L2);
-   s[2]=(double)(NPROC3*L3);   
-   
-   for (k=0;k<6;k++)
-   {
-      ubnd[k]=u0;
-      udbnd[k]=ud0;
-   }
-
-   for (k=0;k<3;k++)
-   {
-      udbnd[k].c11.re=cos(sf.phi[0]/s[k]);
-      udbnd[k].c11.im=sin(sf.phi[0]/s[k]);
-      udbnd[k].c22.re=cos(sf.phi[1]/s[k]);
-      udbnd[k].c22.im=sin(sf.phi[1]/s[k]);
-      udbnd[k].c33.re=cos(sf.phi[2]/s[k]);
-      udbnd[k].c33.im=sin(sf.phi[2]/s[k]);
-
-      udbnd[3+k].c11.re=cos(sf.phi_prime[0]/s[k]);
-      udbnd[3+k].c11.im=sin(sf.phi_prime[0]/s[k]);
-      udbnd[3+k].c22.re=cos(sf.phi_prime[1]/s[k]);
-      udbnd[3+k].c22.im=sin(sf.phi_prime[1]/s[k]);
-      udbnd[3+k].c33.re=cos(sf.phi_prime[2]/s[k]);
-      udbnd[3+k].c33.im=sin(sf.phi_prime[2]/s[k]);      
-   }
-   
-   for (k=0;k<6;k++)
-   {
-      ubnd[k].c11.re=(float)(udbnd[k].c11.re);
-      ubnd[k].c11.im=(float)(udbnd[k].c11.im);
-      ubnd[k].c22.re=(float)(udbnd[k].c22.re);
-      ubnd[k].c22.im=(float)(udbnd[k].c22.im);
-      ubnd[k].c33.re=(float)(udbnd[k].c33.re);
-      ubnd[k].c33.im=(float)(udbnd[k].c33.im);
-   }
-
-   init2=1;
-}
-
-
-void openbc(void)
-{
-   int *lk,*lkm;
-   su3 *ub;
-
-   if (init0==0)
-      alloc_lks();
-
-   ub=ufld();
-   lk=lks;
-   lkm=lk+nlks;
-
-   for (;lk<lkm;lk++)
-      ub[*lk]=u0;
-
-   set_flags(UPDATED_U);
-}
-
-
-void openbcd(void)
-{
-   int *lk,*lkm;
-   su3_dble *ub;
-
-   if (init0==0)
-      alloc_lks();
-
-   ub=udfld();
-   lk=lks;
-   lkm=lk+nlks;
-
-   for (;lk<lkm;lk++)
-      ub[*lk]=ud0;
-
-   set_flags(UPDATED_UD);
-}
-
-
-void sfbc(void)
-{
-   int *lk,*lkm;
-   int t,k,*pt,*ptm;
-   su3 *ub,*u;
-
-   if (init2==0)
-      set_ubnd();
-   
-   ub=ufld();
-   lk=lks;
-   lkm=lk+nlks;
-
-   for (;lk<lkm;lk++)
-      ub[*lk]=u0;
-
-   pt=pts+(npts/2);
-   ptm=pts+npts;
-   
-   for (;pt<ptm;pt++)
-   {
-      t=global_time(pt[0]);
-      u=ub+8*(pt[0]-(VOLUME/2));
-
-      if (t==0)
-      {
-         for (k=0;k<3;k++)
-         {
-            u[2+2*k]=ubnd[k];
-            u[3+2*k]=ubnd[k];
-         }
-      }
-      else if (t==(N0-1))
-      {
-         for (k=0;k<3;k++)
-         {
-            u[2+2*k]=ubnd[3+k];
-            u[3+2*k]=ubnd[3+k];
-         }
-      }
-   }
-   
-   set_flags(UPDATED_U);
-}
-
-
-void sfbcd(void)
-{
-   int *lk,*lkm;
-   int t,k,*pt,*ptm;
-   su3_dble *ub,*u;
-
-   if (init2==0)
-      set_ubnd();
-
-   ub=udfld();
-   lk=lks;
-   lkm=lk+nlks;
-
-   for (;lk<lkm;lk++)
-      ub[*lk]=ud0;
-
-   pt=pts+(npts/2);
-   ptm=pts+npts;
-   
-   for (;pt<ptm;pt++)
-   {
-      t=global_time(pt[0]);
-      u=ub+8*(pt[0]-(VOLUME/2));
-
-      if (t==0)
-      {
-         for (k=0;k<3;k++)
-         {
-            u[2+2*k]=udbnd[k];
-            u[3+2*k]=udbnd[k];
-         }
-      }
-      else if (t==(N0-1))
-      {
-         for (k=0;k<3;k++)
-         {
-            u[2+2*k]=udbnd[3+k];
-            u[3+2*k]=udbnd[3+k];
-         }
-      }
-   }
-
-   set_flags(UPDATED_UD);
-}
-
-
-static int is_zero(su3 *u)
-{
-   int it;
-
-   it =((*u).c11.re==0.0f);
-   it&=((*u).c11.im==0.0f);
-   it&=((*u).c12.re==0.0f);
-   it&=((*u).c12.im==0.0f);
-   it&=((*u).c13.re==0.0f);
-   it&=((*u).c13.im==0.0f);
-
-   it&=((*u).c21.re==0.0f);
-   it&=((*u).c21.im==0.0f);
-   it&=((*u).c22.re==0.0f);
-   it&=((*u).c22.im==0.0f);
-   it&=((*u).c23.re==0.0f);
-   it&=((*u).c23.im==0.0f);
-
-   it&=((*u).c31.re==0.0f);
-   it&=((*u).c31.im==0.0f);
-   it&=((*u).c32.re==0.0f);
-   it&=((*u).c32.im==0.0f);
-   it&=((*u).c33.re==0.0f);
-   it&=((*u).c33.im==0.0f);
-
-   return it;
-}
-
-
-static int is_zero_dble(su3_dble *u)
-{
-   int it;
-
-   it =((*u).c11.re==0.0);
-   it&=((*u).c11.im==0.0);
-   it&=((*u).c12.re==0.0);
-   it&=((*u).c12.im==0.0);
-   it&=((*u).c13.re==0.0);
-   it&=((*u).c13.im==0.0);
-
-   it&=((*u).c21.re==0.0);
-   it&=((*u).c21.im==0.0);
-   it&=((*u).c22.re==0.0);
-   it&=((*u).c22.im==0.0);
-   it&=((*u).c23.re==0.0);
-   it&=((*u).c23.im==0.0);
-
-   it&=((*u).c31.re==0.0);
-   it&=((*u).c31.im==0.0);
-   it&=((*u).c32.re==0.0);
-   it&=((*u).c32.im==0.0);
-   it&=((*u).c33.re==0.0);
-   it&=((*u).c33.im==0.0);
-
-   return it;
-}
-
-
-int check_bc(void)
-{
-   int ibc,iba,*lk,*lkm;
-   su3 *ub;
-
-   if (init0==0)
-      alloc_lks();
-
-   if (nlks>0)
-   {
-      ub=ufld();         
-      lk=lks;
-      lkm=lk+nlks;
-
-      ibc=is_zero(ub+(*lk));
-      lk+=1;
-      
-      for (;lk<lkm;lk++)
-      {
-         if (is_zero(ub+(*lk))!=ibc)
-         {
-            ibc=-1;
-            break;
-         }
-      }
-   }
-   else
-      ibc=1;
-
-   MPI_Reduce(&ibc,&iba,1,MPI_INT,MPI_MIN,0,MPI_COMM_WORLD);
-   MPI_Bcast(&iba,1,MPI_INT,0,MPI_COMM_WORLD);
-
-   error_root(iba==-1,1,"check_bc [bcnds.c]",
-              "Mixed zero and non-zero boundary link variables");
-   
-   return iba;
-}
-
-
-int check_bcd(void)
-{
-   int ibc,iba,*lk,*lkm;
-   su3_dble *ub;
-
-   if (init0==0)
-      alloc_lks();
-
-   if (nlks>0)
-   {
-      ub=udfld();      
-      lk=lks;
-      lkm=lk+nlks;
-   
-      ibc=is_zero_dble(ub+(*lk));
-      lk+=1;
-
-      for (;lk<lkm;lk++)
-      {
-         if (is_zero_dble(ub+(*lk))!=ibc)
-         {
-            ibc=-1;
-            break;
-         }
-      }
-   }
-   else
-      ibc=1;
-
-   MPI_Reduce(&ibc,&iba,1,MPI_INT,MPI_MIN,0,MPI_COMM_WORLD);
-   MPI_Bcast(&iba,1,MPI_INT,0,MPI_COMM_WORLD);
-
-   error_root(iba==-1,1,"check_bcd [bcnds.c]",
-              "Mixed zero and non-zero boundary link variables");
-   
-   return iba;
-}
-
-
-static int cmp_su3(su3 *u,su3 *v)
-{
-   int it;
-
-   it =((*u).c11.re==(*v).c11.re);
-   it&=((*u).c11.im==(*v).c11.im);   
-   it&=((*u).c12.re==(*v).c12.re);
-   it&=((*u).c12.im==(*v).c12.im);    
-   it&=((*u).c13.re==(*v).c13.re);
-   it&=((*u).c13.im==(*v).c13.im);   
-
-   it&=((*u).c21.re==(*v).c21.re);
-   it&=((*u).c21.im==(*v).c21.im);   
-   it&=((*u).c22.re==(*v).c22.re);
-   it&=((*u).c22.im==(*v).c22.im);    
-   it&=((*u).c23.re==(*v).c23.re);
-   it&=((*u).c23.im==(*v).c23.im);
-
-   it&=((*u).c31.re==(*v).c31.re);
-   it&=((*u).c31.im==(*v).c31.im);   
-   it&=((*u).c32.re==(*v).c32.re);
-   it&=((*u).c32.im==(*v).c32.im);    
-   it&=((*u).c33.re==(*v).c33.re);
-   it&=((*u).c33.im==(*v).c33.im);    
-
-   return it;
-}
-
-
-static int cmp_su3_dble(su3_dble *u,su3_dble *v)
-{
-   int it;
-
-   it =((*u).c11.re==(*v).c11.re);
-   it&=((*u).c11.im==(*v).c11.im);   
-   it&=((*u).c12.re==(*v).c12.re);
-   it&=((*u).c12.im==(*v).c12.im);    
-   it&=((*u).c13.re==(*v).c13.re);
-   it&=((*u).c13.im==(*v).c13.im);   
-
-   it&=((*u).c21.re==(*v).c21.re);
-   it&=((*u).c21.im==(*v).c21.im);   
-   it&=((*u).c22.re==(*v).c22.re);
-   it&=((*u).c22.im==(*v).c22.im);    
-   it&=((*u).c23.re==(*v).c23.re);
-   it&=((*u).c23.im==(*v).c23.im);
-
-   it&=((*u).c31.re==(*v).c31.re);
-   it&=((*u).c31.im==(*v).c31.im);   
-   it&=((*u).c32.re==(*v).c32.re);
-   it&=((*u).c32.im==(*v).c32.im);    
-   it&=((*u).c33.re==(*v).c33.re);
-   it&=((*u).c33.im==(*v).c33.im);    
-
-   return it;
-}
-
-
-int check_sfbc(void)
-{
-   int ibc,iba,*pt,*ptm;
-   int t,k;
-   su3 *ub,*u;
-
-   if (check_bc()==0)
-      return 0;
-   
-   if (init2==0)
-      set_ubnd();
-   
-   if (npts>0)
-   {
-      ub=ufld();      
-      pt=pts+(npts/2);
-      ptm=pts+npts;
-      ibc=1;
-      
-      for (;pt<ptm;pt++)
-      {
-         t=global_time(pt[0]);
-         u=ub+8*(pt[0]-(VOLUME/2));
-
-         if (t==0)
-         {
-            for (k=0;k<3;k++)
-            {
-               ibc&=cmp_su3(u+2+2*k,ubnd+k);
-               ibc&=cmp_su3(u+3+2*k,ubnd+k);
-            }
-         }
-         else if (t==(N0-1))
-         {
-            for (k=0;k<3;k++)
-            {
-               ibc&=cmp_su3(u+2+2*k,ubnd+3+k);
-               ibc&=cmp_su3(u+3+2*k,ubnd+3+k);
-            }
-         }
-      }
-   }
-   else
-      ibc=1;
-
-   MPI_Reduce(&ibc,&iba,1,MPI_INT,MPI_MIN,0,MPI_COMM_WORLD);
-   MPI_Bcast(&iba,1,MPI_INT,0,MPI_COMM_WORLD);
-
-   return iba;
-}
-
-
-int check_sfbcd(void)
-{
-   int ibc,iba,*pt,*ptm;
-   int t,k;
-   su3_dble *ub,*u;
-
-   if (check_bcd()==0)
-      return 0;
-   
-   if (init2==0)
-      set_ubnd();
-   
-   if (npts>0)
-   {
-      ub=udfld();      
-      pt=pts+(npts/2);
-      ptm=pts+npts;
-      ibc=1;
-      
-      for (;pt<ptm;pt++)
-      {
-         t=global_time(pt[0]);
-         u=ub+8*(pt[0]-(VOLUME/2));
-
-         if (t==0)
-         {
-            for (k=0;k<3;k++)
-            {
-               ibc&=cmp_su3_dble(u+2+2*k,udbnd+k);
-               ibc&=cmp_su3_dble(u+3+2*k,udbnd+k);
-            }
-         }
-         else if (t==(N0-1))
-         {
-            for (k=0;k<3;k++)
-            {
-               ibc&=cmp_su3_dble(u+2+2*k,udbnd+3+k);
-               ibc&=cmp_su3_dble(u+3+2*k,udbnd+3+k);
-            }
-         }
-      }
-   }
-   else
-      ibc=1;
-
-   MPI_Reduce(&ibc,&iba,1,MPI_INT,MPI_MIN,0,MPI_COMM_WORLD);
-   MPI_Bcast(&iba,1,MPI_INT,0,MPI_COMM_WORLD);
-
-   return iba;
 }
 
 
@@ -683,7 +214,7 @@ int *bnd_lks(int *n)
       alloc_lks();
 
    (*n)=nlks;
-   
+
    return lks;
 }
 
@@ -694,8 +225,411 @@ int *bnd_pts(int *n)
       alloc_pts();
 
    (*n)=npts;
-   
+
    return pts;
+}
+
+
+static int is_zero(su3_dble *u)
+{
+   int i,it;
+   umat_t *um;
+
+   um=(umat_t*)(u);
+   it=1;
+
+   for (i=0;i<18;i++)
+      it&=((*um).r[i]==0.0);
+
+   return it;
+}
+
+
+static int is_equal(double tol,su3_dble *u,su3_dble *v)
+{
+   int i,it;
+   umat_t *um,*vm;
+
+   um=(umat_t*)(u);
+   vm=(umat_t*)(v);
+   it=1;
+
+   for (i=0;i<18;i++)
+      it&=(fabs((*um).r[i]-(*vm).r[i])<=tol);
+
+   return it;
+}
+
+
+static int check_zero(int bc)
+{
+   int it,ix,t,ifc;
+   su3_dble *u;
+
+   it=1;
+   u=udfld();
+
+   for (ix=(VOLUME/2);ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if ((bc==0)&&(t==0))
+      {
+         it&=(0x1^is_zero(u));
+         u+=1;
+         it&=is_zero(u);
+         u+=1;
+      }
+      else if ((bc==0)&&(t==(N0-1)))
+      {
+         it&=is_zero(u);
+         u+=1;
+         it&=(0x1^is_zero(u));
+         u+=1;
+      }
+      else
+      {
+         it&=(0x1^is_zero(u));
+         u+=1;
+         it&=(0x1^is_zero(u));
+         u+=1;
+      }
+
+      for (ifc=2;ifc<8;ifc++)
+      {
+         it&=(0x1^is_zero(u));
+         u+=1;
+      }
+   }
+
+   return it;
+}
+
+
+static void set_ubnd(void)
+{
+   int i,k;
+   double s[3];
+   bc_parms_t bcp;
+
+   bcp=bc_parms();
+   s[0]=(double)(NPROC1*L1);
+   s[1]=(double)(NPROC2*L2);
+   s[2]=(double)(NPROC3*L3);
+
+   for (i=0;i<2;i++)
+   {
+      for (k=0;k<3;k++)
+      {
+         ubnd[i][k]=ud0;
+         ubnd[i][k].c11.re=cos(bcp.phi[i][0]/s[k]);
+         ubnd[i][k].c11.im=sin(bcp.phi[i][0]/s[k]);
+         ubnd[i][k].c22.re=cos(bcp.phi[i][1]/s[k]);
+         ubnd[i][k].c22.im=sin(bcp.phi[i][1]/s[k]);
+         ubnd[i][k].c33.re=cos(bcp.phi[i][2]/s[k]);
+         ubnd[i][k].c33.im=sin(bcp.phi[i][2]/s[k]);
+      }
+   }
+
+   init2=1;
+}
+
+
+static void open_bc(void)
+{
+   int *lk,*lkm;
+   su3_dble *ub;
+
+   if (init0==0)
+      alloc_lks();
+
+   ub=udfld();
+   lk=lks;
+   lkm=lk+nlks;
+
+   for (;lk<lkm;lk++)
+      ub[*lk]=ud0;
+
+   set_flags(UPDATED_UD);
+}
+
+
+static void SF_bc(void)
+{
+   int k,*pt,*ptm;
+   su3_dble *ub,*u;
+
+   if (init1==0)
+      alloc_pts();
+   if (init2==0)
+      set_ubnd();
+
+   ub=udfld();
+
+   if (cpr[0]==0)
+   {
+      pt=pts+(npts/2);
+      ptm=pts+npts;
+
+      for (;pt<ptm;pt++)
+      {
+         u=ub+8*(pt[0]-(VOLUME/2));
+
+         for (k=0;k<3;k++)
+         {
+            u[2+2*k]=ubnd[0][k];
+            u[3+2*k]=ubnd[0][k];
+         }
+      }
+   }
+
+   if (cpr[0]==(NPROC0-1))
+   {
+      u=ub+4*VOLUME+7*(BNDRY/4);
+
+      for (k=0;k<3;k++)
+         u[k]=ubnd[1][k];
+   }
+
+   set_flags(UPDATED_UD);
+}
+
+
+static void openSF_bc(void)
+{
+   int k;
+   su3_dble *ub,*u;
+
+   if (init2==0)
+      set_ubnd();
+
+   ub=udfld();
+
+   if (cpr[0]==(NPROC0-1))
+   {
+      u=ub+4*VOLUME+7*(BNDRY/4);
+
+      for (k=0;k<3;k++)
+         u[k]=ubnd[1][k];
+   }
+
+   set_flags(UPDATED_UD);
+}
+
+
+void set_bc(void)
+{
+   int bc,it;
+
+   bc=bc_type();
+
+   if (bc==0)
+      open_bc();
+   else if (bc==1)
+      SF_bc();
+   else if (bc==2)
+      openSF_bc();
+
+   it=check_zero(bc);
+
+   error(it!=1,1,"set_bc [bcnds.c]",
+         "Link variables vanish on an incorrect set of links");
+}
+
+
+static int check_SF(double tol)
+{
+   int it,k,*pt,*ptm;
+   su3_dble *ub,*u;
+
+   if (init1==0)
+      alloc_pts();
+   if (init2==0)
+      set_ubnd();
+
+   it=1;
+   ub=udfld();
+
+   if (cpr[0]==0)
+   {
+      pt=pts+(npts/2);
+      ptm=pts+npts;
+
+      for (;pt<ptm;pt++)
+      {
+         u=ub+8*(pt[0]-(VOLUME/2));
+
+         for (k=0;k<3;k++)
+         {
+            it&=is_equal(tol,u+2+2*k,ubnd[0]+k);
+            it&=is_equal(tol,u+3+2*k,ubnd[0]+k);
+         }
+      }
+   }
+
+   if (cpr[0]==(NPROC0-1))
+   {
+      u=ub+4*VOLUME+7*(BNDRY/4);
+
+      for (k=0;k<3;k++)
+         it&=is_equal(tol,u+k,ubnd[1]+k);
+   }
+
+   return it;
+}
+
+
+static int check_openSF(double tol)
+{
+   int it,k;
+   su3_dble *ub,*u;
+
+   if (init2==0)
+      set_ubnd();
+
+   it=1;
+   ub=udfld();
+
+   if (cpr[0]==(NPROC0-1))
+   {
+      u=ub+4*VOLUME+7*(BNDRY/4);
+
+      for (k=0;k<3;k++)
+         it&=is_equal(tol,u+k,ubnd[1]+k);
+   }
+
+   return it;
+}
+
+
+int check_bc(double tol)
+{
+   int bc,it,is;
+   double dprms[1];
+
+   if (NPROC>1)
+   {
+      dprms[0]=tol;
+      MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      error(dprms[0]!=tol,1,"check_bc [bcnds.c]","Parameter is not global");
+   }
+
+   bc=bc_type();
+   it=check_zero(bc);
+
+   if (bc==1)
+      it&=check_SF(tol);
+   else if (bc==2)
+      it&=check_openSF(tol);
+
+   if (NPROC>1)
+   {
+      is=it;
+      MPI_Allreduce(&is,&it,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
+   }
+
+   return it;
+}
+
+
+static int sdet(su3_dble *u)
+{
+   double r;
+   complex_dble z;
+
+   z.re=
+      (*u).c22.re*(*u).c33.re-(*u).c22.im*(*u).c33.im-
+      (*u).c32.re*(*u).c23.re+(*u).c32.im*(*u).c23.im;
+
+   z.im=
+      (*u).c22.re*(*u).c33.im+(*u).c22.im*(*u).c33.re-
+      (*u).c32.re*(*u).c23.im-(*u).c32.im*(*u).c23.re;
+
+   r=(*u).c11.re*z.re-(*u).c11.im*z.im;
+
+   z.re=
+      (*u).c32.re*(*u).c13.re-(*u).c32.im*(*u).c13.im-
+      (*u).c12.re*(*u).c33.re+(*u).c12.im*(*u).c33.im;
+
+   z.im=
+      (*u).c32.re*(*u).c13.im+(*u).c32.im*(*u).c13.re-
+      (*u).c12.re*(*u).c33.im-(*u).c12.im*(*u).c33.re;
+
+   r+=((*u).c21.re*z.re-(*u).c21.im*z.im);
+
+   z.re=
+      (*u).c12.re*(*u).c23.re-(*u).c12.im*(*u).c23.im-
+      (*u).c22.re*(*u).c13.re+(*u).c22.im*(*u).c13.im;
+
+   z.im=
+      (*u).c12.re*(*u).c23.im+(*u).c12.im*(*u).c23.re-
+      (*u).c22.re*(*u).c13.im-(*u).c22.im*(*u).c13.re;
+
+   r+=((*u).c31.re*z.re-(*u).c31.im*z.im);
+
+   if (r>=0.0)
+      return 1;
+   else
+      return -1;
+}
+
+
+int chs_ubnd(int ibc)
+{
+   int iprms[1],i,ich,ichs;
+   int *lk,*lkm;
+   su3_dble *ub;
+   umat_t *um;
+
+   if (bc_type()==3)
+   {
+      if (NPROC>1)
+      {
+         iprms[0]=ibc;
+         MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+         error(iprms[0]!=ibc,1,"chs_ubnd [bcnds.c]",
+               "Parameter is not global");
+      }
+
+      if (init0==0)
+         alloc_lks();
+
+      if (ibc>=0)
+         ibc=1;
+      else
+         ibc=-1;
+
+      ub=udfld();
+      ich=0;
+
+      if (nlks>0)
+      {
+         lk=lks;
+
+         if (sdet(ub+(*lk))!=ibc)
+         {
+            ich=1;
+            lkm=lk+nlks;
+
+            for (;lk<lkm;lk++)
+            {
+               um=(umat_t*)(ub+(*lk));
+
+               for (i=0;i<18;i++)
+                  (*um).r[i]=-(*um).r[i];
+            }
+         }
+      }
+
+      MPI_Allreduce(&ich,&ichs,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
+
+      if (ichs==1)
+         set_flags(UPDATED_UD);
+
+      return ichs;
+   }
+   else
+      return 0;
 }
 
 

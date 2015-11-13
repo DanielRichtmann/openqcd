@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2007, 2010, 2011 Martin Luescher
+* Copyright (C) 2005, 2007, 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Writing and reading gauge and momentum configurations
+* Writing and reading gauge configurations.
 *
 *******************************************************************************/
 
@@ -20,26 +20,60 @@
 #include "mpi.h"
 #include "su3.h"
 #include "flags.h"
-#include "su3fcts.h"
 #include "random.h"
 #include "utils.h"
 #include "lattice.h"
 #include "uflds.h"
-#include "mdflds.h"
+#include "su3fcts.h"
 #include "linalg.h"
 #include "archive.h"
 #include "global.h"
 
+static int *rlxs_state[2],*rlxd_state[2];
 
-static void save_flds(su3_dble *usv,su3_alg_dble *fsv)
+
+static void save_ranlux(void)
 {
-   su3_dble *udb;
-   mdflds_t *mdfs;
+   int nlxs,nlxd;
+   int *p;
 
-   udb=udfld();
-   mdfs=mdflds();
-   cm3x3_assign(4*VOLUME,udb,usv);
-   assign_alg2alg(4*VOLUME,(*mdfs).mom,fsv);
+   nlxs=rlxs_size();
+   nlxd=rlxd_size();
+
+   p=malloc(2*(nlxs+nlxd)*sizeof(*p));
+   error(p==NULL,1,"save_ranlux [check1.c]",
+         "Unable to allocate state arrays");
+   rlxs_state[0]=p;
+   p+=nlxs;
+   rlxs_state[1]=p;   
+   p+=nlxs;
+   rlxd_state[0]=p;
+   p+=nlxd;
+   rlxd_state[1]=p;
+   
+   rlxs_get(rlxs_state[0]);
+   rlxd_get(rlxd_state[0]);
+}
+
+
+static int check_ranlux(void)
+{
+   int nlxs,nlxd,k,ie;
+
+   nlxs=rlxs_size();
+   nlxd=rlxd_size();
+
+   rlxs_get(rlxs_state[1]);
+   rlxd_get(rlxd_state[1]);
+   ie=0;
+   
+   for (k=0;k<nlxs;k++)
+      ie|=(rlxs_state[0][k]!=rlxs_state[1][k]);
+
+   for (k=0;k<nlxd;k++)
+      ie|=(rlxd_state[0][k]!=rlxd_state[1][k]);
+
+   return ie;
 }
 
 
@@ -91,50 +125,12 @@ static int check_ud(su3_dble *usv)
 }
 
 
-static int cmp_fd(su3_alg_dble *ma,su3_alg_dble *mb)
-{
-   int it;
-
-   it =((*ma).c1!=(*mb).c1);
-   it|=((*ma).c2!=(*mb).c2);
-   it|=((*ma).c3!=(*mb).c3);
-   it|=((*ma).c4!=(*mb).c4);
-   it|=((*ma).c5!=(*mb).c5);
-   it|=((*ma).c6!=(*mb).c6);
-   it|=((*ma).c7!=(*mb).c7);
-   it|=((*ma).c8!=(*mb).c8);
-   
-   return it;
-}
-
-
-static int check_fd(su3_alg_dble *fsv)
-{
-   int it;
-   su3_alg_dble *m,*mm;
-   mdflds_t *mdfs;
-
-   mdfs=mdflds();   
-   m=(*mdfs).mom;
-   mm=m+4*VOLUME;
-   it=0;
-   
-   for (;m<mm;m++)
-   {
-      it|=cmp_fd(m,fsv);
-      fsv+=1;
-   }
-
-   return it;
-}
-
-
 int main(int argc,char *argv[])
 {
-   int my_rank,nsize;
-   su3_dble **usv;
-   su3_alg_dble **fsv;
-   char loc_dir[NAME_SIZE],cnfg[NAME_SIZE],mfld[NAME_SIZE];
+   int my_rank,bc,nsize,ie;
+   double phi[2],phi_prime[2];
+   su3_dble *udb,**usv;
+   char loc_dir[NAME_SIZE],cnfg[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -146,8 +142,8 @@ int main(int argc,char *argv[])
       fin=freopen("check1.in","r",stdin);
       
       printf("\n");
-      printf("Writing and reading gauge and momentum configurations\n");
-      printf("-----------------------------------------------------\n\n");
+      printf("Writing and reading gauge configurations\n");
+      printf("----------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -155,56 +151,62 @@ int main(int argc,char *argv[])
 
       read_line("loc_dir","%s\n",loc_dir);
       fclose(fin);
-      
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
 
-   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);   
+   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);      
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,123456);
    geometry();
    alloc_wud(1);
-   alloc_wfd(1);
 
    check_dir(loc_dir);   
    nsize=name_size("%s/testcnfg_%d",loc_dir,NPROC);
    error_root(nsize>=NAME_SIZE,1,"main [check1.c]","loc_dir name is too long");
    sprintf(cnfg,"%s/testcnfg_%d",loc_dir,my_rank);   
-   sprintf(mfld,"%s/testmfld_%d",loc_dir,my_rank);   
    
    if (my_rank==0)
    {
-      printf("Write random field configurations to the files %s/testcnfg_*\n"
-             "and %s/testmfld_* on the local disks.\n\n",loc_dir,loc_dir);
-      printf("Then read the fields from there, compare with the saved fields\n"
+      printf("Write random field configuration to the files\n"
+             "%s/testcnfg_*\n"
+             "on the local disks.\n\n",loc_dir);
+      printf("Then read the field from there, compare with the saved field\n"
              "and remove all files.\n\n");
    }
 
    usv=reserve_wud(1);
-   fsv=reserve_wfd(1);
+   udb=udfld();
 
    random_ud();
-   random_mom();
-   save_flds(usv[0],fsv[0]);
-
+   cm3x3_assign(4*VOLUME,udb,usv[0]);
+   save_ranlux();
    write_cnfg(cnfg);
-   write_mfld(mfld);
 
    random_ud();
-   random_mom();
-   
    read_cnfg(cnfg);
-   read_mfld(mfld);
-   
+   remove(cnfg);   
    error_chk();
-   remove(cnfg);
-   remove(mfld);
-   
-   error(check_ud(usv[0])!=0,1,"main [check1.c]",
-         "The gauge field is not properly restored");
-   error(check_fd(fsv[0])!=0,1,"main [check1.c]",
-         "The momentum field is not properly restored");
 
+   ie=(check_bc(0.0)^0x1);
+   ie|=check_ud(usv[0]);
+   error(ie!=0,1,"main [check1.c]","The gauge field is not properly restored");
+
+   ie=check_ranlux();
+   error(ie!=0,1,"main [check1.c]",
+         "The random number generator is not properly restored");
    print_flags();
    
    if (my_rank==0)

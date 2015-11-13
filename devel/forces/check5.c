@@ -3,12 +3,12 @@
 *
 * File check5.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check and performance of the CG solver
+* Check and performance of the CG solver.
 *
 *******************************************************************************/
 
@@ -33,9 +33,9 @@
 #include "forces.h"
 #include "global.h"
 
-static int my_rank,first,last,step,nmx;
-static double kappa,csw,cF;
-static double mu,m0,res;
+static int my_rank,bc,first,last,step,nmx;
+static double kappa,csw,mu,cF,cF_prime;
+static double phi[2],phi_prime[2],m0,res;
 static char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 
 
@@ -64,7 +64,6 @@ int main(int argc,char *argv[])
    spinor **ws;
    spinor_dble **wsd,**psd;
    lat_parms_t lat;
-   sw_parms_t sw;
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -87,14 +86,37 @@ int main(int argc,char *argv[])
       read_line("name","%s",nbase);
       read_line("cnfg_dir","%s",cnfg_dir);
       read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);  
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
 
       find_section("Lattice parameters");
       read_line("kappa","%lf",&kappa);
       read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);
-      read_line("mu","%lf",&mu);            
+      read_line("mu","%lf",&mu);
+
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
+
+      if (bc!=3)
+         read_line("cF","%lf",&cF);
+
+      if (bc==2)
+         read_line("cF'","%lf",&cF_prime);
+      else
+         cF_prime=cF;
 
       find_section("CG");
       read_line("nmx","%d",&nmx);
@@ -111,28 +133,35 @@ int main(int argc,char *argv[])
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&mu,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
+
+   lat=set_lat_parms(5.5,1.0,1,&kappa,csw);
+   print_lat_parms();
+
+   set_bc_parms(bc,1.0,1.0,cF,cF_prime,phi,phi_prime);
+   print_bc_parms();
+
    start_ranlux(0,1234);
    geometry();
 
-   lat=set_lat_parms(6.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
-   m0=lat.m0u;
-   sw=set_sw_parms(m0);
+   m0=lat.m0[0];
+   set_sw_parms(m0);
 
    if (my_rank==0)
    {
-      printf("kappa = %.6f\n",lat.kappa_u);
-      printf("csw = %.6f\n",sw.csw);
-      printf("cF = %.6f\n",sw.cF);
       printf("mu = %.6f\n\n",mu);
 
       printf("CG parameters:\n");
-      printf("nmx = %d\n",nmx);      
+      printf("nmx = %d\n",nmx);
       printf("res = %.2e\n\n",res);
 
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
@@ -143,10 +172,10 @@ int main(int argc,char *argv[])
    alloc_ws(5);
    alloc_wsd(6);
    psd=reserve_wsd(3);
-   
+
    error_root(((last-first)%step)!=0,1,"main [check5.c]",
               "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
+   check_dir_root(cnfg_dir);
    nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
    error_root(nsize>=NAME_SIZE,1,"main [check5.c]",
               "configuration file name is too long");
@@ -160,22 +189,23 @@ int main(int argc,char *argv[])
       {
          printf("Configuration no %d\n\n",icnfg);
          fflush(flog);
-      } 
+      }
 
+      chs_ubnd(-1);
       random_sd(VOLUME,psd[0],1.0);
       bnd_sd2zero(ALL_PTS,psd[0]);
       nrm=sqrt(norm_square_dble(VOLUME,1,psd[0]));
-      assign_sd2sd(VOLUME,psd[0],psd[2]);         
+      assign_sd2sd(VOLUME,psd[0],psd[2]);
 
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();              
+      wt1=MPI_Wtime();
 
       rho=tmcg(nmx,res,mu,psd[0],psd[1],&status);
 
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wdt=wt2-wt1;
-      
+
       error_chk();
       z.re=-1.0;
       z.im=0.0;
@@ -190,7 +220,7 @@ int main(int argc,char *argv[])
       mulg5_dble(VOLUME,psd[1]);
       mulc_spinor_add_dble(VOLUME,psd[1],psd[0],z);
       del=sqrt(norm_square_dble(VOLUME,1,psd[1]));
-      
+
       if (my_rank==0)
       {
          printf("Solution w/o eo-preconditioning:\n");
@@ -211,22 +241,22 @@ int main(int argc,char *argv[])
       error_root(ie!=0,1,"main [check5.c]",
                  "Inversion of the SW term failed");
       assign_swd2sw();
-      
+
       random_sd(VOLUME/2,psd[0],1.0);
       bnd_sd2zero(ALL_PTS,psd[0]);
       nrm=sqrt(norm_square_dble(VOLUME/2,1,psd[0]));
-      assign_sd2sd(VOLUME/2,psd[0],psd[2]);         
+      assign_sd2sd(VOLUME/2,psd[0],psd[2]);
 
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();              
-      
+      wt1=MPI_Wtime();
+
       rho=cgne(VOLUME/2,1,Dhatop,Dhatop_dble,ws,wsd,nmx,res,
                psd[0],psd[1],&status);
 
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wdt=wt2-wt1;
-      
+
       error_chk();
       z.re=-1.0;
       z.im=0.0;
@@ -239,7 +269,7 @@ int main(int argc,char *argv[])
       Dhatop_dble(psd[2],psd[1]);
       mulc_spinor_add_dble(VOLUME/2,psd[1],psd[0],z);
       del=sqrt(norm_square_dble(VOLUME/2,1,psd[1]));
-      
+
       if (my_rank==0)
       {
          printf("Solution with eo-preconditioning:\n");
@@ -260,7 +290,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
       fclose(flog);
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

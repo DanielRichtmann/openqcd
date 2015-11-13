@@ -3,12 +3,12 @@
 *
 * File wspace.c
 *
-* Copyright (C) 2010, 2011 Martin Luescher
+* Copyright (C) 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Workspace allocation
+* Workspace allocation.
 *
 * The externally accessible functions are
 *
@@ -145,6 +145,7 @@
 
 #define WSPACE_C
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
@@ -176,17 +177,17 @@ void alloc_wud(int n)
 {
    int i;
    su3_dble *ud,*um;
-   
+
    if (n==nudt)
       return;
 
    error_root(nwudt!=0,1,"alloc_wud [wspace.c]","Fields are in use");
-   
+
    if (nudt>0)
    {
-      afree(nwud);
+      free(nwud);
       afree(wud0[0]);
-      afree(wud0);
+      free(wud0);
       nwud=NULL;
       wud0=NULL;
       wud=NULL;
@@ -198,8 +199,8 @@ void alloc_wud(int n)
 
    if (nudt>0)
    {
-      nwud=amalloc(nudt*sizeof(*nwud),3);
-      wud0=amalloc(2*nudt*sizeof(*wud0),3);
+      nwud=malloc(nudt*sizeof(*nwud));
+      wud0=malloc(2*nudt*sizeof(*wud0));
       wud=wud0+nudt;
 
       error((nwud==NULL)||(wud0==NULL),1,"alloc_wud [wspace.c]",
@@ -209,12 +210,12 @@ void alloc_wud(int n)
 
       error(wud0[0]==NULL,1,"alloc_wud [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nudt;i++)
       {
          if (i>0)
             wud0[i]=wud0[i-1]+4*VOLUME;
-         
+
          nwud[i]=0;
          wud[i]=NULL;
       }
@@ -277,7 +278,7 @@ int release_wud(void)
 
       for (i=nwudt;i<(nwudt+n);i++)
          wud[i]=NULL;
-      
+
       return n;
    }
 }
@@ -293,17 +294,17 @@ void alloc_wfd(int n)
 {
    int i;
    su3_alg_dble *fd,*fm;
-   
+
    if (n==nfdt)
       return;
 
    error_root(nwfdt!=0,1,"alloc_wfd [wspace.c]","Fields are in use");
-   
+
    if (nfdt>0)
    {
-      afree(nwfd);
+      free(nwfd);
       afree(wfd0[0]);
-      afree(wfd0);
+      free(wfd0);
       nwfd=NULL;
       wfd0=NULL;
       wfd=NULL;
@@ -315,8 +316,8 @@ void alloc_wfd(int n)
 
    if (nfdt>0)
    {
-      nwfd=amalloc(nfdt*sizeof(*nwfd),3);
-      wfd0=amalloc(2*nfdt*sizeof(*wfd0),3);
+      nwfd=malloc(nfdt*sizeof(*nwfd));
+      wfd0=malloc(2*nfdt*sizeof(*wfd0));
       wfd=wfd0+nfdt;
 
       error((nwfd==NULL)||(wfd0==NULL),1,"alloc_wfd [wspace.c]",
@@ -326,12 +327,12 @@ void alloc_wfd(int n)
 
       error(wfd0[0]==NULL,1,"alloc_wfd [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nfdt;i++)
       {
          if (i>0)
             wfd0[i]=wfd0[i-1]+4*VOLUME;
-         
+
          nwfd[i]=0;
          wfd[i]=NULL;
       }
@@ -394,7 +395,7 @@ int release_wfd(void)
 
       for (i=nwfdt;i<(nwfdt+n);i++)
          wfd[i]=NULL;
-      
+
       return n;
    }
 }
@@ -410,17 +411,17 @@ void alloc_ws(int n)
 {
    int i;
    spinor *s,*sm;
-   
+
    if (n==nst)
       return;
 
    error_root(nwst!=0,1,"alloc_ws [wspace.c]","Fields are in use");
-   
+
    if (nst>0)
    {
-      afree(nws);
+      free(nws);
       afree(ws0[0]);
-      afree(ws0);
+      free(ws0);
       nws=NULL;
       ws0=NULL;
       ws=NULL;
@@ -432,8 +433,8 @@ void alloc_ws(int n)
 
    if (nst>0)
    {
-      nws=amalloc(nst*sizeof(*nws),3);
-      ws0=amalloc(2*nst*sizeof(*ws0),3);
+      nws=malloc(nst*sizeof(*nws));
+      ws0=malloc(2*nst*sizeof(*ws0));
       ws=ws0+nst;
 
       error((nws==NULL)||(ws0==NULL),1,"alloc_ws [wspace.c]",
@@ -443,12 +444,12 @@ void alloc_ws(int n)
 
       error(ws0[0]==NULL,1,"alloc_ws [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nst;i++)
       {
          if (i>0)
             ws0[i]=ws0[i-1]+NSPIN;
-         
+
          nws[i]=0;
          ws[i]=NULL;
       }
@@ -511,7 +512,7 @@ int release_ws(void)
 
       for (i=nwst;i<(nwst+n);i++)
          ws[i]=NULL;
-      
+
       return n;
    }
 }
@@ -527,17 +528,17 @@ void alloc_wsd(int n)
 {
    int i;
    spinor_dble *sd,*sm;
-   
+
    if (n==nsdt)
       return;
 
    error_root(nwsdt!=0,1,"alloc_wsd [wspace.c]","Fields are in use");
-   
+
    if (nsdt>0)
    {
-      afree(nwsd);
+      free(nwsd);
       afree(wsd0[0]);
-      afree(wsd0);
+      free(wsd0);
       nwsd=NULL;
       wsd0=NULL;
       wsd=NULL;
@@ -549,8 +550,8 @@ void alloc_wsd(int n)
 
    if (nsdt>0)
    {
-      nwsd=amalloc(nsdt*sizeof(*nwsd),3);
-      wsd0=amalloc(2*nsdt*sizeof(*wsd0),3);
+      nwsd=malloc(nsdt*sizeof(*nwsd));
+      wsd0=malloc(2*nsdt*sizeof(*wsd0));
       wsd=wsd0+nsdt;
 
       error((nwsd==NULL)||(wsd0==NULL),1,"alloc_wsd [wspace.c]",
@@ -560,12 +561,12 @@ void alloc_wsd(int n)
 
       error(wsd0[0]==NULL,1,"alloc_wsd [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nsdt;i++)
       {
          if (i>0)
             wsd0[i]=wsd0[i-1]+NSPIN;
-         
+
          nwsd[i]=0;
          wsd[i]=NULL;
       }
@@ -628,7 +629,7 @@ int release_wsd(void)
 
       for (i=nwsdt;i<(nwsdt+n);i++)
          wsd[i]=NULL;
-      
+
       return n;
    }
 }
@@ -661,17 +662,17 @@ void alloc_wv(int n)
 {
    int i;
    complex *v,*vm;
-   
+
    if (n==nvt)
       return;
 
    error_root(nwvt!=0,1,"alloc_wv [wspace.c]","Fields are in use");
-   
+
    if (nvt>0)
    {
-      afree(nwv);
+      free(nwv);
       afree(wv0[0]);
-      afree(wv0);
+      free(wv0);
       nwv=NULL;
       wv0=NULL;
       wv=NULL;
@@ -684,8 +685,8 @@ void alloc_wv(int n)
    if (nvt>0)
    {
       set_nvec();
-      nwv=amalloc(nvt*sizeof(*nwv),3);
-      wv0=amalloc(2*nvt*sizeof(*wv0),3);
+      nwv=malloc(nvt*sizeof(*nwv));
+      wv0=malloc(2*nvt*sizeof(*wv0));
       wv=wv0+nvt;
 
       error((nwv==NULL)||(wv0==NULL),1,"alloc_wv [wspace.c]",
@@ -695,12 +696,12 @@ void alloc_wv(int n)
 
       error(wv0[0]==NULL,1,"alloc_wv [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nvt;i++)
       {
          if (i>0)
             wv0[i]=wv0[i-1]+nvec;
-         
+
          nwv[i]=0;
          wv[i]=NULL;
       }
@@ -763,7 +764,7 @@ int release_wv(void)
 
       for (i=nwvt;i<(nwvt+n);i++)
          wv[i]=NULL;
-      
+
       return n;
    }
 }
@@ -779,17 +780,17 @@ void alloc_wvd(int n)
 {
    int i;
    complex_dble *vd,*vm;
-   
+
    if (n==nvdt)
       return;
 
    error_root(nwvdt!=0,1,"alloc_wvd [wspace.c]","Fields are in use");
-   
+
    if (nvdt>0)
    {
-      afree(nwvd);
+      free(nwvd);
       afree(wvd0[0]);
-      afree(wvd0);
+      free(wvd0);
       nwvd=NULL;
       wvd0=NULL;
       wvd=NULL;
@@ -802,8 +803,8 @@ void alloc_wvd(int n)
    if (nvdt>0)
    {
       set_nvec();
-      nwvd=amalloc(nvdt*sizeof(*nwvd),3);
-      wvd0=amalloc(2*nvdt*sizeof(*wvd0),3);
+      nwvd=malloc(nvdt*sizeof(*nwvd));
+      wvd0=malloc(2*nvdt*sizeof(*wvd0));
       wvd=wvd0+nvdt;
 
       error((nwvd==NULL)||(wvd0==NULL),1,"alloc_wvd [wspace.c]",
@@ -813,12 +814,12 @@ void alloc_wvd(int n)
 
       error(wvd0[0]==NULL,1,"alloc_wvd [wspace.c]",
             "Unable to allocate workspace");
-      
+
       for (i=0;i<nvdt;i++)
       {
          if (i>0)
             wvd0[i]=wvd0[i-1]+nvec;
-         
+
          nwvd[i]=0;
          wvd[i]=NULL;
       }
@@ -881,7 +882,7 @@ int release_wvd(void)
 
       for (i=nwvdt;i<(nwvdt+n);i++)
          wvd[i]=NULL;
-      
+
       return n;
    }
 }

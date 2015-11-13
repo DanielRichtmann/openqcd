@@ -40,11 +40,11 @@ The matrix A_{n,k;m,l} decomposes into four parts Aee, Aoo, Aoe and Aeo in the
 obvious way. Each of these parts may be stored in the form of one-dimensional
 arrays of complex Ns x Ns matrices. Explicitly
 
-  Aee[n][Ns*k+l] = (v_{n,k},(Dw+i*mu*gamma_5)*v_{n,l}),   
+  Aee[n][Ns*k+l] = (v_{n,k},(Dw+i*mu*gamma_5)*v_{n,l}),
 
-  Aoo[n][Ns*k+l] = (v_{m,k},(Dw+i*mu*gamma_5)*v_{m,l}), m=n+nb/2,   
+  Aoo[n][Ns*k+l] = (v_{m,k},(Dw+i*mu*gamma_5)*v_{m,l}), m=n+nb/2,
 
-  Aoe[8*n+ifc][Ns*k+l] = (v_{m,k},(Dw+i*mu*gamma_5)*v_{inn[m][ifc],l}), 
+  Aoe[8*n+ifc][Ns*k+l] = (v_{m,k},(Dw+i*mu*gamma_5)*v_{inn[m][ifc],l}),
 
   Aeo(8*n+ifc][Ns*k+l] = (v_{inn[m][ifc],k},(Dw+i*mu*gamma_5)*v_{m,l}),
 
@@ -82,7 +82,7 @@ elements of these structures are
  Ns,nb
  Aee[nb/2][Ns*Ns]
  Aoo[nb/2][Ns*Ns]
- Aoe[4*nb][Ns*Ns] 
+ Aoe[4*nb][Ns*Ns]
  Aeo[4*nb][Ns*Ns]
 
 As already mentioned, the length of the last two arrays is 4*nb+nbb/2
@@ -132,3 +132,18 @@ The single-precision little modes md_k (k=0,..,Ns-1) and Awhat*md_k are stored
 in the first and second half of the first Ns fields returned by vflds(). The
 double-precision fields are stored in the same way in the Ns fields returned
 by vdflds().
+
+
+Boundary conditions
+-------------------
+
+In the case of boundary conditions of type 0,1 and 2, the hopping terms Aeo
+and Aoe that go across the boundaries of the lattice at global time 0 and
+NPROC0*L0-1 are equal to zero.
+
+The programs in this directory obtain the little Dirac operator always in the
+same way and thus effectively as if periodic boundary conditions were imposed
+in the time direction. Since the quark fields vanish at time 0 when boundary
+conditions of type 0,1 or 2 are chosen, the calculation gives the correct
+result (i.e. vanishing hopping terms across the lattice boundaries) also in
+these cases.

@@ -3,13 +3,13 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2007, 2009, 2010,      Martin Luescher, Filippo Palombi
-*               2011, 2012, 2013             Stefan Schaefer
+* Copyright (C) 2005, 2007, 2009-2013 Martin Luescher, Filippo Palombi
+*                                     Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Reversibility of the MD evolution
+* Reversibility of the MD evolution.
 *
 *******************************************************************************/
 
@@ -39,28 +39,87 @@ static int my_rank;
 
 static void read_lat_parms(void)
 {
-   double beta,c0,kappa[3],csw[3];
+   int nk;
+   double beta,c0,csw,*kappa;
 
    if (my_rank==0)
    {
       find_section("Lattice parameters");
       read_line("beta","%lf",&beta);
       read_line("c0","%lf",&c0);
-      read_line("kappa_u","%lf",kappa);
-      read_line("kappa_s","%lf",kappa+1);
-      read_line("kappa_c","%lf",kappa+2);
-      read_line("csw","%lf",csw);
-      read_line("cG","%lf",csw+1);
-      read_line("cF","%lf",csw+2);   
+      nk=count_tokens("kappa");
+      read_line("csw","%lf",&csw);
    }
 
    MPI_Bcast(&beta,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&c0,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(kappa,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(csw,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
-   set_lat_parms(beta,c0,kappa[0],kappa[1],kappa[2],
-                 csw[0],csw[1],csw[2]);
+   MPI_Bcast(&nk,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   if (nk>0)
+   {
+      kappa=malloc(nk*sizeof(*kappa));
+      error(kappa==NULL,1,"read_lat_parms [check2.c]",
+            "Unable to allocate parameter array");
+      if (my_rank==0)
+         read_dprms("kappa",nk,kappa);
+      MPI_Bcast(kappa,nk,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   }
+   else
+      kappa=NULL;
+
+   set_lat_parms(beta,c0,nk,kappa,csw);
+
+   if (nk>0)
+      free(kappa);
+}
+
+
+static void read_bc_parms(void)
+{
+   int bc;
+   double cG,cG_prime,cF,cF_prime;
+   double phi[2],phi_prime[2];
+
+   find_section("Boundary conditions");
+   read_line("type","%d",&bc);
+
+   phi[0]=0.0;
+   phi[1]=0.0;
+   phi_prime[0]=0.0;
+   phi_prime[1]=0.0;
+   cG=1.0;
+   cG_prime=1.0;
+   cF=1.0;
+   cF_prime=1.0;
+
+   if (bc==1)
+      read_dprms("phi",2,phi);
+
+   if ((bc==1)||(bc==2))
+      read_dprms("phi'",2,phi_prime);
+
+   if (bc!=3)
+   {
+      read_line("cG","%lf",&cG);
+      read_line("cF","%lf",&cF);
+   }
+
+   if (bc==2)
+   {
+      read_line("cG'","%lf",&cG_prime);
+      read_line("cF'","%lf",&cF_prime);
+   }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cG,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cG_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime);
 }
 
 
@@ -69,22 +128,22 @@ static void read_hmc_parms(void)
    int nact,*iact;
    int npf,nmu,nlv;
    double tau,*mu;
-   
+
    if (my_rank==0)
    {
       find_section("HMC parameters");
       nact=count_tokens("actions");
       read_line("npf","%d",&npf);
       nmu=count_tokens("mu");
-      read_line("nlv","%d",&nlv);      
+      read_line("nlv","%d",&nlv);
       read_line("tau","%lf",&tau);
    }
 
-   MPI_Bcast(&nact,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nact,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&npf,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmu,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);      
-   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    if (nact>0)
    {
@@ -111,7 +170,7 @@ static void read_hmc_parms(void)
       mu=NULL;
 
    set_hmc_parms(nact,iact,npf,nmu,mu,nlv,tau);
-   
+
    if (nact>0)
       free(iact);
    if (nmu>0)
@@ -189,7 +248,7 @@ static void read_actions(void)
       }
    }
 }
-   
+
 
 static void read_sap_parms(void)
 {
@@ -220,15 +279,15 @@ static void read_dfl_parms(void)
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_parms(bs,Ns);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation subspace generation");
       read_line("kappa","%lf",&kappa);
       read_line("mu","%lf",&mu);
-      read_line("ninv","%d",&ninv);     
+      read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
    }
@@ -239,16 +298,16 @@ static void read_dfl_parms(void)
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
+      read_line("nmx","%d",&nmx);
       read_line("res","%lf",&res);
    }
 
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    set_dfl_pro_parms(nkv,nmx,res);
@@ -257,11 +316,11 @@ static void read_dfl_parms(void)
    {
       find_section("Deflation update scheme");
       read_line("dtau","%lf",&dtau);
-      read_line("nsm","%d",&nsm);           
+      read_line("nsm","%d",&nsm);
    }
 
    MPI_Bcast(&dtau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nsm,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nsm,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_upd_parms(dtau,nsm);
 }
 
@@ -283,7 +342,7 @@ static void read_solvers(void)
    nlv=hmc.nlv;
    isap=0;
    idfl=0;
-   
+
    for (i=0;i<nact;i++)
    {
       ap=action_parms(iact[i]);
@@ -300,7 +359,7 @@ static void read_solvers(void)
             nsp=2;
          else
             nsp=1;
-         
+
          for (k=0;k<nsp;k++)
          {
             j=ap.isp[k];
@@ -360,7 +419,7 @@ static void read_solvers(void)
          }
       }
    }
-      
+
    if (isap)
       read_sap_parms();
 
@@ -391,9 +450,10 @@ static void start_hmc(double *act0,su3_dble *uold)
    action_parms_t ap;
 
    clear_counters();
-   
+
    udb=udfld();
    cm3x3_assign(4*VOLUME,udb,uold);
+   chs_ubnd(-1);
    random_mom();
 
    dfl=dfl_parms();
@@ -412,7 +472,7 @@ static void start_hmc(double *act0,su3_dble *uold)
    iact=hmc.iact;
    mu=hmc.mu;
    n=2;
-   
+
    for (i=0;i<nact;i++)
    {
       ap=action_parms(iact[i]);
@@ -422,7 +482,7 @@ static void start_hmc(double *act0,su3_dble *uold)
       else
       {
          set_sw_parms(sea_quark_mass(ap.im0));
-         
+
          if (ap.action==ACF_TM1)
             act0[n]=setpf1(mu[ap.imu[0]],ap.ipf,0);
          else if (ap.action==ACF_TM1_EO)
@@ -434,7 +494,7 @@ static void start_hmc(double *act0,su3_dble *uold)
             status[2]=0;
             act0[n]=setpf2(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
-            chk_mode_regen(ap.isp[1],status);         
+            chk_mode_regen(ap.isp[1],status);
             add2counter("field",ap.ipf,status);
          }
          else if (ap.action==ACF_TM2_EO)
@@ -442,21 +502,21 @@ static void start_hmc(double *act0,su3_dble *uold)
             status[2]=0;
             act0[n]=setpf5(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[1],
                            0,status);
-            chk_mode_regen(ap.isp[1],status);         
+            chk_mode_regen(ap.isp[1],status);
             add2counter("field",ap.ipf,status);
          }
          else if (ap.action==ACF_RAT)
          {
             status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,0,ap.isp[0],0,status);
-            chk_mode_regen(ap.isp[0],status);         
+            chk_mode_regen(ap.isp[0],status);
             add2counter("field",ap.ipf,status);
          }
          else if (ap.action==ACF_RAT_SDET)
          {
             status[2]=0;
             act0[n]=setpf3(ap.irat,ap.ipf,1,ap.isp[0],0,status);
-            chk_mode_regen(ap.isp[0],status);         
+            chk_mode_regen(ap.isp[0],status);
             add2counter("field",ap.ipf,status);
          }
          else
@@ -476,8 +536,8 @@ static void end_hmc(double *act1)
    int status[3];
    double *mu;
    hmc_parms_t hmc;
-   action_parms_t ap;   
-   
+   action_parms_t ap;
+
    hmc=hmc_parms();
    nact=hmc.nact;
    iact=hmc.iact;
@@ -494,7 +554,7 @@ static void end_hmc(double *act1)
       {
          set_sw_parms(sea_quark_mass(ap.im0));
          status[2]=0;
-            
+
          if (ap.action==ACF_TM1)
             act1[n]=action1(mu[ap.imu[0]],ap.ipf,ap.isp[0],0,status);
          else if (ap.action==ACF_TM1_EO)
@@ -511,14 +571,15 @@ static void end_hmc(double *act1)
             act1[n]=action3(ap.irat,ap.ipf,0,ap.isp[0],0,status);
          else if (ap.action==ACF_RAT_SDET)
             act1[n]=action3(ap.irat,ap.ipf,1,ap.isp[0],0,status);
- 
+
          chk_mode_regen(ap.isp[0],status);
          add2counter("action",iact[i],status);
-         n+=1;      
+         n+=1;
       }
    }
 
    act1[0]=momentum_action(0);
+   chs_ubnd(1);
 }
 
 
@@ -543,14 +604,15 @@ static void flip_mom(void)
       (*mom).c5=-(*mom).c5;
       (*mom).c6=-(*mom).c6;
       (*mom).c7=-(*mom).c7;
-      (*mom).c8=-(*mom).c8;         
+      (*mom).c8=-(*mom).c8;
    }
 
+   chs_ubnd(-1);
    dfl=dfl_parms();
 
    if (dfl.Ns)
    {
-      dup=dfl_upd_parms();      
+      dup=dfl_upd_parms();
       dfl_update(dup.nsm,&status);
       error_root(status<0,1,"flip_mom [check2.c]",
                  "Deflation subspace update failed (status = %d)",status);
@@ -583,10 +645,10 @@ static double cmp_ud(su3_dble *u,su3_dble *v)
    r[14]=(*u).c32.re-(*v).c32.re;
    r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
-   r[17]=(*u).c33.im-(*v).c33.im;   
+   r[17]=(*u).c33.im-(*v).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i+=2)
    {
       dev=r[i]*r[i]+r[i+1]*r[i+1];
@@ -606,7 +668,7 @@ static double max_dev_ud(su3_dble *v)
    u=udfld();
    um=u+4*VOLUME;
    dmax=0.0;
-   
+
    for (;u<um;u++)
    {
       d=cmp_ud(u,v);
@@ -621,9 +683,9 @@ static double max_dev_ud(su3_dble *v)
    {
       d=dmax;
       MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return sqrt(dmax);
 }
 
@@ -640,7 +702,7 @@ int main(int argc,char *argv[])
    su3_dble **usv;
    hmc_parms_t hmc;
    char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE];
-   char nbase[NAME_SIZE];   
+   char nbase[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -663,10 +725,10 @@ int main(int argc,char *argv[])
       read_line("cnfg_dir","%s",cnfg_dir);
       read_line("name","%s",nbase);
       read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);  
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
    }
-   
+
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -674,6 +736,7 @@ int main(int argc,char *argv[])
    MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
 
    read_lat_parms();
+   read_bc_parms();
    read_hmc_parms();
    read_actions();
    read_integrator();
@@ -681,16 +744,16 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
       fclose(fin);
-   
+
    hmc_wsize(&nwud,&nws,&nwsd,&nwv,&nwvd);
    alloc_wud(nwud);
    alloc_ws(nws);
    alloc_wsd(nwsd);
    alloc_wv(nwv);
-   alloc_wvd(nwvd);   
+   alloc_wvd(nwvd);
    usv=reserve_wud(1);
 
-   hmc=hmc_parms();   
+   hmc=hmc_parms();
    nact=hmc.nact;
    act0=malloc(3*(nact+1)*sizeof(*act0));
    act1=act0+nact+1;
@@ -698,6 +761,7 @@ int main(int argc,char *argv[])
    error(act0==NULL,1,"main [check2.c]","Unable to allocate action arrays");
 
    print_lat_parms();
+   print_bc_parms();
    print_hmc_parms();
    print_action_parms();
    print_rat_parms();
@@ -708,20 +772,20 @@ int main(int argc,char *argv[])
       print_sap_parms(0);
    if (idfl)
       print_dfl_parms(1);
-   
+
    if (my_rank==0)
    {
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
-             nbase,first,nbase,last,step);      
+             nbase,first,nbase,last,step);
       fflush(flog);
    }
 
    start_ranlux(0,1234);
    geometry();
-   
+
    error_root(((last-first)%step)!=0,1,"main [check2.c]",
               "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
+   check_dir_root(cnfg_dir);
 
    nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
    error_root(nsize>=NAME_SIZE,1,"main [check2.c]",
@@ -731,14 +795,14 @@ int main(int argc,char *argv[])
    set_mdsteps();
    setup_counters();
    setup_chrono();
-   
+
    dudmin=0.0;
    dudmax=0.0;
    dudavg=0.0;
    dHmin=0.0;
    dHmax=0.0;
    dHavg=0.0;
-   
+
    for (icnfg=first;icnfg<=last;icnfg+=step)
    {
       sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
@@ -748,7 +812,7 @@ int main(int argc,char *argv[])
       {
          printf("Configuration no %d\n",icnfg);
          fflush(flog);
-      } 
+      }
 
       start_hmc(act0,usv[0]);
       dud=max_dev_ud(usv[0]);
@@ -757,48 +821,48 @@ int main(int argc,char *argv[])
 
       sm0[0]=0.0;
       sm0[1]=0.0;
-      
+
       for (i=0;i<=nact;i++)
       {
          sm0[0]+=act0[i];
          sm0[1]+=(act1[i]-act0[i]);
       }
 
-      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);      
+      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
       MPI_Bcast(sm1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+
       if (my_rank==0)
       {
          printf("start_hmc:\n");
-         printf("max|U_ij-U'_ij| = %.1e\n",dud);      
+         printf("max|U_ij-U'_ij| = %.1e\n",dud);
          printf("run_mdint:\n");
-         printf("H = %.6e\n",sm1[0]);         
-         printf("dH = %.2e\n",sm1[1]);      
+         printf("H = %.6e\n",sm1[0]);
+         printf("dH = %.2e\n",sm1[1]);
          fflush(flog);
       }
 
       print_all_avgstat();
-      
+
       flip_mom();
       run_mdint();
       end_hmc(act2);
 
       sm0[0]=0.0;
       sm0[1]=0.0;
-      
+
       for (i=0;i<=nact;i++)
       {
          sm0[0]+=act2[i];
          sm0[1]+=(act2[i]-act0[i]);
       }
 
-      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);      
+      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
       MPI_Bcast(sm1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
       dH=fabs(sm1[1]);
       dud=max_dev_ud(usv[0]);
       error_chk();
-      
+
       if (my_rank==0)
       {
          printf("Flip momenta and run_mdint:\n");
@@ -807,12 +871,12 @@ int main(int argc,char *argv[])
          printf("max|U_ij-U'_ij| = %.2e\n\n",dud);
          fflush(flog);
       }
-      
+
       if (icnfg==first)
       {
          dudmin=dud;
          dudmax=dud;
-         dudavg=dud;         
+         dudavg=dud;
 
          dHmin=dH;
          dHmax=dH;
@@ -837,7 +901,7 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       nc=(last-first)/step+1;
-      
+
       printf("Test summary\n");
       printf("------------\n\n");
 
@@ -854,7 +918,7 @@ int main(int argc,char *argv[])
 
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

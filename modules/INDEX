@@ -6,11 +6,11 @@
 ********************************************************************************
 
 archive              Import and export programs for the double-precision 
-                     gauge field, the momentum field and the quark fields.
+                     gauge and quark fields.
 
 block                Definition of blocks and block grids. 
 
-dirac                Programs for the O(a) improved Wilson-Dirac operator.
+dirac                Programs for the O(a)-improved Wilson-Dirac operator.
 
 dfl                  Deflation subspace generation and deflated SAP+GCR
                      solver.
@@ -19,8 +19,8 @@ flags                Flags and parameter data base.
 
 forces               Molecular-dynamics forces and associated actions.
 
-lattice              Lattice geometry and programs implementing open boundary 
-                     conditions.
+lattice              Lattice geometry and programs implementing the boundary 
+                     conditions in time.
 
 linalg               Generic linear algebra programs for spinor fields,
                      fields with values in the Lie algebra of SU(3) and
@@ -55,7 +55,8 @@ tcharge              Symmetric field tensor and topological charge.
 
 uflds                Allocation of the fundamental gauge fields. 
 
-update               Molecular-dynamics integration and HMC algorithm.
+update               Molecular-dynamics integration, HMC algorithm and
+                     reweighting factors.
 
 utils                Utility programs: aligned allocation, error functions, 
                      endianess functions, functions needed to read input
@@ -64,4 +65,4 @@ utils                Utility programs: aligned allocation, error functions,
 vflds                Generic initialization and assignment programs for
                      for complex scalar fields. 
 
-wflow                Integration of the Wilson gradient flow.
+wflow                Integration of the (Wilson) gradient flow.

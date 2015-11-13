@@ -62,7 +62,7 @@ void read_action_parms(int iact)
   On process 0, this program scans stdin for a line starting with the
   string "[Action <int>]" (after any number of blanks), where <int> is
   the integer value passed by the argument. An error occurs if no such
-  line or more than one is found. The lines 
+  line or more than one is found. The lines
 
     action   <action_t>
     ipf      <int>
@@ -72,7 +72,7 @@ void read_action_parms(int iact)
     isp      <int> [<int>]
 
   are then read using read_line() [utils/mutils.c]. Depending on the
-  value of "action", some lines are not read and can be omitted in 
+  value of "action", some lines are not read and can be omitted in
   the input file. The number of integer items on the lines with tag
   "imu" and "isp" depends on the action too. The data are then added
   to the data base by calling set_action_parms(iact,...).
@@ -117,7 +117,7 @@ dfl_pro_parms_t set_dfl_pro_parms(int nkv,int nmx,double res)
     res            Required relative residue when solving the little
                    Dirac equation.
 
-  The return value is a structure that contains the above parameters. 
+  The return value is a structure that contains the above parameters.
 
 dfl_pro_parms_t dfl_pro_parms(void)
   Returns the parameters currently set for the deflation projectors in
@@ -135,7 +135,7 @@ dfl_gen_parms_t set_dfl_gen_parms(double kappa,double mu,
 
     ninv           Total number of inverse iteration steps (ninv>=4).
 
-    nmr            Number of block minimal residual iterations to be 
+    nmr            Number of block minimal residual iterations to be
                    used when the SAP smoother is applied.
 
     ncy            Number of SAP cycles per inverse iteration.
@@ -151,7 +151,7 @@ dfl_upd_parms_t set_dfl_upd_parms(double dtau,int nsm)
   Sets the parameters of the deflation subspace update scheme. The
   parameters are
 
-    dtau           Molecular-dynamics time separation between 
+    dtau           Molecular-dynamics time separation between
                    updates of the deflation subspace.
 
     nsm            Number of deflated smoothing interations to be
@@ -195,7 +195,7 @@ int query_flags(query_t query)
   the data base, the program returns -1.
 
 int query_grid_flags(blk_grid_t grid,query_t query)
-  Queries the data base on the status of the gauge or SW fields on 
+  Queries the data base on the status of the gauge or SW fields on
   the specified block grid. The program returns 1 or 0 depending on
   whether the answer to the specified query is "yes" or "no". If the
   query is unknown to the data base, the program returns -1.
@@ -221,7 +221,7 @@ void read_force_parms(int ifr)
   On process 0, this program scans stdin for a line starting with the
   string "[Force <int>]" (after any number of blanks), where <int> is
   the integer value passed by the argument. An error occurs if no such
-  line or more than one is found. The lines 
+  line or more than one is found. The lines
 
     force   <force_t>
     ipf     <int>
@@ -272,8 +272,8 @@ hmc_parms_t set_hmc_parms(int nact,int *iact,int npf,int nmu,
   Sets some basic parameters of the HMC algorithm. The parameters are
 
     nact        Number of terms in the total action
-                  
-    iact        Indices iact[i] of the action terms (i=0,..,nact-1) 
+
+    iact        Indices iact[i] of the action terms (i=0,..,nact-1)
 
     npf         Number of pseudo-fermion fields on which the action
                 depends
@@ -328,8 +328,57 @@ lat_parms_t lat_parms(void)
 void print_lat_parms(void)
   Prints the lattice parameters to stdout on MPI process 0.
 
+bc_parms_t set_bc_parms(int type,
+                        double cG,double cG_prime,
+                        double cF,double cF_prime,
+                        double *phi,double *phi_prime)
+  Sets the boundary conditions and the associated parameters of the
+  action. The parameters are
+
+    type           Chosen type of boundary condition (0: open, 1: SF,
+                   2: open-SF, 3: periodic).
+
+    cG,cG_prime    Gauge action improvement coefficients at time 0
+                   and T, respectively.
+
+    cF,cF_prime    Fermion action improvement coefficients at time 0
+                   and T, respectively.
+
+    phi[0],        First two angles that define the boundary values of
+    phi[1]         the gauge field at time 0.
+
+    phi_prime[0],  First two angles that define the boundary values of
+    phi_prime[1]   the gauge field at time T.
+
+  The return value is a structure that contains these parameters plus
+  the third angles. In this structure, the improvement coefficients and
+  the angles are stored in the form of arrays cG[2],cF[2] and phi[2][3],
+  where cG[0],cF[0],phi[0][3] and cG[1],cF[1],phi[1][3] are the para-
+  meters at time 0 and T, respectively
+   Parameters that are not required for the specification of the chosen
+  boundary conditions are not read and are set to their default values
+  in the data base (angles to 0, improvement coefficients to 1). In the
+  case of SF boundary conditions (type 1), the program only reads cG,cF
+  and the angles phi,phi_prime and then sets cG_prime=cG,cF_prime=cF.
+  When open-SF boundary conditions are chosen, all parameters except for
+  the angles phi are read.
+
+bc_parms_t bc_parms(void)
+  Returns a structure that contains the boundary parameters.
+
+void print_bc_parms(void)
+  Prints the boundary parameters to stdout on MPI process 0.
+
+void write_bc_parms(FILE *fdat)
+  Writes the boundary parameters to the file fdat on MPI process 0.
+
+void check_bc_parms(FILE *fdat)
+  Compares the currently set boundary parameters with the values stored
+  on the file fdat on MPI process 0, assuming the latter were written to
+  the file by the program write_bc_parms().
+
 double sea_quark_mass(int im0)
-  Returns the bare sea quark mass m0u if im0=0, m0s if im0=1 and m0c 
+  Returns the bare sea quark mass m0u if im0=0, m0s if im0=1 and m0c
   if im0=2. In all other cases DBL_MAX is returned.
 
 sw_parms_t set_sw_parms(double m0)
@@ -344,7 +393,7 @@ sw_parms_t set_sw_parms(double m0)
 sw_parms_t sw_parms(void)
   Returns the parameters currently set for the SW term. The values
   of the coefficients csw and cF are copied from the lattice parameter
-  list. 
+  list.
 
 tm_parms_t set_tm_parms(int io)
   Sets the twisted-mass flag. The parameter is
@@ -372,7 +421,7 @@ void read_mdint_parms(int ilv)
   On process 0, this program scans stdin for a line starting with the
   string "[Level <int>]" (after any number of blanks), where <int> is
   the integer value passed by the argument. An error occurs if no such
-  line or more than one is found. The lines 
+  line or more than one is found. The lines
 
     integrator   <integrator_t>
     lambda       <double>
@@ -411,12 +460,12 @@ void read_rat_parms(int irp)
   On process 0, this program scans stdin for a line starting with the
   string "[Rational <int>]" (after any number of blanks), where <int> is
   the integer value passed by the argument. An error occurs if no such
-  line or more than one is found. The lines 
+  line or more than one is found. The lines
 
     degree  <int>
     range   <double> <double>
 
-  are then read using read_line() [utils/mutils.c] and the data are 
+  are then read using read_line() [utils/mutils.c] and the data are
   entered into the data base by calling set_rat_parms().
 
 void print_rat_parms(void)
@@ -424,16 +473,16 @@ void print_rat_parms(void)
   process 0.
 
 void write_rat_parms(FILE *fdat)
-  Writes the defined rational function parameter sets to the file fdat 
+  Writes the defined rational function parameter sets to the file fdat
   on MPI process 0.
 
 void check_rat_parms(FILE *fdat)
-  Compares the defined rational function parameter sets with those 
+  Compares the defined rational function parameter sets with those
   on the file fdat on MPI process 0, assuming the latter were written
   to the file by the program write_rat_parms().
 
-rw_parms_t set_rw_parms(int irw,rwfact_t rwfact,int im0,double mu,
-                        int irp,int n,int *np,int *isp)
+rw_parms_t set_rw_parms(int irw,rwfact_t rwfact,int im0,int nsrc,
+                        int irp,int nfct,double *mu,int *np,int *isp)
   Sets the parameters in the reweighting factor parameter set number
   irw and returns a structure containing them (see the notes).
 
@@ -444,33 +493,33 @@ rw_parms_t rw_parms(int irw)
 void read_rw_parms(int irw)
   On process 0, this program scans stdin for a line starting with the
   string "[Reweighting factor <int>]" (after any number of blanks), where
-  <int> is the integer value passed by the argument. An error occurs if
-  no such line or more than one is found. The lines 
+  <int> is the integer value passed through the argument. An error occurs
+  if no such line or more than one is found. The lines
 
-    type     <rwfact_t>
+    rwfact   <rwfact_t>
     im0      <int>
+    nsrc     <int>
     irp      <int>
-    mu       <double>
+    mu       <double> [<double>]
     np       <int> [<int>]
     isp      <int> [<int>]
 
   are then read using read_line() [utils/mutils.c] and the data are
   added to the data base by calling set_rw_parms(irw,...). Depending
-  on the value of "type", some lines are not read and can be omitted 
-  in the input file. The number n of integer items on the lines with 
-  tag "np" and "isp" depends on the reweighting factor too (see the
-  notes).
+  on the value of "rwfact", some lines are not read and can be omitted
+  in the input file. The number of items on the lines with tag "mu",
+  "np" and "isp" depends on the reweighting factor too (see the notes).
 
 void print_rw_parms(void)
-  Prints the defined reweighting factor parameter sets to stdout on MPI
-  process 0.
+  Prints the defined reweighting factor parameter sets to stdout on
+  MPI process 0.
 
 void write_rw_parms(FILE *fdat)
-  Writes the defined reweighting factor parameter sets to the file fdat 
+  Writes the defined reweighting factor parameter sets to the file fdat
   on MPI process 0.
 
 void check_rw_parms(FILE *fdat)
-  Compares the defined reweighting factor parameter sets with those 
+  Compares the defined reweighting factor parameter sets with those
   on the file fdat on MPI process 0, assuming the latter were written
   to the file by the program write_rw_parms().
 
@@ -544,7 +593,7 @@ void read_solver_parms(int isp)
   On process 0, this program scans stdin for a line starting with the
   string "[Solver <int>]" (after any number of blanks), where <int> is
   the integer value passed by the argument. An error occurs if no such
-  line or more than one is found. The lines 
+  line or more than one is found. The lines
 
     solver  <solver_t>
     nkv     <int>
@@ -554,16 +603,16 @@ void read_solver_parms(int isp)
     nmx     <int>
     res     <double>
 
-  are then read one by one using read_line() [utils/mutils.c]. The 
+  are then read one by one using read_line() [utils/mutils.c]. The
   lines with tags nkv,..,ncy may be absent in the case of the CGNE
-  and MSCG solvers (see the notes). The data are then added to the 
+  and MSCG solvers (see the notes). The data are then added to the
   data base by calling set_solver_parms(isp,...).
 
 void print_solver_parms(int *isap,int *idfl)
   Prints the parameters of the defined solvers to stdout on MPI
   process 0. On exit the flag isap is 1 or 0 depending on whether
   one of the solvers makes use of the Schwarz Alternating Procedure
-  (SAP) or not. Similarly, the flag idfl is set 1 or 0 depending on 
+  (SAP) or not. Similarly, the flag idfl is set 1 or 0 depending on
   whether deflation is used or not. On MPI processes other than 0,
   the program does nothing and sets isap and idfl to zero.
 

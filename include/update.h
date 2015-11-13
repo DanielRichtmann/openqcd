@@ -56,11 +56,11 @@ extern int run_hmc(double *act0,double *act1);
 extern double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status);
 
 /* RWTM_C */
-extern double rwtm1(double mu,int isp,double *sqn,int *status);
-extern double rwtm2(double mu,int isp,double *sqn,int *status);
+extern double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status);
+extern double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status);
 
 /* RWTMEO_C */
-extern double rwtm1eo(double mu,int isp,double *sqn,int *status);
-extern double rwtm2eo(double mu,int isp,double *sqn,int *status);
+extern double rwtm1eo(double mu1,double mu2,int isp,double *sqn,int *status);
+extern double rwtm2eo(double mu1,double mu2,int isp,double *sqn,int *status);
 
 #endif

@@ -21,7 +21,7 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 check4 check5 time1
 
-FLAGS = flags lat_parms sap_parms dfl_parms sf_parms
+FLAGS = flags lat_parms sap_parms dfl_parms
 
 LATTICE = bcnds ftidx uidx geometry
 
@@ -29,7 +29,7 @@ LINALG = salg salg_dble valg valg_dble liealg cmatrix_dble cmatrix
 
 LINSOLV = fgcr
 
-RANDOM = ranlux ranlxs ranlxd gauss 
+RANDOM = ranlux ranlxs ranlxd gauss
 
 UFLDS = plaq_sum shift uflds udcom
 

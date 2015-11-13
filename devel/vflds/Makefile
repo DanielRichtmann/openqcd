@@ -21,7 +21,7 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 check4
 
-FLAGS = flags lat_parms sap_parms dfl_parms sf_parms
+FLAGS = flags lat_parms sap_parms dfl_parms
 
 LATTICE = bcnds ftidx uidx geometry
 
@@ -29,11 +29,11 @@ LINALG = salg salg_dble valg valg_dble liealg cmatrix_dble
 
 LINSOLV = fgcr
 
-RANDOM = ranlux ranlxs ranlxd gauss random_su3
+RANDOM = ranlux ranlxs ranlxd gauss
 
 UFLDS = plaq_sum shift uflds udcom
 
-SU3FCTS = chexp su3prod su3ren cm3x3
+SU3FCTS = chexp su3prod su3ren cm3x3 random_su3
 
 UTILS = endian mutils utils wspace
 

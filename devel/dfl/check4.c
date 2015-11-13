@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check and performance of the deflated SAP+GCR solver
+* Check and performance of the deflated SAP+GCR solver.
 *
 *******************************************************************************/
 
@@ -33,10 +33,10 @@
 
 int my_rank,id,first,last,step;
 int bs_sap[4],nmr_sap,ncy_sap,nkv_gcr,nmx_gcr;
-int bs_dfl[4],Ns,nkv_dfl,nmx_dfl,nkv_dpr,nmx_dpr,eoflg;
+int bs_dfl[4],Ns,nkv_dfl,nmx_dfl,nkv_dpr,nmx_dpr,eoflg,bc;
 int ninv_dgn,nmr_dgn,ncy_dgn;
-double kappa,csw,cF,mu;
-double m0,res_gcr,res_dpr;
+double kappa,csw,mu,cF,cF_prime;
+double phi[2],phi_prime[2],m0,res_gcr,res_dpr;
 double kappa_dgn,mu_dgn;
 char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 
@@ -49,7 +49,6 @@ int main(int argc,char *argv[])
    double wt1,wt2,wdt,wta;
    spinor_dble **psd;
    lat_parms_t lat;
-   sw_parms_t sw;
    tm_parms_t tm;
    dfl_pro_parms_t dpr;
    FILE *flog=NULL,*fin=NULL;
@@ -74,16 +73,39 @@ int main(int argc,char *argv[])
       read_line("name","%s",nbase);
       read_line("cnfg_dir","%s",cnfg_dir);
       read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);  
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
 
       find_section("Lattice parameters");
       read_line("kappa","%lf",&kappa);
       read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);
       read_line("mu","%lf",&mu);
       read_line("eoflg","%d",&eoflg);
-      
+
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
+
+      if (bc!=3)
+         read_line("cF","%lf",&cF);
+
+      if (bc==2)
+         read_line("cF'","%lf",&cF_prime);
+      else
+         cF_prime=cF;
+
       find_section("SAP");
       read_line("bs","%d %d %d %d",bs_sap,bs_sap+1,bs_sap+2,bs_sap+3);
       read_line("nmr","%d",&nmr_sap);
@@ -95,7 +117,7 @@ int main(int argc,char *argv[])
 
       find_section("Deflation subspace generation");
       read_line("kappa","%lf",&kappa_dgn);
-      read_line("mu","%lf",&mu_dgn);      
+      read_line("mu","%lf",&mu_dgn);
       read_line("ninv","%d",&ninv_dgn);
       read_line("nmr","%d",&nmr_dgn);
       read_line("ncy","%d",&ncy_dgn);
@@ -112,7 +134,7 @@ int main(int argc,char *argv[])
 
       fclose(fin);
    }
-   
+
    MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -124,35 +146,43 @@ int main(int argc,char *argv[])
    MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&mu,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&eoflg,1,MPI_INT,0,MPI_COMM_WORLD);
-   
-   MPI_Bcast(&bs_sap,4,MPI_INT,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(bs_sap,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr_sap,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy_sap,1,MPI_INT,0,MPI_COMM_WORLD);
 
-   MPI_Bcast(&bs_dfl,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(bs_dfl,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&kappa_dgn,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&mu_dgn,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&mu_dgn,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&ninv_dgn,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr_dgn,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy_dgn,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    MPI_Bcast(&nkv_dpr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx_dpr,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res_dpr,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&res_dpr,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&nkv_gcr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx_gcr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res_gcr,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
-   start_ranlux(0,1234);
-   geometry();
 
-   lat=set_lat_parms(6.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
+   lat=set_lat_parms(5.5,1.0,1,&kappa,csw);
+   print_lat_parms();
+
+   set_bc_parms(bc,1.0,1.0,cF,cF_prime,phi,phi_prime);
+   print_bc_parms();
+
    set_sap_parms(bs_sap,1,nmr_sap,ncy_sap);
-   m0=lat.m0u;
-   sw=set_sw_parms(m0);
+   m0=lat.m0[0];
+   set_sw_parms(m0);
    tm=set_tm_parms(eoflg);
    set_dfl_parms(bs_dfl,Ns);
    dpr=set_dfl_pro_parms(nkv_dpr,nmx_dpr,res_dpr);
@@ -160,9 +190,6 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("kappa = %.6f\n",lat.kappa_u);
-      printf("csw = %.6f\n",sw.csw);
-      printf("cF = %.6f\n",sw.cF);
       printf("mu = %.6f\n",mu);
       printf("eoflg = %d\n\n",tm.eoflg);
    }
@@ -171,16 +198,19 @@ int main(int argc,char *argv[])
    print_dfl_parms(0);
 
    if (my_rank==0)
-   {   
+   {
       printf("GCR parameters:\n");
       printf("nkv = %d\n",nkv_gcr);
-      printf("nmx = %d\n",nmx_gcr);      
+      printf("nmx = %d\n",nmx_gcr);
       printf("res = %.2e\n\n",res_gcr);
 
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
              nbase,first,nbase,last,step);
       fflush(flog);
    }
+
+   start_ranlux(0,1234);
+   geometry();
 
    if (Ns<=(2*nkv_gcr))
       alloc_ws(2*nkv_gcr+2);
@@ -190,7 +220,7 @@ int main(int argc,char *argv[])
    alloc_wv(2*dpr.nkv+2);
    alloc_wvd(4);
    psd=reserve_wsd(3);
-   
+
    error_root(((last-first)%step)!=0,1,"main [check4.c]",
               "last-first is not a multiple of step");
 
@@ -203,17 +233,18 @@ int main(int argc,char *argv[])
    avgstat[1]=0;
    resm=0.0;
    wta=0.0;
-   
+
    for (icnfg=first;icnfg<=last;icnfg+=step)
    {
       sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
       import_cnfg(cnfg_file);
+      chs_ubnd(-1);
 
       if (my_rank==0)
       {
          printf("Configuration no %d\n",icnfg);
          fflush(flog);
-      } 
+      }
 
       dfl_modes(status);
       error_root(status[0]<0,1,"main [check4.c]",
@@ -221,10 +252,10 @@ int main(int argc,char *argv[])
       random_sd(VOLUME,psd[0],1.0);
       bnd_sd2zero(ALL_PTS,psd[0]);
       nrm=sqrt(norm_square_dble(VOLUME,1,psd[0]));
-      assign_sd2sd(VOLUME,psd[0],psd[2]);         
+      assign_sd2sd(VOLUME,psd[0],psd[2]);
 
       rho=dfl_sap_gcr(nkv_gcr,nmx_gcr,res_gcr,mu,psd[0],psd[1],status);
-      
+
       error_chk();
       mulr_spinor_add_dble(VOLUME,psd[2],psd[0],-1.0);
       del=norm_square_dble(VOLUME,1,psd[2]);
@@ -234,7 +265,7 @@ int main(int argc,char *argv[])
       Dw_dble(mu,psd[1],psd[2]);
       mulr_spinor_add_dble(VOLUME,psd[2],psd[0],-1.0);
       del=sqrt(norm_square_dble(VOLUME,1,psd[2]));
-      
+
       if (my_rank==0)
       {
          printf("status = %d,%d\n",status[0],status[1]);
@@ -252,9 +283,9 @@ int main(int argc,char *argv[])
 
          if (del>resm)
             resm=del;
-      
+
          MPI_Barrier(MPI_COMM_WORLD);
-         wt1=MPI_Wtime();              
+         wt1=MPI_Wtime();
 
          rho=dfl_sap_gcr(nkv_gcr,nmx_gcr,res_gcr,mu,psd[0],psd[0],status);
 
@@ -262,7 +293,7 @@ int main(int argc,char *argv[])
          wt2=MPI_Wtime();
          wdt=wt2-wt1;
          wta+=wdt;
-         
+
          if (my_rank==0)
          {
             printf("time = %.2e sec (w/o preparatory steps)\n",wdt);
@@ -299,10 +330,10 @@ int main(int argc,char *argv[])
          printf("             = %.2e usec (per point and GCR iteration)",
                 (1.0e6*wta)/((double)(status[0])*(double)(VOLUME)));
       printf("\n\n");
-      
+
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

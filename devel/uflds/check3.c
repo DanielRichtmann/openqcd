@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2007, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2007, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program that translates the double-precision gauge field
+* Check of the program that translates the double-precision gauge field.
 *
 *******************************************************************************/
 
@@ -19,6 +19,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "random.h"
 #include "utils.h"
 #include "lattice.h"
@@ -150,13 +151,13 @@ static void snd_field(int *dist)
 
    if (isnd[my_rank]==1)
    {
-      MPI_Send((double*)(uold),nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);
-      MPI_Recv((double*)(ubuf),nbuf,MPI_DOUBLE,iprcv,tag,MPI_COMM_WORLD,&stat);
+      MPI_Send(uold,nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);
+      MPI_Recv(ubuf,nbuf,MPI_DOUBLE,iprcv,tag,MPI_COMM_WORLD,&stat);
    }
    else if (isnd[my_rank]==-1)
    {
-      MPI_Recv((double*)(ubuf),nbuf,MPI_DOUBLE,iprcv,tag,MPI_COMM_WORLD,&stat);
-      MPI_Send((double*)(uold),nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);      
+      MPI_Recv(ubuf,nbuf,MPI_DOUBLE,iprcv,tag,MPI_COMM_WORLD,&stat);
+      MPI_Send(uold,nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);      
    }
    else
    {
@@ -322,7 +323,9 @@ static void random_vec(int *svec)
                
 int main(int argc,char *argv[])
 {
+   int bc,ie;
    int ifc,mu,s[4],n,itest;
+   double phi[2],phi_prime[2];
    FILE *flog=NULL;   
 
    MPI_Init(&argc,&argv);
@@ -339,8 +342,21 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check3.c]",
+                    "Syntax: check3 [-bc <type>]");
    }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();  
    
    geometry();
    alloc_bufs();
@@ -348,35 +364,41 @@ int main(int argc,char *argv[])
    if (my_rank==0)
       printf("Elementary shift vectors:\n\n");
 
-   for (ifc=2;ifc<8;ifc++)
+   for (ifc=0;ifc<8;ifc++)
    {
-      random_ud();
-      save_field(uold);
-               
-      s[0]=0;
-      s[1]=0;
-      s[2]=0;
-      s[3]=0;
-      mu=ifc/2;
-
-      if ((ifc&0x1)==0)
-         s[mu]=1;
-      else
-         s[mu]=-1;
-
-      shift_ud(s);
-      save_field(unew);
-      itest=cmp_field(s);
-
-      if (my_rank==0)
+      if ((ifc>1)||(bc==3))
       {
-         printf("Shift vector (% 3d,% 3d,% 3d): ",
-                s[1],s[2],s[3]);
+         random_ud();
+         save_field(uold);
+               
+         s[0]=0;
+         s[1]=0;
+         s[2]=0;
+         s[3]=0;
+         mu=ifc/2;
 
-         if (itest==0)
-            printf("ok\n");
+         if ((ifc&0x1)==0)
+            s[mu]=1;
          else
-            printf("failed\n");
+            s[mu]=-1;
+
+         shift_ud(s);
+         save_field(unew);
+         itest=cmp_field(s);
+
+         ie=check_bc(0.0);
+         error_root(ie==0,1,"main [check3.c]","Boundary conditions changed");
+         
+         if (my_rank==0)
+         {
+            printf("Shift vector (% 3d,% 3d,% 3d,% 3d): ",
+                   s[0],s[1],s[2],s[3]);
+
+            if (itest==0)
+               printf("ok\n");
+            else
+               printf("failed\n");
+         }
       }
    }
 
@@ -392,15 +414,19 @@ int main(int argc,char *argv[])
       save_field(uold);
 
       random_vec(s);
-      s[0]=0;
+      if (bc!=3)
+         s[0]=0;
       shift_ud(s);
       save_field(unew);
       itest=cmp_field(s);
 
+      ie=check_bc(0.0);
+      error_root(ie==0,1,"main [check3.c]","Boundary conditions changed");
+      
       if (my_rank==0)
       {
-         printf("Shift vector (% 3d,% 3d,% 3d): ",
-                s[1],s[2],s[3]);
+         printf("Shift vector (% 3d,% 3d,% 3d,% 3d): ",
+                s[0],s[1],s[2],s[3]);
 
          if (itest==0)
             printf("ok\n");

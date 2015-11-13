@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2007 Martin Luescher
+* Copyright (C) 2007, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Writing and reading spinor fields
+* Writing and reading spinor fields.
 *
 *******************************************************************************/
 
@@ -19,6 +19,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "random.h"
 #include "utils.h"
 #include "lattice.h"
@@ -32,7 +33,6 @@ int main(int argc,char *argv[])
 {
    int my_rank,nsize,k;
    double d,dmax;
-   complex_dble z;
    spinor_dble **psd;
    char loc_dir[NAME_SIZE],name[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
@@ -55,12 +55,10 @@ int main(int argc,char *argv[])
 
       read_line("loc_dir","%s\n",loc_dir);
       fclose(fin);      
-
-      fflush(flog);
    }
 
-   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);   
-   
+   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);      
+
    start_ranlux(0,123456);
    geometry();
    alloc_wsd(6);
@@ -85,12 +83,10 @@ int main(int argc,char *argv[])
    }   
 
    dmax=0.0;
-   z.re=-1.0;
-   z.im=0.0;
 
    for (k=0;k<3;k++)
    {
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+3],z);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+3],-1.0);
       d=norm_square_dble(VOLUME,1,psd[k]);
 
       if (d>dmax)
@@ -101,7 +97,8 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("Wrote 3 spinor fields to the files %s/testsfld_*\n"
+      printf("Wrote 3 spinor fields to the files\n"
+             "%s/testsfld_*\n"
              "on the local disks. ",loc_dir);
       printf("Then read the fields from there and removed\n"
              "the files.\n\n");

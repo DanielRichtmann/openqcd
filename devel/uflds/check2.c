@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2010, 2011 Martin Luescher
+* Copyright (C) 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Renormalization of the link variables
+* Renormalization of the link variables.
 *
 *******************************************************************************/
 
@@ -29,6 +29,8 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
+
+static int bc;
 
 
 static int is_zero_dble(su3_dble *ud)
@@ -187,7 +189,7 @@ static void check_ud(double *dev1,double *dev2)
       ifc=iu%8;
       x0=global_time(ix);
 
-      if (((x0==0)&&(ifc==1))||((x0==(N0-1))&&(ifc==0)))
+      if ((bc==0)&&(((x0==0)&&(ifc==1))||((x0==(N0-1))&&(ifc==0))))
       {
          d1=(double)(1-is_zero_dble(u));
          d2=d1;
@@ -213,7 +215,7 @@ static void check_ud(double *dev1,double *dev2)
 
 static double cmp_ud(su3_dble *usv)
 {
-   int ix,mu,x0;   
+   int ix,ifc,x0;   
    double d1,dmax1;
    su3_dble *ub,*u,*v,*um;
 
@@ -225,22 +227,17 @@ static double cmp_ud(su3_dble *usv)
    for (u=ub;u<um;u++)
    {
       ix=(u-ub);
-      mu=(ix%8);
+      ifc=(ix%8);
       ix=(ix/8)+(VOLUME/2);
       x0=global_time(ix);
 
-      if (((x0==0)&&(mu==1))||((x0==(NPROC0*L0-1))&&(mu==0)))
-      {
-         error_loc((is_zero_dble(u)!=1)||(is_zero_dble(v)!=1),1,
-                   "cmp_ud [check2.c]","Field does not satisfy open bc");
-      }
+      if ((bc==0)&&(((x0==0)&&(ifc==1))||((x0==(N0-1))&&(ifc==0))))
+         d1=(double)(2-is_zero_dble(u)-is_zero_dble(v));
       else
-      {
          d1=dev_uudag_dble(u,v);
 
-         if (d1>dmax1)
-            dmax1=d1;
-      }
+      if (d1>dmax1)
+         dmax1=d1;
       
       v+=1;
    }
@@ -257,46 +254,57 @@ static double cmp_ud(su3_dble *usv)
 
 static void tilt_ud(double eps)
 {
+   int ix,ifc,t;
    double r[18];
-   su3_dble *ud,*um;
+   su3_dble *ud;
    
    ud=udfld();
-   um=ud+4*VOLUME;
 
-   for (;ud<um;ud++)
+   for (ix=(VOLUME/2);ix<VOLUME;ix++)
    {
-      gauss_dble(r,18);
+      t=global_time(ix);
 
-      (*ud).c11.re+=eps*r[ 0];
-      (*ud).c11.im+=eps*r[ 1];      
-      (*ud).c12.re+=eps*r[ 2];
-      (*ud).c12.im+=eps*r[ 3];
-      (*ud).c13.re+=eps*r[ 4];
-      (*ud).c13.im+=eps*r[ 5];
+      for (ifc=0;ifc<8;ifc++)
+      {
+         if (((ifc==0)&&((bc!=0)||(t<(N0-1))))||
+             ((ifc==1)&&((bc!=0)||(t>0)))||
+             ((ifc>=2)&&((bc!=1)||(t>0))))
+         {
+            gauss_dble(r,18);
 
-      (*ud).c21.re+=eps*r[ 6];
-      (*ud).c21.im+=eps*r[ 7];      
-      (*ud).c22.re+=eps*r[ 8];
-      (*ud).c22.im+=eps*r[ 9];
-      (*ud).c23.re+=eps*r[10];
-      (*ud).c23.im+=eps*r[11];
+            (*ud).c11.re+=eps*r[ 0];
+            (*ud).c11.im+=eps*r[ 1];      
+            (*ud).c12.re+=eps*r[ 2];
+            (*ud).c12.im+=eps*r[ 3];
+            (*ud).c13.re+=eps*r[ 4];
+            (*ud).c13.im+=eps*r[ 5];
 
-      (*ud).c31.re+=eps*r[12];
-      (*ud).c31.im+=eps*r[13];      
-      (*ud).c32.re+=eps*r[14];
-      (*ud).c32.im+=eps*r[15];
-      (*ud).c33.re+=eps*r[16];
-      (*ud).c33.im+=eps*r[17];      
+            (*ud).c21.re+=eps*r[ 6];
+            (*ud).c21.im+=eps*r[ 7];      
+            (*ud).c22.re+=eps*r[ 8];
+            (*ud).c22.im+=eps*r[ 9];
+            (*ud).c23.re+=eps*r[10];
+            (*ud).c23.im+=eps*r[11];
+
+            (*ud).c31.re+=eps*r[12];
+            (*ud).c31.im+=eps*r[13];      
+            (*ud).c32.re+=eps*r[14];
+            (*ud).c32.im+=eps*r[15];
+            (*ud).c33.re+=eps*r[16];
+            (*ud).c33.im+=eps*r[17];
+         }
+         
+         ud+=1;
+      }
    }
-
-   openbcd();
 }
 
 
 int main(int argc,char *argv[])
 {
-   int my_rank;
+   int my_rank,ie;
    double d1,d2,d3,d4,d5;
+   double phi[2],phi_prime[2];
    su3_dble *udb,**usv;
    FILE *flog=NULL;
 
@@ -314,7 +322,21 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();      
 
    start_ranlux(0,123456);
    geometry();
@@ -328,8 +350,8 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("Random double-precision gauge field:\n");
-      printf("|u^dag*u-1| = %.2e\n",d1);
-      printf("|det{u}-1| = %.2e\n\n",d2);      
+      printf("|u^dag*u-1|     = %.2e\n",d1);
+      printf("|det{u}-1|      = %.2e\n\n",d2);      
    }
 
    cm3x3_assign(4*VOLUME,udb,usv[0]);   
@@ -338,15 +360,20 @@ int main(int argc,char *argv[])
    renormalize_ud();
    d3=cmp_ud(usv[0]);
    check_ud(&d4,&d5);   
+
+   ie=check_bc(0.0);
+   error_root(ie==0,1,"main [check2.c]","Boundary conditions changed");
    
    if (my_rank==0)
    {
       printf("Tilt double-precision gauge field:\n");
-      printf("|u^dag*u-1| = %.2e\n",d1);
-      printf("|det{u}-1| = %.2e\n",d2);
-      printf("Difference after renormalization = %.2e\n",d3);            
-      printf("|u^dag*u-1| = %.2e\n",d4);
-      printf("|det{u}-1| = %.2e\n\n",d5);
+      printf("|u^dag*u-1|     = %.2e\n",d1);
+      printf("|det{u}-1|      = %.2e\n\n",d2);
+
+      printf("After renormalization:\n");
+      printf("|u^dag*u_old-1| = %.2e\n",d3);
+      printf("|u^dag*u-1|     = %.2e\n",d4);
+      printf("|det{u}-1|      = %.2e\n\n",d5);
    }
 
    random_ud();
@@ -354,10 +381,13 @@ int main(int argc,char *argv[])
    renormalize_ud();
    d1=cmp_ud(usv[0]);
    
+   ie=check_bc(0.0);
+   error_root(ie==0,1,"main [check2.c]","Boundary conditions changed");    
+   
    if (my_rank==0)
    {
       printf("Renormalization of a fresh random double-precision field:\n");
-      printf("Difference after renormalization = %.2e\n\n",d1);       
+      printf("Maximal change in the link variables = %.2e\n\n",d1);       
       fclose(flog);
    }
    

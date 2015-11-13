@@ -3,12 +3,12 @@
 *
 * File sap_com.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* SAP communication program 
+* SAP communication program.
 *
 * The externally accessible functions are
 *
@@ -19,20 +19,11 @@
 *   void sap_com(int ic,spinor *r)
 *     Subtracts the Weyl field b.bb.w[0] on the boundaries of all black
 *     (if ic=0) or all white (if ic=1) blocks b of the SAP_BLOCKS grid
-*     from the global spinor field r. Weyl fields residing on the block
-*     boundaries that are not contained in the local lattice are copied
-*     to buffers on the appropriate neighbouring MPI processes and are
-*     then subtracted from r. Before subtraction, the Weyl fields on the
-*     block faces in direction ifc are expanded to Dirac spinor fields s
-*     satisfying theta[ifc]*s=0.
-*      No copying is performed across the equal-time planes at global time
-*     0 and NPROC0*L0-1. The field r remains unchanged at these times.
+*     from the global spinor field r. Before subtraction, the Weyl fields
+*     on the block faces in direction ifc are expanded to Dirac spinor
+*     fields s satisfying theta[ifc]*s=0.
 *
 * Notes:
-*
-* The program alloc_sap_bufs() is called when the SAP_BLOCKS block grid is
-* allocated, reallocated or freed. This program is not intended to be called
-* from anywhere else.
 *
 * The program alloc_sap_bufs() adds a single-precision Weyl field to the
 * boundaries of the blocks in the SAP_BLOCKS grid. In memory these fields
@@ -40,8 +31,14 @@
 * the ones on any block created by the allocation programs in the module
 * block/block.c.
 *
+* alloc_sap_bufs() is called when the SAP_BLOCKS block grid is allocated.
+* This program is not intended to be called from anywhere else and does
+* nothing if called a second time.
+*
 * The operations performed by the program sap_com() are explained in some
-* detail in README.sap_com.
+* detail in README.sap_com. In the case of boundary conditions of type 0,
+* 1 or 2, the Weyl fields residing at the exterior boundaries of the blocks
+* at global time -1 and NPROC0*L0 are not subtracted from the field r.
 *
 * All programs in this module may involve communications and must be called
 * simultaneously on all processes.
@@ -56,6 +53,7 @@
 #include <float.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "sflds.h"
 #include "block.h"
@@ -63,7 +61,8 @@
 #include "global.h"
 
 static int nb,nbh,isw,init=0;
-static int np,nmu[8],nsbf[2][8],nlbf[2][8],*imb[2][8];
+static int bc,np,nmu[8],sflg[8];
+static int nsbf[2][8],nlbf[2][8],*imb[2][8];
 static weyl *snd_buf[2][8],*loc_buf[2][8],*rcv_buf[2][8];
 static const weyl w0={{{0.0f}}};
 static block_t *b0;
@@ -72,21 +71,25 @@ static MPI_Request snd_req[2][8],rcv_req[2][8];
 
 static void set_nbf(void)
 {
-   int ifc,ibd,ibu,mu;
+   int ifc,ibu,ibd;
    int *bo,*bs;
    block_t *b,*bm;
    bndry_t *bb;
 
+   bc=bc_type();
    np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
+
    bs=(*b0).bs;
+   ibu=((cpr[0]==(NPROC0-1))&&(bc!=3));
+   ibd=((cpr[0]==0)&&(bc!=3));
 
    for (ifc=0;ifc<8;ifc++)
    {
-      ibd=((ifc==0)&&(cpr[0]==0));      
-      ibu=((ifc==1)&&(cpr[0]==(NPROC0-1)));
-      
-      mu=ifc/2;
-      nmu[ifc]=cpr[mu]&0x1;
+      nmu[ifc]=cpr[ifc/2]&0x1;
+      sflg[ifc]=((ifc>1)||
+                 ((ifc==0)&&(cpr[0]!=0))||
+                 ((ifc==1)&&(cpr[0]!=(NPROC0-1)))||
+                 (bc==3));
 
       nlbf[0][ifc]=0;
       nsbf[0][ifc]=0;
@@ -102,7 +105,8 @@ static void set_nbf(void)
          bb=(*b).bb;
 
          if ((bb[ifc].ibn)||
-             ((ibd)&&(bo[0]==0))||((ibu)&&((bo[0]+bs[0])==L0)))
+             ((ifc==0)&&(ibd)&&(bo[0]==0))||
+             ((ifc==1)&&(ibu)&&((bo[0]+bs[0])==L0)))
             nsbf[isw][ifc]+=bb[ifc].vol;
          else
             nlbf[isw][ifc]+=bb[ifc].vol;
@@ -116,11 +120,12 @@ static void set_nbf(void)
          bb=(*b).bb;
 
          if ((bb[ifc].ibn)||
-             ((ibd)&&(bo[0]==0))||((ibu)&&(((bo[0]+bs[0])==L0))))
+             ((ifc==0)&&(ibd)&&(bo[0]==0))||
+             ((ifc==1)&&(ibu)&&((bo[0]+bs[0])==L0)))
             nsbf[isw^0x1][ifc]+=bb[ifc].vol;
          else
             nlbf[isw^0x1][ifc]+=bb[ifc].vol;
-      }      
+      }
    }
 }
 
@@ -140,7 +145,7 @@ static void alloc_weyl(void)
 
    w=amalloc(n*sizeof(*w),ALIGN);
    error(w==NULL,1,"alloc_weyl [sap_com.c]","Unable to allocate buffers");
-   
+
    for (ic=0;ic<2;ic++)
    {
       for (ifc=0;ifc<8;ifc++)
@@ -170,17 +175,16 @@ static void add_weyl(void)
    block_t *b,*bm;
    bndry_t *bb;
 
-   pw=amalloc(8*nb*sizeof(*pw),3);
+   pw=malloc(8*nb*sizeof(*pw));
    error(pw==NULL,1,"add_weyl [sap_com.c]",
          "Unable to add the Weyl fields to the block boundaries");
 
    bs=(*b0).bs;
-   
+   ibd=((cpr[0]==0)&&(bc!=3));
+   ibu=((cpr[0]==(NPROC0-1))&&(bc!=3));
+
    for (ifc=0;ifc<8;ifc++)
    {
-      ibd=((ifc==0)&&(cpr[0]==0));      
-      ibu=((ifc==1)&&(cpr[0]==(NPROC0-1)));
-
       b=b0;
       bm=b+nbh;
       ws=snd_buf[isw][ifc];
@@ -194,7 +198,8 @@ static void add_weyl(void)
          bb[ifc].w=pw;
 
          if ((bb[ifc].ibn)||
-             ((ibd)&&(bo[0]==0))||((ibu)&&((bo[0]+bs[0])==L0)))
+             ((ifc==0)&&(ibd)&&(bo[0]==0))||
+             ((ifc==1)&&(ibu)&&((bo[0]+bs[0])==L0)))
          {
             (*pw)=ws;
             ws+=bb[ifc].vol;
@@ -215,12 +220,13 @@ static void add_weyl(void)
       for (;b<bm;b++)
       {
          bo=(*b).bo;
-         bb=(*b).bb;         
+         bb=(*b).bb;
          bb[ifc].nw=1;
          bb[ifc].w=pw;
 
          if ((bb[ifc].ibn)||
-             ((ibd)&&(bo[0]==0))||((ibu)&&((bo[0]+bs[0])==L0)))
+             ((ifc==0)&&(ibd)&&(bo[0]==0))||
+             ((ifc==1)&&(ibu)&&((bo[0]+bs[0])==L0)))
          {
             (*pw)=ws;
             ws+=bb[ifc].vol;
@@ -251,9 +257,9 @@ static void set_mpi_req(void)
          tag=mpi_permanent_tag();
          nbf=12*nsbf[ic][ifc];
 
-         MPI_Send_init((float*)(snd_buf[ic][ifc]),nbf,MPI_FLOAT,
+         MPI_Send_init(snd_buf[ic][ifc],nbf,MPI_FLOAT,
                        saddr,tag,MPI_COMM_WORLD,&snd_req[ic][ifc]);
-         MPI_Recv_init((float*)(rcv_buf[ic][ifc]),nbf,MPI_FLOAT,
+         MPI_Recv_init(rcv_buf[ic][ifc],nbf,MPI_FLOAT,
                        raddr,tag,MPI_COMM_WORLD,&rcv_req[ic][ifc]);
       }
    }
@@ -275,18 +281,18 @@ static void alloc_imb(void)
       n+=(nlbf[1][ifc]+nsbf[1][ifc]);
    }
 
-   im=amalloc(n*sizeof(*im),3);
+   im=malloc(n*sizeof(*im));
    error(im==NULL,1,"alloc_imb [sap_com.c]",
          "Unable to allocate index arrays");
 
    bs=(*b0).bs;
-   
+   ibd=((cpr[0]==0)&&(bc!=3));
+   ibu=((cpr[0]==(NPROC0-1))&&(bc!=3));
+
    for (ic=0;ic<2;ic++)
    {
       for (ifc=0;ifc<8;ifc++)
       {
-         ibd=((ifc==0)&&(cpr[0]==0));      
-         ibu=((ifc==1)&&(cpr[0]==(NPROC0-1)));
          imb[ic][ifc]=im;
 
          if (ic^isw)
@@ -300,8 +306,9 @@ static void alloc_imb(void)
             bo=(*b).bo;
             bb=(*b).bb;
 
-            if ((bb[ifc].ibn==0)&&
-                ((ibd==0)||(bo[0]!=0))&&((ibu==0)||((bo[0]+bs[0])!=L0)))
+            if (!((bb[ifc].ibn)||
+                  ((ifc==0)&&(ibd)&&(bo[0]==0))||
+                  ((ifc==1)&&(ibu)&&((bo[0]+bs[0])==L0))))
             {
                for (n=0;n<bb[ifc].vol;n++)
                   im[n]=bb[ifc].imb[n];
@@ -310,9 +317,6 @@ static void alloc_imb(void)
             }
          }
 
-         ibd=((ifc==1)&&(cpr[0]==0));      
-         ibu=((ifc==0)&&(cpr[0]==(NPROC0-1)));
-         
          if (ic^isw)
             b=b0;
          else
@@ -323,16 +327,17 @@ static void alloc_imb(void)
          {
             bo=(*b).bo;
             bb=(*b).bb;
-            
+
             if ((bb[ifc^0x1].ibn)||
-                ((ibd)&&(bo[0]==0))||((ibu)&&((bo[0]+bs[0])==L0)))
+                ((ifc==1)&&(ibd)&&(bo[0]==0))||
+                ((ifc==0)&&(ibu)&&((bo[0]+bs[0])==L0)))
             {
                for (n=0;n<bb[ifc].vol;n++)
                   im[n]=(*b).imb[bb[ifc].map[n]];
 
                im+=bb[ifc].vol;
             }
-         }         
+         }
       }
    }
 }
@@ -370,7 +375,7 @@ static void send_buf(int ic,int ifc,int eo)
 
    io=ifc^nmu[ifc];
 
-   if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1))))
+   if (sflg[io])
    {
       if (np==eo)
       {
@@ -393,12 +398,12 @@ static void wait_buf(int ic,int ifc,int eo)
 
    io=ifc^nmu[ifc];
 
-   if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1))))
-   {   
+   if (sflg[io])
+   {
       if (np==eo)
       {
          if (nsbf[ic][io])
-            MPI_Wait(&snd_req[ic][io],&stat);      
+            MPI_Wait(&snd_req[ic][io],&stat);
       }
       else
       {
@@ -419,15 +424,15 @@ void sap_com(int ic,spinor *r)
                  "Communication buffers are not allocated");
       return;
    }
-      
+
    send_buf(ic,0,0);
    send_buf(ic,0,1);
-      
+
    for (ifc=0;ifc<8;ifc++)
    {
-      wait_buf(ic,ifc,0);      
+      wait_buf(ic,ifc,0);
       wait_buf(ic,ifc,1);
-      
+
       if (ifc<7)
       {
          send_buf(ic,ifc+1,0);
@@ -436,11 +441,11 @@ void sap_com(int ic,spinor *r)
 
       io=(ifc^nmu[ifc])^0x1;
 
-      if ((io>1)||((io==1)&&(cpr[0]!=0))||((io==0)&&(cpr[0]!=(NPROC0-1))))
+      if (sflg[io^0x1])
          nbf=nlbf[ic][io]+nsbf[ic][io];
       else
          nbf=nlbf[ic][io];
-      
+
       sub_assign_w2s[io^0x1](imb[ic][io],nbf,loc_buf[ic][io],r);
    }
 }

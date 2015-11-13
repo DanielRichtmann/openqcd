@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Importing a previously exported spinor field 
+* Importing a previously exported spinor field.
 *
 *******************************************************************************/
 
@@ -68,7 +68,6 @@ int main(int argc,char *argv[])
 {
    int my_rank,nsize;
    double d;
-   complex_dble z;
    char sfld_dir[NAME_SIZE],name[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
 
@@ -90,8 +89,6 @@ int main(int argc,char *argv[])
 
       read_line("sfld_dir","%s\n",sfld_dir);
       fclose(fin);
-
-      fflush(flog);
    }
 
    start_ranlux(0,123456);
@@ -107,17 +104,15 @@ int main(int argc,char *argv[])
 
    import_sfld(name,psd[1]);
 
-   z.re=-1.0;
-   z.im=0.0;
-
-   mulc_spinor_add_dble(VOLUME,psd[0],psd[1],z);
+   mulr_spinor_add_dble(VOLUME,psd[0],psd[1],-1.0);
    d=norm_square_dble(VOLUME,1,psd[0]);
       
    error_chk();
 
    if (my_rank==0)
    {
-      printf("Imported field from file %s\n\n",name);
+      printf("Imported field from file\n"
+             "%s\n\n",name);
       printf("Deviation = %.1e ",sqrt(d));
       printf("(should be exactly equal to 0.0)\n\n");
       remove(name);      

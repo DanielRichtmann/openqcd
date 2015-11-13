@@ -25,7 +25,7 @@
 *     On process 0, this program scans stdin for a line starting with the
 *     string "[Force <int>]" (after any number of blanks), where <int> is
 *     the integer value passed by the argument. An error occurs if no such
-*     line or more than one is found. The lines 
+*     line or more than one is found. The lines
 *
 *       force   <force_t>
 *       ipf     <int>
@@ -73,7 +73,7 @@
 *
 * Notes:
 *
-* For a description of the supported forces and their parameters see 
+* For a description of the supported forces and their parameters see
 * forces/README.forces.
 *
 * The elements of a structure of type force_parms_t are
@@ -81,40 +81,40 @@
 *   force   Force program used. This parameter is an enum type with
 *           one of the following values:
 *
-*            FRG             (program force0() [forces/force0.c])
+*            FRG             (program force0() [forces/force0.c]),
 *
-*            FRF_TM1         (program force1() [forces/force1.c])
+*            FRF_TM1         (program force1() [forces/force1.c]),
 *
-*            FRF_TM1_EO      (program force4() [forces/force4.c])
+*            FRF_TM1_EO      (program force4() [forces/force4.c]),
 *
-*            FRF_TM1_EO_SDET (program force4() [forces/force4.c])
+*            FRF_TM1_EO_SDET (program force4() [forces/force4.c]),
 *
-*            FRF_TM2         (program force2() [forces/force2.c])
+*            FRF_TM2         (program force2() [forces/force2.c]),
 *
-*            FRF_TM2_EO      (program force5() [forces/force5.c])
+*            FRF_TM2_EO      (program force5() [forces/force5.c]),
 *
-*            FRF_RAT         (program force3() [forces/force3.c])
+*            FRF_RAT         (program force3() [forces/force3.c]),
 *
-*            FRF_RAT_SDET    (program force3() [forces/force3.c])
+*            FRF_RAT_SDET    (program force3() [forces/force3.c]),
 *
-*   ipf     Pseudo-fermion field index (see mdflds/mdflds.c)
+*   ipf     Pseudo-fermion field index (see mdflds/mdflds.c),
 *
-*   im0     Bare mass index (0: m0u, 1: m0s, 2: m0c)
-*           (see flags/lat_parms.c)
+*   im0     Index of the bare sea quark mass in parameter data base
+*           (see flags/lat_parms.c),
 *
-*   irat    Indices specifying a rational function (see ratfcts/ratfcts.c)
+*   irat    Indices specifying a rational function (see ratfcts/ratfcts.c),
 *
-*   imu     Twisted mass indices (see flags/hmc_parms.c)
+*   imu     Twisted mass indices (see flags/hmc_parms.c),
 *
-*   isp     Solver parameter set indices (see flags/solver_parms.c)
+*   isp     Solver parameter set indices (see flags/solver_parms.c),
 *
-*   ncr     Chronological solver stack sizes (see update/chrono.c)
+*   ncr     Chronological solver stack sizes (see update/chrono.c),
 *
-*   icr     Chronological solver stack indices (set internally)
+*   icr     Chronological solver stack indices (set internally).
 *
 * Depending on the force, some parameters are not used and are set to zero
-* by set_force_parms() independently of the values of the arguments. In 
-* particular, for a given force, only the required number of integers are 
+* by set_force_parms() independently of the values of the arguments. In
+* particular, for a given force, only the required number of integers are
 * read from the arrays imu, isp and ncr passed to the program.
 *
 * The number of twisted mass indices is 1 and 2 in the case of the forces
@@ -124,7 +124,7 @@
 *
 * Up to 32 force parameter sets, labeled by an index ifr=0,1,..,31, can
 * be specified. Once a set is specified, it cannot be changed by calling
-* set_force_parms() again. Force parameters must be globally the same. 
+* set_force_parms() again. Force parameters must be globally the same.
 *
 * Except for force_parms(), the programs in this module perform global
 * operations and must be called simultaneously on all MPI processes.
@@ -167,13 +167,13 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
 {
    int iprms[23],i,ie;
    int rat[3],mu[4],sp[4],nc[4],ic[4];
-   
+
    if (init==0)
       init_fp();
 
    for (i=0;i<3;i++)
       rat[i]=0;
-   
+
    for (i=0;i<4;i++)
    {
       mu[i]=0;
@@ -181,7 +181,7 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
       nc[i]=0;
       ic[i]=0;
    }
-   
+
    if ((force==FRG)||(force==FORCES))
    {
       ipf=0;
@@ -202,7 +202,7 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
    else if ((force==FRF_TM2)||(force==FRF_TM2_EO))
    {
       mu[0]=imu[0];
-      mu[1]=imu[1];      
+      mu[1]=imu[1];
       sp[0]=isp[0];
 
       if (ncr[0]>0)
@@ -219,7 +219,7 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
       rat[2]=irat[2];
       sp[0]=isp[0];
    }
-   
+
    if (NPROC>1)
    {
       iprms[0]=ifr;
@@ -247,16 +247,16 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
       ie|=(iprms[3]!=im0);
 
       for (i=0;i<3;i++)
-         ie|=(iprms[4+i]!=rat[i]);      
-      
+         ie|=(iprms[4+i]!=rat[i]);
+
       for (i=0;i<4;i++)
       {
          ie|=(iprms[7+i]!=mu[i]);
          ie|=(iprms[11+i]!=sp[i]);
          ie|=(iprms[15+i]!=nc[i]);
-         ie|=(iprms[19+i]!=ic[i]);         
-      }     
-      
+         ie|=(iprms[19+i]!=ic[i]);
+      }
+
       error(ie!=0,1,"set_force_parms [force_parms.c]",
             "Parameters are not global");
    }
@@ -267,15 +267,15 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
    ie|=((ipf<0)||(im0<0));
 
    for (i=0;i<3;i++)
-      ie|=(rat[i]<0);   
+      ie|=(rat[i]<0);
 
    for (i=0;i<4;i++)
    {
       ie|=(mu[i]<0);
       ie|=(sp[i]<0);
       ie|=(nc[i]<0);
-   }     
-   
+   }
+
    error_root(ie!=0,1,"set_force_parms [force_parms.c]",
               "Parameters are out of range");
 
@@ -286,9 +286,9 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
    fp[ifr].ipf=ipf;
    fp[ifr].im0=im0;
 
-   for (i=0;i<3;i++)   
+   for (i=0;i<3;i++)
       fp[ifr].irat[i]=rat[i];
-   
+
    for (i=0;i<4;i++)
    {
       fp[ifr].imu[i]=mu[i];
@@ -296,7 +296,7 @@ force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
       fp[ifr].ncr[i]=nc[i];
       fp[ifr].icr[i]=ic[i];
    }
-   
+
    return fp[ifr];
 }
 
@@ -330,14 +330,14 @@ void read_force_parms(int ifr)
 
    for (i=0;i<3;i++)
       irat[i]=0;
-   
+
    for (i=0;i<4;i++)
    {
       imu[i]=0;
       isp[i]=0;
       ncr[i]=0;
    }
-   
+
    if (my_rank==0)
    {
       sprintf(line,"Force %d",ifr);
@@ -371,11 +371,11 @@ void read_force_parms(int ifr)
          read_line("isp","%d",isp);
          read_line("ncr","%d",ncr);
       }
-      else if (strcmp(line,"FRF_TM2")==0)                                    
-      {                                                                      
-         idf=4;                                                              
-         read_line("ipf","%d",&ipf);                                         
-         read_line("im0","%d",&im0);                                         
+      else if (strcmp(line,"FRF_TM2")==0)
+      {
+         idf=4;
+         read_line("ipf","%d",&ipf);
+         read_line("im0","%d",&im0);
          read_line("imu","%d %d",imu,imu+1);
          read_line("isp","%d",isp);
          read_line("ncr","%d",ncr);
@@ -390,37 +390,37 @@ void read_force_parms(int ifr)
          read_line("ncr","%d",ncr);
       }
       else if (strcmp(line,"FRF_RAT")==0)
-      {                                                                      
-         idf=6;                                                              
-         read_line("ipf","%d",&ipf);                                         
-         read_line("im0","%d",&im0);                                         
+      {
+         idf=6;
+         read_line("ipf","%d",&ipf);
+         read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
          read_line("isp","%d",isp);
       }
       else if (strcmp(line,"FRF_RAT_SDET")==0)
-      {                                                                      
-         idf=7;                                                              
-         read_line("ipf","%d",&ipf);                                         
-         read_line("im0","%d",&im0);                                         
+      {
+         idf=7;
+         read_line("ipf","%d",&ipf);
+         read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
          read_line("isp","%d",isp);
-      }        
+      }
       else if (strcmp(line,"FRG")!=0)
          error_root(1,1,"read_force_parms [force_parms.c]",
-                    "Unknown force %s",line);         
+                    "Unknown force %s",line);
    }
 
    if (NPROC>1)
-   {   
+   {
       MPI_Bcast(&idf,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&ipf,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&im0,1,MPI_INT,0,MPI_COMM_WORLD);
-      MPI_Bcast(&irat,3,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(irat,3,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(imu,4,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(isp,4,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(ncr,4,MPI_INT,0,MPI_COMM_WORLD);
    }
-   
+
    set_force_parms(ifr,force[idf],ipf,im0,irat,imu,isp,ncr);
 }
 
@@ -440,19 +440,19 @@ void read_force_parms2(int ifr)
 
    for (i=0;i<3;i++)
       irat[i]=0;
-   
+
    for (i=0;i<4;i++)
    {
       imu[i]=0;
       isp[i]=0;
       ncr[i]=0;
    }
-   
+
    if (my_rank==0)
    {
       ap=action_parms(ifr);
       error_root(ap.action==ACTIONS,1,"read_force_parms2 [force_parms.c]",
-                 "Undefined action");      
+                 "Undefined action");
 
       sprintf(line,"Force %d",ifr);
       find_section(line);
@@ -490,14 +490,14 @@ void read_force_parms2(int ifr)
          read_line("isp","%d",isp);
          read_line("ncr","%d",ncr);
       }
-      else if (ap.action==ACF_TM2)                                    
+      else if (ap.action==ACF_TM2)
       {
          ie=strcmp(line,"FRF_TM2");
          idf=4;
          ipf=ap.ipf;
          im0=ap.im0;
-         imu[0]=ap.imu[0];         
-         imu[1]=ap.imu[1];         
+         imu[0]=ap.imu[0];
+         imu[1]=ap.imu[1];
          read_line("isp","%d",isp);
          read_line("ncr","%d",ncr);
       }
@@ -507,7 +507,7 @@ void read_force_parms2(int ifr)
          idf=5;
          ipf=ap.ipf;
          im0=ap.im0;
-         imu[0]=ap.imu[0];         
+         imu[0]=ap.imu[0];
          imu[1]=ap.imu[1];
          read_line("isp","%d",isp);
          read_line("ncr","%d",ncr);
@@ -533,7 +533,7 @@ void read_force_parms2(int ifr)
          irat[1]=ap.irat[1];
          irat[2]=ap.irat[2];
          read_line("isp","%d",isp);
-      }        
+      }
       else
          error_root(1,1,"read_force_parms2 [force_parms.c]",
                     "Unknown action");
@@ -543,16 +543,16 @@ void read_force_parms2(int ifr)
    }
 
    if (NPROC>1)
-   {   
+   {
       MPI_Bcast(&idf,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&ipf,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&im0,1,MPI_INT,0,MPI_COMM_WORLD);
-      MPI_Bcast(&irat,3,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(irat,3,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(imu,4,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(isp,4,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(ncr,4,MPI_INT,0,MPI_COMM_WORLD);
    }
-   
+
    set_force_parms(ifr,force[idf],ipf,im0,irat,imu,isp,ncr);
 }
 
@@ -570,7 +570,7 @@ void print_force_parms(void)
          if (fp[i].force!=FORCES)
          {
             printf("Force %d:\n",i);
-            
+
             if (fp[i].force==FRG)
                printf("FRG force\n\n");
             else if (fp[i].force==FRF_TM1)
@@ -578,7 +578,7 @@ void print_force_parms(void)
                printf("FRF_TM1 force\n");
                printf("ipf = %d\n",fp[i].ipf);
                printf("im0 = %d\n",fp[i].im0);
-               printf("imu = %d\n",fp[i].imu[0]);              
+               printf("imu = %d\n",fp[i].imu[0]);
                printf("isp = %d\n",fp[i].isp[0]);
                printf("ncr = %d\n\n",fp[i].ncr[0]);
             }
@@ -600,14 +600,14 @@ void print_force_parms(void)
                printf("isp = %d\n",fp[i].isp[0]);
                printf("ncr = %d\n\n",fp[i].ncr[0]);
             }
-            else if (fp[i].force==FRF_TM2)                                   
-            {                                                                
-               printf("FRF_TM2 force\n");                                    
-               printf("ipf = %d\n",fp[i].ipf);                               
-               printf("im0 = %d\n",fp[i].im0);                               
-               printf("imu = %d %d\n",fp[i].imu[0],fp[i].imu[1]);              
+            else if (fp[i].force==FRF_TM2)
+            {
+               printf("FRF_TM2 force\n");
+               printf("ipf = %d\n",fp[i].ipf);
+               printf("im0 = %d\n",fp[i].im0);
+               printf("imu = %d %d\n",fp[i].imu[0],fp[i].imu[1]);
                printf("isp = %d\n",fp[i].isp[0]);
-               printf("ncr = %d\n\n",fp[i].ncr[0]);               
+               printf("ncr = %d\n\n",fp[i].ncr[0]);
             }
             else if (fp[i].force==FRF_TM2_EO)
             {
@@ -617,25 +617,25 @@ void print_force_parms(void)
                printf("imu = %d %d\n",fp[i].imu[0],fp[i].imu[1]);
                printf("isp = %d\n",fp[i].isp[0]);
                printf("ncr = %d\n\n",fp[i].ncr[0]);
-            }            
+            }
             else if (fp[i].force==FRF_RAT)
-            {                                                                
+            {
                printf("FRF_RAT force\n");
-               printf("ipf = %d\n",fp[i].ipf);                               
-               printf("im0 = %d\n",fp[i].im0);                               
+               printf("ipf = %d\n",fp[i].ipf);
+               printf("im0 = %d\n",fp[i].im0);
                printf("irat = %d %d %d\n",
                       fp[i].irat[0],fp[i].irat[1],fp[i].irat[2]);
                printf("isp = %d\n\n",fp[i].isp[0]);
             }
             else if (fp[i].force==FRF_RAT_SDET)
-            {                                                                
+            {
                printf("FRF_RAT_SDET force\n");
-               printf("ipf = %d\n",fp[i].ipf);                               
-               printf("im0 = %d\n",fp[i].im0);                               
+               printf("ipf = %d\n",fp[i].ipf);
+               printf("im0 = %d\n",fp[i].im0);
                printf("irat = %d %d %d\n",
                       fp[i].irat[0],fp[i].irat[1],fp[i].irat[2]);
                printf("isp = %d\n\n",fp[i].isp[0]);
-            }            
+            }
             else
                printf("UNKNOWN force\n\n");
          }
@@ -657,7 +657,7 @@ void print_force_parms2(void)
          if (fp[i].force!=FORCES)
          {
             printf("Force %d:\n",i);
-            
+
             if (fp[i].force==FRG)
                printf("FRG force\n\n");
             else if (fp[i].force==FRF_TM1)
@@ -678,28 +678,28 @@ void print_force_parms2(void)
                printf("isp = %d\n",fp[i].isp[0]);
                printf("ncr = %d\n\n",fp[i].ncr[0]);
             }
-            else if (fp[i].force==FRF_TM2)                                   
-            {                                                                
-               printf("FRF_TM2 force\n");                                    
+            else if (fp[i].force==FRF_TM2)
+            {
+               printf("FRF_TM2 force\n");
                printf("isp = %d\n",fp[i].isp[0]);
-               printf("ncr = %d\n\n",fp[i].ncr[0]);               
+               printf("ncr = %d\n\n",fp[i].ncr[0]);
             }
             else if (fp[i].force==FRF_TM2_EO)
             {
                printf("FRF_TM2_EO force\n");
                printf("isp = %d\n",fp[i].isp[0]);
                printf("ncr = %d\n\n",fp[i].ncr[0]);
-            }            
+            }
             else if (fp[i].force==FRF_RAT)
-            {                                                                
+            {
                printf("FRF_RAT force\n");
                printf("isp = %d\n\n",fp[i].isp[0]);
             }
             else if (fp[i].force==FRF_RAT_SDET)
-            {                                                                
+            {
                printf("FRF_RAT_SDET force\n");
                printf("isp = %d\n\n",fp[i].isp[0]);
-            }            
+            }
             else
                printf("UNKNOWN force\n\n");
          }
@@ -716,14 +716,14 @@ void write_force_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if ((my_rank==0)&&(init==1))
    {
       for (i=0;i<IFRMAX;i++)
       {
          if (fp[i].force!=FORCES)
          {
-            istd[0]=(stdint_t)(i);            
+            istd[0]=(stdint_t)(i);
             istd[1]=(stdint_t)(fp[i].force);
             istd[2]=(stdint_t)(fp[i].ipf);
             istd[3]=(stdint_t)(fp[i].im0);
@@ -734,7 +734,7 @@ void write_force_parms(FILE *fdat)
             for (j=0;j<4;j++)
             {
                istd[7+j]=(stdint_t)(fp[i].imu[j]);
-               istd[11+j]=(stdint_t)(fp[i].isp[j]);               
+               istd[11+j]=(stdint_t)(fp[i].isp[j]);
                istd[15+j]=(stdint_t)(fp[i].ncr[j]);
                istd[19+j]=(stdint_t)(fp[i].icr[j]);
             }
@@ -742,7 +742,7 @@ void write_force_parms(FILE *fdat)
             if (endian==BIG_ENDIAN)
                bswap_int(23,istd);
 
-            iw=fwrite(istd,sizeof(stdint_t),23,fdat);         
+            iw=fwrite(istd,sizeof(stdint_t),23,fdat);
             error_root(iw!=23,1,"write_force_parms [force_parms.c]",
                        "Incorrect write count");
          }
@@ -759,41 +759,41 @@ void check_force_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if ((my_rank==0)&&(init==1))
    {
       ie=0;
-      
+
       for (i=0;i<IFRMAX;i++)
       {
          if (fp[i].force!=FORCES)
          {
-            ir=fread(istd,sizeof(stdint_t),23,fdat);         
+            ir=fread(istd,sizeof(stdint_t),23,fdat);
             error_root(ir!=23,1,"check_force_parms [force_parms.c]",
                        "Incorrect read count");
 
             if (endian==BIG_ENDIAN)
                bswap_int(23,istd);
-            
-            ie|=(istd[0]!=(stdint_t)(i));            
+
+            ie|=(istd[0]!=(stdint_t)(i));
             ie|=(istd[1]!=(stdint_t)(fp[i].force));
             ie|=(istd[2]!=(stdint_t)(fp[i].ipf));
             ie|=(istd[3]!=(stdint_t)(fp[i].im0));
 
             for (j=0;j<3;j++)
                ie|=(istd[4+j]!=(stdint_t)(fp[i].irat[j]));
-            
+
             for (j=0;j<4;j++)
             {
                ie|=(istd[7+j]!=(stdint_t)(fp[i].imu[j]));
-               ie|=(istd[11+j]!=(stdint_t)(fp[i].isp[j]));               
+               ie|=(istd[11+j]!=(stdint_t)(fp[i].isp[j]));
                ie|=(istd[15+j]!=(stdint_t)(fp[i].ncr[j]));
                ie|=(istd[19+j]!=(stdint_t)(fp[i].icr[j]));
             }
          }
       }
-         
+
       error_root(ie!=0,1,"check_force_parms [force_parms.c]",
-                 "Parameters do not match");         
+                 "Parameters do not match");
    }
 }

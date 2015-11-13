@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of set_mdsteps()
+* Check of set_mdsteps().
 *
 *******************************************************************************/
 
@@ -37,16 +37,16 @@ static void read_hmc_parms(void)
 {
    int nlv;
    double tau;
-   
+
    if (my_rank==0)
    {
       find_section("HMC parameters");
-      read_line("nlv","%d",&nlv);      
+      read_line("nlv","%d",&nlv);
       read_line("tau","%lf",&tau);
    }
 
-   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);      
-   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    set_hmc_parms(0,NULL,0,0,NULL,nlv,tau);
 }
 
@@ -62,14 +62,14 @@ static void read_integrator(void)
 
    for (i=0;i<3;i++)
       irat[i]=0;
-   
+
    for (i=0;i<4;i++)
    {
       imu[i]=0;
       isp[i]=0;
       ncr[i]=0;
    }
-   
+
    hmc=hmc_parms();
    nlv=hmc.nlv;
 
@@ -98,21 +98,21 @@ static void read_integrator(void)
                else if (strcmp(line,"FRF_TM1_EO")==0)
                   idf=2;
                else if (strcmp(line,"FRF_TM1_EO_SDET")==0)
-                  idf=3;               
+                  idf=3;
                else if (strcmp(line,"FRF_TM2")==0)
                   idf=4;
                else if (strcmp(line,"FRF_TM2_EO")==0)
-                  idf=5;               
+                  idf=5;
                else if (strcmp(line,"FRF_RAT")==0)
                   idf=6;
                else if (strcmp(line,"FRF_RAT_SDET")==0)
                   idf=7;
                else
                   error_root(1,1,"read_integrator [check1.c]",
-                             "Unknown force %s",line);         
+                             "Unknown force %s",line);
             }
 
-            MPI_Bcast(&idf,1,MPI_INT,0,MPI_COMM_WORLD);             
+            MPI_Bcast(&idf,1,MPI_INT,0,MPI_COMM_WORLD);
             set_force_parms(k,force[idf],0,0,irat,imu,isp,ncr);
          }
       }
@@ -124,7 +124,8 @@ int main(int argc,char *argv[])
 {
    int i,ie;
    int nop,itu,*iop;
-   double *eps;
+   double phi[2],phi_prime[2];
+   double kappa,*eps;
    mdstep_t *mds;
    FILE *flog=NULL,*fin=NULL;
 
@@ -145,13 +146,20 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
-   set_lat_parms(5.3,1.6667,0.13650,0.0,0.0,1.23,0.98,1.0);   
+   kappa=0.1365;
+   set_lat_parms(5.3,1.6667,1,&kappa,1.789);
+   phi[0]=0.378;
+   phi[1]=0.012;
+   phi_prime[0]=0.892;
+   phi_prime[1]=0.912;
+   set_bc_parms(0,1.23,1.27,0.98,1.03,phi,phi_prime);
+
    read_hmc_parms();
    read_integrator();
 
    if (my_rank==0)
       fclose(fin);
-   
+
    start_ranlux(0,1234);
    geometry();
    set_mdsteps();
@@ -178,7 +186,7 @@ int main(int argc,char *argv[])
    }
 
    MPI_Bcast(iop,nop,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(eps,nop,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(eps,nop,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    ie=0;
 
@@ -186,14 +194,14 @@ int main(int argc,char *argv[])
    {
       ie|=(iop[i]!=mds[i].iop);
       ie|=(eps[i]!=mds[i].eps);
-   }   
+   }
 
    error(ie!=0,1,"main [check1.c]",
-         "Integration steps are not globally the same");   
-   
+         "Integration steps are not globally the same");
+
    if (my_rank==0)
       fclose(flog);
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

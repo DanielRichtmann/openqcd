@@ -21,15 +21,15 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 check4 check5
 
-FLAGS = flags lat_parms dfl_parms sf_parms
+FLAGS = flags lat_parms dfl_parms
 
 LATTICE = bcnds uidx geometry 
 
-RANDOM = ranlux ranlxs ranlxd gauss random_su3
+RANDOM = ranlux ranlxs ranlxd gauss
 
 UFLDS = plaq_sum shift uflds udcom bstap
 
-SU3FCTS = su3prod su3ren cm3x3
+SU3FCTS = su3prod su3ren cm3x3 random_su3
 
 UTILS = endian mutils utils wspace
 

@@ -3,16 +3,15 @@
 *
 * File mdint.c
 *
-* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher,
-*                                John Bulava
+* Copyright (C) 2011-2013 Stefan Schaefer, Martin Luescher, John Bulava
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Integration of the molecular-dynamics equations
+* Integration of the molecular-dynamics equations.
 *
 * The externally accessible functions are
-* 
+*
 *   void run_mdint(void)
 *     Integrates the molecular-dynamics equations using the current
 *     integrator (see the notes).
@@ -82,18 +81,18 @@ static void chk_mode_regen(int isp,int *status)
       if (status[4]>0)
          add2counter("modes",2,status+4);
       if (status[5]>0)
-         add2counter("modes",2,status+5);               
+         add2counter("modes",2,status+5);
    }
 }
 
 
 static void update_mom(void)
 {
-   int sf,ix,t,k;
+   int bc,ix,t,ifc;
    su3_alg_dble *mom,*frc;
    mdflds_t *mdfs;
 
-   sf=sf_flg();
+   bc=bc_type();
    mdfs=mdflds();
    mom=(*mdfs).mom;
    frc=(*mdfs).frc;
@@ -105,49 +104,66 @@ static void update_mom(void)
       if (t==0)
       {
          _su3_alg_sub_assign(mom[0],frc[0]);
-         
-         if (sf==0)
+         mom+=1;
+         frc+=1;
+
+         if (bc!=0)
          {
-            for (k=2;k<8;k++)
+            _su3_alg_sub_assign(mom[0],frc[0]);
+         }
+
+         mom+=1;
+         frc+=1;
+
+         for (ifc=2;ifc<8;ifc++)
+         {
+            if (bc!=1)
             {
-               _su3_alg_sub_assign(mom[k],frc[k]);
+               _su3_alg_sub_assign(mom[0],frc[0]);
             }
+
+            mom+=1;
+            frc+=1;
          }
       }
       else if (t==(N0-1))
       {
-         _su3_alg_sub_assign(mom[1],frc[1]);
-         
-         if (sf==0)
+         if (bc!=0)
          {
-            for (k=2;k<8;k++)
-            {
-               _su3_alg_sub_assign(mom[k],frc[k]);
-            }
+            _su3_alg_sub_assign(mom[0],frc[0]);
+         }
+
+         mom+=1;
+         frc+=1;
+
+         for (ifc=1;ifc<8;ifc++)
+         {
+            _su3_alg_sub_assign(mom[0],frc[0]);
+            mom+=1;
+            frc+=1;
          }
       }
       else
       {
-         for (k=0;k<8;k++)
+         for (ifc=0;ifc<8;ifc++)
          {
-            _su3_alg_sub_assign(mom[k],frc[k]);            
+            _su3_alg_sub_assign(mom[0],frc[0]);
+            mom+=1;
+            frc+=1;
          }
       }
-
-      mom+=8;
-      frc+=8;
-   }   
+   }
 }
 
 
 static void update_ud(double eps)
 {
-   int sf,ix,t,k;
+   int bc,ix,t,ifc;
    su3_dble *u;
    su3_alg_dble *mom;
    mdflds_t *mdfs;
 
-   sf=sf_flg();
+   bc=bc_type();
    mdfs=mdflds();
    mom=(*mdfs).mom;
    u=udfld();
@@ -159,32 +175,46 @@ static void update_ud(double eps)
       if (t==0)
       {
          expXsu3(eps,mom,u);
-         
-         if (sf==0)
+         u+=1;
+         mom+=1;
+
+         if (bc!=0)
+            expXsu3(eps,mom,u);
+         u+=1;
+         mom+=1;
+
+         for (ifc=2;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               expXsu3(eps,mom+k,u+k);
+            if (bc!=1)
+               expXsu3(eps,mom,u);
+            u+=1;
+            mom+=1;
          }
       }
       else if (t==(N0-1))
       {
-         expXsu3(eps,mom+1,u+1);
-         
-         if (sf==0)
+         if (bc!=0)
+            expXsu3(eps,mom,u);
+         u+=1;
+         mom+=1;
+
+         for (ifc=1;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               expXsu3(eps,mom+k,u+k);
+            expXsu3(eps,mom,u);
+            u+=1;
+            mom+=1;
          }
       }
       else
       {
-         for (k=0;k<8;k++)
-            expXsu3(eps,mom+k,u+k);
+         for (ifc=0;ifc<8;ifc++)
+         {
+            expXsu3(eps,mom,u);
+            u+=1;
+            mom+=1;
+         }
       }
-
-      mom+=8;
-      u+=8;
-   }   
+   }
 
    set_flags(UPDATED_UD);
 }
@@ -205,7 +235,7 @@ static void dfl_upd(int isp)
 {
    int status[2];
    solver_parms_t sp;
-   
+
    if ((nsm>0)&&(rtau>dtau))
    {
       sp=solver_parms(isp);
@@ -221,7 +251,7 @@ static void dfl_upd(int isp)
             add2counter("modes",1,status);
          else
             add2counter("modes",2,status+1);
-         
+
          rtau=0.0;
       }
    }
@@ -247,7 +277,12 @@ void run_mdint(void)
    reset_chrono();
    start_dfl_upd();
 
-   nlk=(double)(4*(N0-1))*(double)(N1*N2*N3);
+   nlk=(double)(4*N0*N1)*(double)(N2*N3);
+   if (bc_type()==0)
+      nlk-=(double)(N1)*(double)(N2*N3);
+   else if (bc_type()==1)
+      nlk-=(double)(3*N1)*(double)(N2*N3);
+
    s=mdsteps(&nop,&itu);
    sm=s+nop;
 
@@ -255,7 +290,7 @@ void run_mdint(void)
    {
       iop=(*s).iop;
       eps=(*s).eps;
-      
+
       if (iop<itu)
       {
          fp=force_parms(iop);
@@ -272,7 +307,7 @@ void run_mdint(void)
             set_frc2zero();
             status[2]=0;
             status[5]=0;
-            
+
             if (fp.force==FRF_TM1)
                force1(mu[fp.imu[0]],fp.ipf,fp.isp[0],fp.icr[0],
                       eps,status);
@@ -294,22 +329,22 @@ void run_mdint(void)
             else if (fp.force==FRF_RAT_SDET)
                force3(fp.irat,fp.ipf,1,fp.isp[0],
                       eps,status);
-            
+
             chk_mode_regen(fp.isp[0],status);
             add2counter("force",iop,status);
          }
 
          MPI_Barrier(MPI_COMM_WORLD);
          wt2=MPI_Wtime();
-         
+
          update_mom();
          nrm=norm_square_alg(4*VOLUME,1,(*mdfs).frc);
-         nrm=sqrt(nrm/nlk);   
+         nrm=sqrt(nrm/nlk);
 
          if (my_rank==0)
          {
             if (fp.force==FRG)
-               printf("Force FRG:              "); 
+               printf("Force FRG:              ");
             else if (fp.force==FRF_TM1)
                printf("Force FRF_TM1:          ");
             else if (fp.force==FRF_TM1_EO)
@@ -353,7 +388,7 @@ void run_mdint(void)
    mu=hmc.mu;
    reset_chrono();
    start_dfl_upd();
-   
+
    s=mdsteps(&nop,&itu);
    sm=s+nop;
 
@@ -361,7 +396,7 @@ void run_mdint(void)
    {
       iop=(*s).iop;
       eps=(*s).eps;
-      
+
       if (iop<itu)
       {
          fp=force_parms(iop);
@@ -373,8 +408,8 @@ void run_mdint(void)
             dfl_upd(fp.isp[0]);
             set_sw_parms(sea_quark_mass(fp.im0));
             status[2]=0;
-            status[5]=0;            
-            
+            status[5]=0;
+
             if (fp.force==FRF_TM1)
                force1(mu[fp.imu[0]],fp.ipf,fp.isp[0],fp.icr[0],
                       eps,status);
@@ -397,7 +432,7 @@ void run_mdint(void)
                force3(fp.irat,fp.ipf,1,fp.isp[0],
                       eps,status);
 
-            chk_mode_regen(fp.isp[0],status);            
+            chk_mode_regen(fp.isp[0],status);
             add2counter("force",iop,status);
          }
       }

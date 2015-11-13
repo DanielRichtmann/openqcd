@@ -3,12 +3,12 @@
 *
 * File check6.c
 *
-* Copyright (C) 2012, 2013 Martin Luescher
+* Copyright (C) 2012-2014 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Spectral range of the hermitian Dirac operator
+* Comparison of rwtm*eo() with action4().
 *
 *******************************************************************************/
 
@@ -17,312 +17,112 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include <string.h>
 #include "mpi.h"
 #include "su3.h"
 #include "random.h"
+#include "su3fcts.h"
 #include "flags.h"
 #include "utils.h"
 #include "lattice.h"
-#include "archive.h"
+#include "uflds.h"
+#include "mdflds.h"
 #include "sflds.h"
 #include "linalg.h"
-#include "sw_term.h"
 #include "dirac.h"
 #include "sap.h"
 #include "dfl.h"
-#include "ratfcts.h"
+#include "forces.h"
 #include "update.h"
 #include "global.h"
 
-#define MAX(n,m) \
-   if ((n)<(m)) \
-      (n)=(m)
 
-static int my_rank;
-static double ar[36];
-
-
-static void read_lat_parms(void)
+static double random_pf(void)
 {
-   double kappa,csw,cF;
+   mdflds_t *mdfs;
 
-   if (my_rank==0)
-   {
-      find_section("Lattice parameters");
-      read_line("kappa","%lf",&kappa);
-      read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);   
-   }
+   mdfs=mdflds();
+   random_sd(VOLUME/2,(*mdfs).pf[0],1.0);
 
-   MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
-   set_lat_parms(0.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
-   set_sw_parms(sea_quark_mass(0));
+   set_sd2zero(VOLUME/2,(*mdfs).pf[0]+VOLUME/2);
+   bnd_sd2zero(ALL_PTS,(*mdfs).pf[0]);
+
+   return norm_square_dble(VOLUME/2,1,(*mdfs).pf[0]);
 }
 
 
-static void read_sap_parms(void)
+static void divide_pf(double mu,int isp,int *status)
 {
-   int bs[4];
-
-   if (my_rank==0)
-   {
-      find_section("SAP");
-      read_line("bs","%d %d %d %d",bs,bs+1,bs+2,bs+3);
-   }
-
-   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   set_sap_parms(bs,1,4,5);
-}
-
-
-static void read_dfl_parms(void)
-{
-   int bs[4],Ns;
-   int ninv,nmr,ncy,nkv,nmx;
-   double kappa,mu,res;
-
-   if (my_rank==0)
-   {
-      find_section("Deflation subspace");
-      read_line("bs","%d %d %d %d",bs,bs+1,bs+2,bs+3);
-      read_line("Ns","%d",&Ns);
-   }
-
-   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
-   set_dfl_parms(bs,Ns);
-   
-   if (my_rank==0)
-   {
-      find_section("Deflation subspace generation");
-      read_line("kappa","%lf",&kappa);
-      read_line("mu","%lf",&mu);
-      read_line("ninv","%d",&ninv);     
-      read_line("nmr","%d",&nmr);
-      read_line("ncy","%d",&ncy);
-   }
-
-   MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&mu,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
-   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
-   
-   if (my_rank==0)
-   {
-      find_section("Deflation projection");
-      read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
-      read_line("res","%lf",&res);
-   }
-
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_dfl_pro_parms(nkv,nmx,res);
-}
-
-
-static void read_solver(void)
-{
-   int isap,idfl;
-   solver_parms_t sp;
-
-   isap=0;
-   idfl=0;
-   read_solver_parms(0);
-   sp=solver_parms(0);
-
-   if (sp.solver==SAP_GCR)
-      isap=1;
-   else if (sp.solver==DFL_SAP_GCR)
-   {
-      isap=1;
-      idfl=1;
-   }
-      
-   if (isap)
-      read_sap_parms();
-
-   if (idfl)
-      read_dfl_parms();
-}
-
-
-static void dfl_wsize(int *nws,int *nwv,int *nwvd)
-{
-   dfl_parms_t dp;
-   dfl_pro_parms_t dpp;
-
-   dp=dfl_parms();
-   dpp=dfl_pro_parms();
-
-   MAX(*nws,dp.Ns+2);
-   MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwvd,4);
-}
-
-
-static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
-{
-   int nsd;
-   solver_parms_t sp;
-
-   (*nws)=0;
-   (*nwsd)=0;
-   (*nwv)=0;
-   (*nwvd)=0;
-
-   nsd=2;
-   sp=solver_parms(0);
-
-   if (sp.solver==SAP_GCR)
-   {
-      MAX(*nws,2*sp.nkv+1);
-      MAX(*nwsd,nsd+2);
-   }
-   else if (sp.solver==DFL_SAP_GCR)
-   {
-      MAX(*nws,2*sp.nkv+2);      
-      MAX(*nwsd,nsd+4);
-      dfl_wsize(nws,nwv,nwvd);
-   }
-   else
-      error_root(1,1,"wsize [check6.c]",
-                 "Unknown or unsupported solver");   
-}
-
-
-static double power1(int pmx,int *status)
-{
-   int k,l,stat[6];
-   double r;
-   spinor_dble **wsd;
+   mdflds_t *mdfs;
+   spinor_dble *phi,*chi,**wsd;
    solver_parms_t sp;
    sap_parms_t sap;
+   tm_parms_t tm;
 
-   sw_term(NO_PTS);
-   sp=solver_parms(0);
-   sap=sap_parms();
-   set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);   
-   
-   if (sp.solver==SAP_GCR)
-      status[0]=0;
-   else
+   tm=tm_parms();
+   if (tm.eoflg!=1)
+      set_tm_parms(1);
+
+   mdfs=mdflds();
+   phi=(*mdfs).pf[0];
+   sp=solver_parms(isp);
+
+   if (sp.solver==CGNE)
    {
-      for (l=0;l<3;l++)
-         status[l]=0;
-   }
+      tmcgeo(sp.nmx,sp.res,mu,phi,phi,status);
 
-   wsd=reserve_wsd(2);
-   random_sd(VOLUME/2,wsd[0],1.0);
-   bnd_sd2zero(EVEN_PTS,wsd[0]);
-   r=normalize_dble(VOLUME/2,1,wsd[0]);   
-   
-   for (k=0;k<pmx;k++)
+      error_root(status[0]<0,1,"divide_pf [check6.c]",
+                 "CGNE solver failed (parameter set no %d, status = %d)",
+                 isp,status[0]);
+
+      wsd=reserve_wsd(1);
+      chi=wsd[0];
+      assign_sd2sd(VOLUME/2,phi,chi);
+      Dwhat_dble(-mu,chi,phi);
+      mulg5_dble(VOLUME/2,phi);
+      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+      release_wsd();
+   }
+   else if (sp.solver==SAP_GCR)
    {
-      if (sp.solver==SAP_GCR)
-      {
-         mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));         
-         sap_gcr(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
-         mulg5_dble(VOLUME/2,wsd[1]);
-         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));
-         sap_gcr(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+1);
+      sap=sap_parms();
+      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
 
-         error_root((stat[0]<0)||(stat[1]<0),1,"power2 [check6.c]",
-                    "SAP_GCR solver failed (status = %d;%d)",
-                    stat[0],stat[1]);
+      mulg5_dble(VOLUME/2,phi);
+      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+      sap_gcr(sp.nkv,sp.nmx,sp.res,mu,phi,phi,status);
+      set_sd2zero(VOLUME/2,phi+VOLUME/2);
 
-         for (l=0;l<2;l++)
-         {
-            if (status[0]<stat[l])
-               status[0]=stat[l];
-         }
-      }
-      else
-      {
-         mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));                  
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
-         mulg5_dble(VOLUME/2,wsd[1]);
-         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));                  
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+4);
-
-         error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
-                    "power2 [check6.c]","DFL_SAP_GCR solver failed "
-                    "(status = %d,%d,%d;%d,%d,%d)",
-                    stat[0],stat[1],stat[2],stat[3],
-                    stat[4],stat[5]);
-      
-         for (l=0;l<2;l++)
-         {
-            if (status[l]<stat[l])
-               status[l]=stat[l];
-
-            if (status[l]<stat[l+3])
-               status[l]=stat[l+3];            
-         }
-
-         status[2]+=stat[2];
-         status[2]+=stat[5];
-      }
-
-      r=normalize_dble(VOLUME/2,1,wsd[0]);
+      error_root(status[0]<0,1,"divide_pf [check6.c]",
+                 "SAP_GCR solver failed (parameter set no %d, status = %d)",
+                 isp,status[0]);
    }
-   
-   release_wsd();
-   
-   return 1.0/sqrt(r);
-}
-
-
-static double power2(int pmx)
-{
-   int k;
-   double r;
-   spinor_dble **wsd;
-
-   sw_term(ODD_PTS);
-   
-   wsd=reserve_wsd(2);
-   random_sd(VOLUME/2,wsd[0],1.0);
-   bnd_sd2zero(EVEN_PTS,wsd[0]);   
-   r=normalize_dble(VOLUME/2,1,wsd[0]);   
-
-   for (k=0;k<pmx;k++)
+   else if (sp.solver==DFL_SAP_GCR)
    {
-      Dwhat_dble(0.0,wsd[0],wsd[1]);
-      mulg5_dble(VOLUME/2,wsd[1]);
-      Dwhat_dble(0.0,wsd[1],wsd[0]);
-      mulg5_dble(VOLUME/2,wsd[0]);
+      sap=sap_parms();
+      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
 
-      r=normalize_dble(VOLUME/2,1,wsd[0]);
+      mulg5_dble(VOLUME/2,phi);
+      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu,phi,phi,status);
+      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+
+      error_root((status[0]<0)||(status[1]<0),1,
+                 "divide_pf [check6.c]","DFL_SAP_GCR solver failed "
+                 "(parameter set no %d, status = (%d,%d,%d))",
+                 isp,status[0],status[1],status[2]);
    }
-
-   release_wsd();
-   
-   return sqrt(r);
 }
 
 
 int main(int argc,char *argv[])
 {
-   int first,last,step;
-   int nc,nsize,icnfg;
-   int isap,idfl,pmx,n,status[3];
-   int nws,nwsd,nwv,nwvd;
-   double ra,ramin,ramax,raavg;
-   double rb,rbmin,rbmax,rbavg;
-   double A,eps,delta,Ne,d1,d2;
-   dfl_parms_t dfl;
-   char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE];
-   char nbase[NAME_SIZE];   
+   int my_rank,bc,irw,isp,status[6],mnkv;
+   int bs[4],Ns,nmx,nkv,nmr,ncy,ninv;
+   double chi[2],chi_prime[2];
+   double kappa,mu,res;
+   double mu1,mu2,act0,act1,sqn0,sqn1;
+   double da,ds,damx,dsmx;
+   solver_parms_t sp;
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -334,188 +134,237 @@ int main(int argc,char *argv[])
       fin=freopen("check6.in","r",stdin);
 
       printf("\n");
-      printf("Spectral range of the hermitian Dirac operator\n");
-      printf("----------------------------------------------\n\n");
+      printf("Comparison of rwtm*eo() with action4()\n");
+      printf("--------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
-      find_section("Configurations");
-      read_line("cnfg_dir","%s",cnfg_dir);
-      read_line("name","%s",nbase);
-      read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);
+      bc=find_opt(argc,argv,"-bc");
 
-      find_section("Power method");
-      read_line("pmx","%d",&pmx);
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check6.c]",
+                    "Syntax: check6 [-bc <type>]");
    }
-   
-   MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&pmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   
-   read_lat_parms();
-   read_solver();
+
+   set_lat_parms(5.5,1.0,0,NULL,1.782);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   chi[0]=0.123;
+   chi[1]=-0.534;
+   chi_prime[0]=0.912;
+   chi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,0.953,1.203,chi,chi_prime);
+   print_bc_parms();
+
+   mnkv=0;
+
+   for (isp=0;isp<3;isp++)
+   {
+      read_solver_parms(isp);
+      sp=solver_parms(isp);
+
+      if (sp.nkv>mnkv)
+         mnkv=sp.nkv;
+   }
 
    if (my_rank==0)
    {
+      find_section("SAP");
+      read_line("bs","%d %d %d %d",bs,bs+1,bs+2,bs+3);
+   }
+
+   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   set_sap_parms(bs,0,1,1);
+
+   if (my_rank==0)
+   {
+      find_section("Deflation subspace");
+      read_line("bs","%d %d %d %d",bs,bs+1,bs+2,bs+3);
+      read_line("Ns","%d",&Ns);
+   }
+
+   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
+   set_dfl_parms(bs,Ns);
+
+   if (my_rank==0)
+   {
+      find_section("Deflation subspace generation");
+      read_line("kappa","%lf",&kappa);
+      read_line("mu","%lf",&mu);
+      read_line("ninv","%d",&ninv);
+      read_line("nmr","%d",&nmr);
+      read_line("ncy","%d",&ncy);
+   }
+
+   MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&mu,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&ninv,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
+   set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
+
+   if (my_rank==0)
+   {
+      find_section("Deflation projection");
+      read_line("nkv","%d",&nkv);
+      read_line("nmx","%d",&nmx);
+      read_line("res","%lf",&res);
       fclose(fin);
-
-      print_lat_parms();
-      print_solver_parms(&isap,&idfl);
-      if (isap)
-         print_sap_parms(0);
-      if (idfl)
-         print_dfl_parms(0);
    }
 
-   dfl=dfl_parms();
-   wsize(&nws,&nwsd,&nwv,&nwvd);
-   alloc_ws(nws);
-   alloc_wsd(nwsd);
-   alloc_wv(nwv);
-   alloc_wvd(nwvd);   
-   
-   if (my_rank==0)
-   {
-      printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
-             nbase,first,nbase,last,step);      
-      fflush(flog);
-   }
+   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   set_dfl_pro_parms(nkv,nmx,res);
+   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);
 
-   start_ranlux(0,1234);
+   print_solver_parms(status,status+1);
+   print_sap_parms(0);
+   print_dfl_parms(0);
+
+   start_ranlux(0,1245);
    geometry();
-   
-   error_root(((last-first)%step)!=0,1,"main [check6.c]",
-              "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
 
-   nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
-   error_root(nsize>=NAME_SIZE,1,"main [check6.c]",
-              "Configuration file name is too long");
+   mnkv=2*mnkv+2;
+   if (mnkv<(Ns+2))
+      mnkv=Ns+2;
+   if (mnkv<5)
+      mnkv=5;
 
-   ramin=0.0;
-   ramax=0.0;
-   raavg=0.0;
-   
-   rbmin=0.0;
-   rbmax=0.0;
-   rbavg=0.0;
-   
-   for (icnfg=first;icnfg<=last;icnfg+=step)
+   alloc_ws(mnkv);
+   alloc_wsd(6);
+   alloc_wv(2*nkv+2);
+   alloc_wvd(4);
+   damx=0.0;
+   dsmx=0.0;
+
+   for (irw=1;irw<5;irw++)
    {
-      sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
-      import_cnfg(cnfg_file);
-
-      if (my_rank==0)
+      for (isp=0;isp<3;isp++)
       {
-         printf("Configuration no %d\n",icnfg);
-         fflush(flog);
-      }
-
-      if (dfl.Ns)
-      {
-         dfl_modes(status);
-         error_root(status[0]<0,1,"main [check6.c]",
-                    "Deflation subspace generation failed (status = %d)",
-                    status[0]);
-      }
-
-      ra=power1(pmx,status);
-      rb=power2(pmx);
-      
-      if (icnfg==first)
-      {
-         ramin=ra;
-         ramax=ra;
-         raavg=ra;
-
-         rbmin=rb;
-         rbmax=rb;
-         rbavg=rb;
-      }
-      else
-      {
-         if (ra<ramin)
-            ramin=ra;
-         if (ra>ramax)
-            ramax=ra;
-         raavg+=ra;
-
-         if (rb<rbmin)
-            rbmin=rb;
-         if (rb>rbmax)
-            rbmax=rb;
-         rbavg+=rb;
-      }
-      
-      if (my_rank==0)
-      {
-         printf("ra = %.2e, rb = %.2e\n",ra,rb);
-
-         if (idfl)
-            printf("status = %d,%d,%d\n\n",
-                   status[0],status[1],status[2]);
+         if (isp==0)
+         {
+            set_sw_parms(1.0877);
+            if (irw<3)
+               mu1=1.0;
+            else
+               mu1=0.0;
+            mu2=1.23;
+         }
+         else if (isp==1)
+         {
+            set_sw_parms(0.0877);
+            if (irw<3)
+               mu1=0.1;
+            else
+               mu1=0.0;
+            mu2=0.123;
+         }
          else
-            printf("status = %d\n\n",status[0]);
-         
-         fflush(flog);
+         {
+            set_sw_parms(-0.0123);
+            if (irw<3)
+               mu1=0.01;
+            else
+               mu1=0.0;
+            mu2=0.0123;
+         }
+
+         random_ud();
+         chs_ubnd(-1);
+
+         if (isp==2)
+         {
+            dfl_modes(status);
+            error_root(status[0]<0,1,"main [check6.c]",
+                       "dfl_modes failed");
+         }
+
+         start_ranlux(0,8910+isp);
+         sqn0=random_pf();
+
+         if ((irw&0x1)==1)
+            act0=(mu2*mu2-mu1*mu1)*action4(mu1,0,0,isp,1,status);
+         else
+         {
+            if ((isp==0)||(isp==1))
+               divide_pf(mu1,isp,status+1);
+            else
+               divide_pf(mu1,isp,status+3);
+
+            act0=mu1*mu1*(mu2*mu2-mu1*mu1)*action4(mu1,0,0,isp,1,status);
+            act0+=2.0*mu2*mu2*mu2*mu2*action4(sqrt(2.0)*mu2,0,0,isp,1,status);
+            act0*=((mu2*mu2-mu1*mu1)/(2*mu2*mu2-mu1*mu1));
+         }
+
+         if (my_rank==0)
+         {
+            printf("Solver number %d, mu1 = %.2e, mu2 = %.2e\n",isp,mu1,mu2);
+            printf("action4(): ");
+
+            if ((isp==0)||(isp==1))
+               printf("status = %d\n",status[0]);
+            else if (isp==2)
+               printf("status = (%d,%d,%d)\n",
+                      status[0],status[1],status[2]);
+         }
+
+         start_ranlux(0,8910+isp);
+
+         if ((irw&0x1)==1)
+            act1=rwtm1eo(mu1,mu2,isp,&sqn1,status);
+         else
+            act1=rwtm2eo(mu1,mu2,isp,&sqn1,status);
+
+         da=fabs(1.0-act1/act0);
+         ds=fabs(1.0-sqn1/sqn0);
+
+         if (da>damx)
+            damx=da;
+         if (ds>dsmx)
+            dsmx=ds;
+
+         if (my_rank==0)
+         {
+            if ((irw&0x1)==1)
+            {
+               printf("rwtm1eo(): ");
+
+               if ((isp==0)||(isp==1))
+                  printf("status = %d\n",status[0]);
+               else if (isp==2)
+                  printf("status = (%d,%d,%d)\n",
+                         status[0],status[1],status[2]);
+            }
+            else
+            {
+               printf("rwtm2eo(): ");
+
+               if ((isp==0)||(isp==1))
+                  printf("status = %d,%d\n",status[0],status[1]);
+               else if (isp==2)
+                  printf("status = (%d,%d,%d),(%d,%d,%d)\n",
+                         status[0],status[1],status[2],status[3],
+                         status[4],status[5]);
+            }
+
+            printf("|1-act1/act0| = %.1e, |1-sqn1/sqn0| = %.1e\n\n",da,ds);
+         }
+
+         error_chk();
       }
    }
 
    if (my_rank==0)
    {
-      nc=(last-first)/step+1;
-      
-      printf("Summary\n");
-      printf("-------\n\n");
-
-      printf("Considered %d configurations in the range %d -> %d\n\n",
-             nc,first,last);
-
-      printf("The three figures quoted in each case are the minimal,\n");
-      printf("maximal and average values\n\n");
-
-      printf("Spectral gap ra    = %.2e, %.2e, %.2e\n",
-             ramin,ramax,raavg/(double)(nc));
-      printf("Spectral radius rb = %.2e, %.2e, %.2e\n\n",
-             rbmin,rbmax,rbavg/(double)(nc));
-
-      ra=0.90*ramin;
-      rb=1.03*rbmax;
-      eps=ra/rb;
-      eps=eps*eps;
-      Ne=0.5*(double)(NPROC0*L0-2)*(double)(NPROC1*NPROC2*NPROC3*L1*L2*L3);
-
-      printf("Zolotarev rational approximation:\n");
-      printf("Spectral range = [%.2e,%.2e]\n",ra,rb);
-      printf("    n      delta    12*Ne*delta     12*Ne*delta^2\n");
-
-      for (n=6;n<=18;n+=2)
-      {
-         zolotarev(n,eps,&A,ar,&delta);
-         d1=12.0*Ne*delta;
-         d2=d1*delta;
-
-         printf("   %2d     %.1e      %.1e         %.1e\n",n,delta,d1,d2);
-         
-         if ((d1<1.0e-2)&&(d2<1.0e-4))
-            break;
-      }
-
-      printf("\n");
+      printf("max|1-act1/act0| = %.1e, max|1-sqn1/sqn0| = %.1e\n\n",damx,dsmx);
+      fclose(flog);
    }
 
-   error_chk();
-   
-   if (my_rank==0)
-      fclose(flog);
-   
-   MPI_Finalize();    
+   MPI_Finalize();
    exit(0);
 }

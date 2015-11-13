@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the programs in the module sdflds.c
+* Check of the programs in the module sflds.c.
 *
 *******************************************************************************/
 
@@ -49,20 +49,18 @@ int main(int argc,char *argv[])
    int my_rank,ie,k,i,ix;
    float *r;
    double *rd,var,var_all,d,dmax;
-   complex z;
-   complex_dble zd;
    spinor **ps;
    spinor_dble **psd;
    spin_t *sps;
    spin_dble_t *spsd;
-   FILE *flog=NULL;   
+   FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
    {
-      flog=freopen("check1.log","w",stdout); 
+      flog=freopen("check1.log","w",stdout);
       printf("\n");
       printf("Check of the programs in the module sflds.c\n");
       printf("-------------------------------------------\n\n");
@@ -77,9 +75,7 @@ int main(int argc,char *argv[])
    alloc_ws(2*NFLDS);
    alloc_wsd(2*NFLDS);
    ps=reserve_ws(2*NFLDS);
-   psd=reserve_wsd(2*NFLDS);   
-   z.im=0.0f;
-   zd.im=0.0;
+   psd=reserve_wsd(2*NFLDS);
    ie=0;
 
    for (k=0;k<NFLDS;k++)
@@ -89,7 +85,7 @@ int main(int argc,char *argv[])
       for (ix=0;ix<NSPIN;ix++)
       {
          r=(*sps).r;
-         
+
          for (i=0;i<24;i++)
             if (r[i]!=0.0f)
                ie=1;
@@ -103,7 +99,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("Choose random single-precision spinor fields\n");   
+      printf("Choose random single-precision spinor fields\n");
       ranlxs(sig,NFLDS);
    }
 
@@ -113,12 +109,12 @@ int main(int argc,char *argv[])
    {
       random_s(VOLUME,ps[k],sig[k]);
       var=0.0;
-      sps=(spin_t*)(ps[k]);      
+      sps=(spin_t*)(ps[k]);
 
       for (ix=0;ix<VOLUME;ix++)
       {
          r=(*sps).r;
-         
+
          for (i=0;i<24;i++)
             var+=(double)(r[i]*r[i]);
 
@@ -126,23 +122,35 @@ int main(int argc,char *argv[])
       }
 
       MPI_Reduce(&var,&var_all,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      
+
       if (my_rank==0)
       {
-         var_all/=((double)(12*NPROC)*(double)(VOLUME));               
+         var_all/=((double)(12*NPROC)*(double)(VOLUME));
          printf("<s[%d]^2> = %.4e (sigma^2 = %.4e)\n",
                 k,var_all,sig[k]*sig[k]);
       }
    }
 
+   ie=0;
+
+   for (k=0;k<NFLDS;k++)
+   {
+      set_s2zero(VOLUME,ps[k]);
+      d=(double)(norm_square(VOLUME,1,ps[k]));
+      ie|=(d!=0.0);
+   }
+
+   error(ie!=0,1,"main [check1.c]",
+         "Fields are not properly set to zero by set_s2zero()");
+
    for (k=0;k<NFLDS;k++)
    {
       spsd=(spin_dble_t*)(psd[k]);
-      
+
       for (ix=0;ix<NSPIN;ix++)
       {
          rd=(*spsd).r;
-         
+
          for (i=0;i<24;i++)
             if (rd[i]!=0.0)
                ie=1;
@@ -153,26 +161,26 @@ int main(int argc,char *argv[])
 
    error(ie,1,"main [check1.c]",
          "Double-precision fields are not properly initialized");
-   
+
    if (my_rank==0)
    {
       printf("\n");
-      printf("Choose random double-precision spinor fields\n");   
+      printf("Choose random double-precision spinor fields\n");
       ranlxd(sigd,NFLDS);
    }
 
    MPI_Bcast(sigd,NFLDS,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_sd(VOLUME,psd[k],sigd[k]);
       var=0.0;
-      spsd=(spin_dble_t*)(psd[k]);      
+      spsd=(spin_dble_t*)(psd[k]);
 
       for (ix=0;ix<VOLUME;ix++)
       {
          rd=(*spsd).r;
-         
+
          for (i=0;i<24;i++)
             var+=(rd[i]*rd[i]);
 
@@ -180,7 +188,7 @@ int main(int argc,char *argv[])
       }
 
       MPI_Reduce(&var,&var_all,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      
+
       if (my_rank==0)
       {
          var_all/=((double)(12*NPROC)*(double)(VOLUME));
@@ -189,6 +197,17 @@ int main(int argc,char *argv[])
       }
    }
 
+   ie=0;
+
+   for (k=0;k<NFLDS;k++)
+   {
+      set_sd2zero(VOLUME,psd[k]);
+      d=norm_square_dble(VOLUME,1,psd[k]);
+      ie|=(d!=0.0);
+   }
+
+   error(ie!=0,1,"main [check1.c]",
+         "Fields are not properly set to zero by set_sd2zero()");
 
    for (k=0;k<NFLDS;k++)
    {
@@ -197,13 +216,11 @@ int main(int argc,char *argv[])
       assign_s2s(VOLUME,ps[k],ps[k+NFLDS]);
       assign_sd2sd(VOLUME,psd[k],psd[k+NFLDS]);
 
-      z.re=-1.0f;
-      zd.re=-1.0;
-      mulc_spinor_add(VOLUME,ps[k],ps[k+NFLDS],z);
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],zd);      
+      mulr_spinor_add(VOLUME,ps[k],ps[k+NFLDS],-1.0f);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
       sps=(spin_t*)(ps[k]);
       spsd=(spin_dble_t*)(psd[k]);
-      
+
       for (ix=0;ix<VOLUME;ix++)
       {
          r=(*sps).r;
@@ -228,10 +245,9 @@ int main(int argc,char *argv[])
       assign_s2sd(VOLUME,ps[k],psd[k]);
       assign_sd2s(VOLUME,psd[k],ps[k+NFLDS]);
 
-      z.re=-1.0f;
-      mulc_spinor_add(VOLUME,ps[k],ps[k+NFLDS],z);
+      mulr_spinor_add(VOLUME,ps[k],ps[k+NFLDS],-1.0f);
       sps=(spin_t*)(ps[k]);
-      
+
       for (ix=0;ix<VOLUME;ix++)
       {
          r=(*sps).r;
@@ -246,21 +262,19 @@ int main(int argc,char *argv[])
          "assign_s2sd() or assign_sd2s() is incorrect");
 
    dmax=0.0;
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_s(VOLUME,ps[k],1.0f);
       random_s(VOLUME,ps[k+NFLDS],1.0f);
       assign_s2sd(VOLUME,ps[k],psd[k]);
-      assign_s2sd(VOLUME,ps[k+NFLDS],psd[k+NFLDS]);      
+      assign_s2sd(VOLUME,ps[k+NFLDS],psd[k+NFLDS]);
 
       diff_s2s(VOLUME,ps[k],ps[k+NFLDS]);
-      zd.re=-1.0;
-      mulc_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],-1.0);
       d=norm_square_dble(VOLUME,1,psd[k+NFLDS]);
       assign_s2sd(VOLUME,ps[k+NFLDS],psd[k]);
-      zd.re=1.0;
-      mulc_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],1.0);
 
       d=norm_square_dble(VOLUME,1,psd[k+NFLDS])/d;
       if (d>dmax)
@@ -275,7 +289,7 @@ int main(int argc,char *argv[])
    }
 
    dmax=0.0;
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_s(VOLUME,ps[k],1.0f);
@@ -284,10 +298,9 @@ int main(int argc,char *argv[])
 
       add_s2sd(VOLUME,ps[k],psd[k]);
       d=norm_square_dble(VOLUME,1,psd[k]);
-      zd.re=-1.0;
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
       assign_s2sd(VOLUME,ps[k],psd[k+NFLDS]);
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
 
       d=norm_square_dble(VOLUME,1,psd[k])/d;
       if (d>dmax)
@@ -296,20 +309,19 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
       printf("add_s2sd():  %.1e\n",sqrt(dmax));
-   
+
    dmax=0.0;
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_sd(VOLUME,psd[k],1.0);
       random_sd(VOLUME,psd[k+NFLDS],1.0);
 
       diff_sd2s(VOLUME,psd[k],psd[k+NFLDS],ps[k]);
-      zd.re=-1.0;
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
       d=norm_square_dble(VOLUME,1,psd[k]);
       assign_s2sd(VOLUME,ps[k],psd[k+NFLDS]);
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],zd);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
 
       d=norm_square_dble(VOLUME,1,psd[k])/d;
       if (d>dmax)
@@ -322,6 +334,6 @@ int main(int argc,char *argv[])
       fclose(flog);
    }
 
-   MPI_Finalize();   
+   MPI_Finalize();
    exit(0);
 }

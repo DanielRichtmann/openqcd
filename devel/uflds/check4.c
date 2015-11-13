@@ -3,13 +3,13 @@
 *
 * File check4.c
 *
-* Copyright (C) 2005, 2007, 2008, 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2007-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program for the plaquette action of the double-precision
-* gauge field
+* Check of the programs for the plaquette sums of the double-precision
+* gauge field.
 *
 *******************************************************************************/
 
@@ -34,13 +34,16 @@
 #define N2 (NPROC2*L2)
 #define N3 (NPROC3*L3)
 
-static int nfc[8],ofs[8];
+static int bc,nfc[8],ofs[8];
+static double asl1[N0],asl2[N0];
+static const su3_dble ud0={{0.0}};
 static su3_dble *g,*gbuf;
+static su3_dble wd ALIGNED16;
 
 
 static void pack_gbuf(void)
 {
-   int n,ix,iy,io;
+   int ifc,ib,ix;
 
    nfc[0]=FACE0/2;
    nfc[1]=FACE0/2;
@@ -60,14 +63,12 @@ static void pack_gbuf(void)
    ofs[6]=ofs[5]+nfc[5];
    ofs[7]=ofs[6]+nfc[6];
 
-   for (n=0;n<8;n++)
+   for (ifc=0;ifc<8;ifc++)
    {
-      io=ofs[n];
-
-      for (ix=0;ix<nfc[n];ix++)
+      for (ib=0;ib<nfc[ifc];ib++)
       {
-         iy=map[io+ix];
-         gbuf[io+ix]=g[iy];
+         ix=map[ofs[ifc]+ib];
+         gbuf[ofs[ifc]+ib]=g[ix];
       }
    }
 }
@@ -75,46 +76,34 @@ static void pack_gbuf(void)
 
 static void send_gbuf(void)
 {
-   int n,mu,np,saddr,raddr;
+   int ifc,np,saddr,raddr;
    int nbf,tag;
    su3_dble *sbuf,*rbuf;
    MPI_Status stat;
 
-   for (n=0;n<8;n++)
+   np=cpr[0]+cpr[1]+cpr[2]+cpr[3];
+
+   for (ifc=0;ifc<8;ifc++)
    {
-      nbf=18*nfc[n];
+      nbf=18*nfc[ifc];
 
       if (nbf>0)
       {
          tag=mpi_tag();
-         mu=n/2;
-         np=cpr[mu];
+         saddr=npr[ifc^0x1];
+         raddr=npr[ifc];
+         sbuf=gbuf+ofs[ifc];
+         rbuf=g+VOLUME+ofs[ifc];
 
-         if (n==(2*mu))
+         if (np&0x1)
          {
-            saddr=npr[n+1];
-            raddr=npr[n];
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
          }
          else
          {
-            saddr=npr[n-1];
-            raddr=npr[n];
-         }
-
-         sbuf=gbuf+ofs[n];
-         rbuf=g+ofs[n]+VOLUME;
-
-         if ((np|0x1)!=np)
-         {
-            MPI_Send((double*)(sbuf),nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
-            MPI_Recv((double*)(rbuf),nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,
-                     &stat);
-         }
-         else
-         {
-            MPI_Recv((double*)(rbuf),nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,
-                     &stat);
-            MPI_Send((double*)(sbuf),nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
          }
       }
    }
@@ -123,12 +112,26 @@ static void send_gbuf(void)
 
 static void random_g(void)
 {
-   su3_dble *gx,*gm;
+   int ix,t;
+   su3_dble unity,*gx;
 
-   gm=g+VOLUME;
+   unity=ud0;
+   unity.c11.re=1.0;
+   unity.c22.re=1.0;
+   unity.c33.re=1.0;
+   gx=g;
 
-   for (gx=g;gx<gm;gx++)
-      random_su3_dble(gx);
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if ((t>0)||(bc!=1))
+         random_su3_dble(gx);
+      else
+         (*gx)=unity;
+
+      gx+=1;
+   }
 
    if (BNDRY>0)
    {
@@ -140,36 +143,112 @@ static void random_g(void)
 
 static void transform_ud(void)
 {
-   int ix,iy,mu;
-   su3_dble *ub,u,v,w;
-   su3_dble gx,gxi,gy,gyi;
+   int ix,iy,t,ifc;
+   su3_dble *u;
 
-   ub=udfld();
-   
+   u=udfld();
+
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
    {
-      gx=g[ix];
+      t=global_time(ix);
 
-      for (mu=0;mu<4;mu++)
+      if (t==0)
       {
-         iy=iup[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu];
-         _su3_dagger(gyi,gy);
-         _su3_times_su3(v,u,gyi);
-         _su3_times_su3(w,gx,v);
-         ub[2*mu]=w;
+         iy=iup[ix][0];
+         su3xsu3dag(u,g+iy,&wd);
+         su3xsu3(g+ix,&wd,u);
+         u+=1;
 
-         iy=idn[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu+1];
-         _su3_dagger(gxi,gx);
-         _su3_times_su3(v,u,gxi);
-         _su3_times_su3(w,gy,v);
-         ub[2*mu+1]=w;
+         if (bc==3)
+         {
+            iy=idn[ix][0];
+            su3xsu3dag(u,g+ix,&wd);
+            su3xsu3(g+iy,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            iy=idn[ix][0];
+            su3xsu3(g+iy,u,&wd);
+            (*u)=wd;
+         }
+
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
+         {
+            if (bc!=1)
+            {
+               if (ifc&0x1)
+               {
+                  iy=idn[ix][ifc/2];
+                  su3xsu3dag(u,g+ix,&wd);
+                  su3xsu3(g+iy,&wd,u);
+               }
+               else
+               {
+                  iy=iup[ix][ifc/2];
+                  su3xsu3dag(u,g+iy,&wd);
+                  su3xsu3(g+ix,&wd,u);
+               }
+            }
+
+            u+=1;
+         }
       }
+      else if (t==(N0-1))
+      {
+         if (bc==3)
+         {
+            iy=iup[ix][0];
+            su3xsu3dag(u,g+iy,&wd);
+            su3xsu3(g+ix,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            su3xsu3(g+ix,u,&wd);
+            (*u)=wd;
+         }
 
-      ub+=8;
+         u+=1;
+
+         for (ifc=1;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+
+            u+=1;
+         }
+      }
+      else
+      {
+         for (ifc=0;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+
+            u+=1;
+         }
+      }
    }
 
    set_flags(UPDATED_UD);
@@ -201,9 +280,10 @@ static void random_vec(int *svec)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,n,s[4];
-   double cG,npl,p1,p2,eps;
-   double phi[4];
+   int my_rank,n,t,s[4];
+   double phi[2],phi_prime[2],act1;
+   double nplaq1,nplaq2,p1,p2;
+   double d1,d2,d3;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -220,8 +300,21 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check4.c]",
+                    "Syntax: check4 [-bc <type>]");
    }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
@@ -234,78 +327,164 @@ int main(int argc,char *argv[])
    error((g==NULL)||((BNDRY>0)&&(gbuf==NULL)),1,"main [check4.c]",
          "Unable to allocate auxiliary arrays");
 
-   cG=1.3456;   
-   npl=(double)(6*(N0-1))*(double)(N1*N2*N3);
-   set_lat_parms(5.3,1.6667,0.0,0.0,0.0,1.234,cG,1.876);
-   p1=plaq_wsum_dble(1);
-
-   if (my_rank==0)
-      printf("Average after initialization = %.8e (cG!=1), ",p1/npl);
-
-   npl=(double)(6*N0-3)*(double)(N1*N2*N3);   
    p1=plaq_sum_dble(1);
+   p2=plaq_wsum_dble(1);
+
+   if (bc==0)
+   {
+      nplaq1=(double)((6*N0-3)*N1)*(double)(N2*N3);
+      nplaq2=(double)((6*N0-6)*N1)*(double)(N2*N3);
+   }
+   else if (bc==3)
+   {
+      nplaq1=(double)(6*N0*N1)*(double)(N2*N3);
+      nplaq2=nplaq1;
+   }
+   else
+   {
+      nplaq1=(double)((6*N0+3)*N1)*(double)(N2*N3);
+      nplaq2=(double)(6*N0*N1)*(double)(N2*N3);
+   }
+
+   d1=0.0;
+   d2=0.0;
+
+   if (bc==1)
+   {
+      d1=cos(phi[0]/(double)(N1))+
+         cos(phi[1]/(double)(N1))+
+         cos((phi[0]+phi[1])/(double)(N1))+
+         cos(phi[0]/(double)(N2))+
+         cos(phi[1]/(double)(N2))+
+         cos((phi[0]+phi[1])/(double)(N2))+
+         cos(phi[0]/(double)(N3))+
+         cos(phi[1]/(double)(N3))+
+         cos((phi[0]+phi[1])/(double)(N3));
+
+      d1=(d1-9.0)*(double)(N1*N2*N3);
+   }
+
+   if ((bc==1)||(bc==2))
+   {
+      d2=cos(phi_prime[0]/(double)(N1))+
+         cos(phi_prime[1]/(double)(N1))+
+         cos((phi_prime[0]+phi_prime[1])/(double)(N1))+
+         cos(phi_prime[0]/(double)(N2))+
+         cos(phi_prime[1]/(double)(N2))+
+         cos((phi_prime[0]+phi_prime[1])/(double)(N2))+
+         cos(phi_prime[0]/(double)(N3))+
+         cos(phi_prime[1]/(double)(N3))+
+         cos((phi_prime[0]+phi_prime[1])/(double)(N3));
+
+      d2=(d2-9.0)*(double)(N1*N2*N3);
+   }
 
    if (my_rank==0)
    {
-      printf("%.8e (cG=1)\n",p1/npl);
-      printf("(should be equal to 3.0)\n\n");
-   }   
-   
+      printf("After field initialization:\n");
+      printf("Deviation from expected value (plaq_sum)  = %.1e\n",
+             fabs(1.0-p1/(3.0*nplaq1+d1+d2)));
+      printf("Deviation from expected value (plaq_wsum) = %.1e\n\n",
+             fabs(1.0-p2/(3.0*nplaq2+d1+d2)));
+   }
+
    print_flags();
    random_ud();
 
-   p1=plaq_wsum_dble(1);
-   random_g();
-   transform_ud();
+   p1=plaq_sum_dble(1);
    p2=plaq_wsum_dble(1);
+   act1=plaq_action_slices(asl1);
+   d1=act1;
 
-   eps=sqrt(npl)*(double)(DBL_EPSILON);   
-   
+   if ((bc==0)||(bc==3))
+   {
+      for (t=0;t<N0;t++)
+         d1-=asl1[t];
+   }
+
    if (my_rank==0)
    {
-      printf("Gauge invariance: absolute difference = %.1e\n",
-             fabs(p1-p2));
-      printf("(expected to be %.1e or so)\n\n",eps);
+      printf("Comparison of plaq_wsum_dble() with plaq_action_slices():\n");
+      printf("Absolute difference of total action = %.1e\n",
+             fabs(3.0*nplaq2-0.5*act1-p2));
+      if ((bc==0)||(bc==3))
+         printf("Deviation from sum of action slices = %.1e\n\n",
+                fabs(d1));
+      else
+         printf("\n");
+   }
+
+   random_g();
+   transform_ud();
+   d1=fabs(p1-plaq_sum_dble(1));
+   d2=fabs(p2-plaq_wsum_dble(1));
+   plaq_action_slices(asl2);
+   d3=0.0;
+
+   for (t=0;t<N0;t++)
+      d3+=fabs(asl1[t]-asl2[t]);
+
+   if (my_rank==0)
+   {
+      printf("Gauge invariance:\n");
+      printf("Relative difference (plaq_sum_dble)  = %.1e\n",d1/fabs(p1));
+      printf("Relative difference (plaq_wsum_dble) = %.1e\n",d2/fabs(p2));
+      printf("Relative difference (action slices)  = %.1e\n\n",
+             d3/((double)(N0)*asl2[1]));
    }
 
    if (my_rank==0)
       printf("Translation invariance:\n");
 
-   p1=plaq_wsum_dble(1);
-      
+   random_ud();
+   p1=plaq_sum_dble(1);
+   p2=plaq_wsum_dble(1);
+   plaq_action_slices(asl1);
+
    for (n=0;n<8;n++)
    {
       random_vec(s);
-      s[0]=0;
+      if (bc!=3)
+         s[0]=0;
       shift_ud(s);
+      d1=fabs(p1-plaq_sum_dble(1));
+      d2=fabs(p2-plaq_wsum_dble(1));
+      plaq_action_slices(asl2);
+      d3=0.0;
+
+      for (t=0;t<N0;t++)
+         d3+=fabs(asl1[safe_mod(t-s[0],N0)]-asl2[t]);
+
+      for (t=0;t<N0;t++)
+         asl1[t]=asl2[t];
+
+      if (my_rank==0)
+      {
+         printf("s=(% 3d,% 3d,% 3d,% 3d):\n",s[0],s[1],s[2],s[3]);
+         printf("Absolute deviation (plaq_sum_dble)  = %.1e\n",d1);
+         printf("Absolute deviation (plaq_wsum_dble) = %.1e\n",d2);
+         printf("Absolute difference (action slices) = %.1e\n\n",
+                d2/(double)(N0));
+      }
+   }
+
+   if (bc==1)
+   {
+      random_ud();
+      p1=plaq_sum_dble(1);
       p2=plaq_wsum_dble(1);
 
       if (my_rank==0)
       {
-         printf("s=(% 3d,% 3d,% 3d), ",s[1],s[2],s[3]);
-         printf("absolute deviation = %.1e\n",fabs(p1-p2));
+         printf("\n");
+         printf("Comparison of plaq_sum_dble() and plaq_wsum_dble():\n");
+         printf("Absolute deviation = %.1e\n\n",
+                fabs(p1-p2-9.0*(double)(N1*N2*N3)));
       }
    }
 
-   set_lat_parms(5.3,1.6667,0.0,0.0,0.0,1.234,2.0,1.876);
-   phi[0]=0.1;
-   phi[1]=0.2;
-   phi[2]=0.3;
-   phi[3]=0.4;
-   set_sf_parms(phi,phi+2);
-   random_ud();
-   
-   p1=plaq_sum_dble(1);
-   p2=plaq_wsum_dble(1);
-   
    if (my_rank==0)
-   {
-      printf("\n");
-      printf("Comparison of plaq_sum_dble() and plaq_wsum_dble() with\n");
-      printf("SF boundary conditions: absolute deviation = %.1e\n\n",
-             fabs(p1-p2-9.0*(double)(N1*N2*N3)));
       fclose(flog);
-   }
 
    MPI_Finalize();
    exit(0);

@@ -3,7 +3,7 @@
 *
 * File swflds.c
 *
-* Copyright (C) 2006, 2011 Martin Luescher
+* Copyright (C) 2006, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -13,20 +13,14 @@
 * The externally accessible functions are
 *
 *   pauli *swfld(void)
-*     Returns the base address of the single-precision SW field. If it 
-*     is not already allocated, the field is allocated and initialized 
+*     Returns the base address of the single-precision SW field. If it
+*     is not already allocated, the field is allocated and initialized
 *     to unity.
 *
 *   pauli_dble *swdfld(void)
-*     Returns the base address of the double-precision SW field. If it 
-*     is not already allocated, the field is allocated and initialized 
+*     Returns the base address of the double-precision SW field. If it
+*     is not already allocated, the field is allocated and initialized
 *     to unity.
-*
-*   void free_sw(void)
-*     Frees the single-precision SW field.
-*
-*   void free_swd(void)
-*     Frees the double-precision SW field.
 *
 *   void assign_swd2sw(void)
 *     Assigns the double-precision to the single-precision SW field.
@@ -52,7 +46,6 @@
 
 static const pauli sw0={{0.0f}};
 static const pauli_dble swd0={{0.0}};
-
 static pauli *swb=NULL;
 static pauli_dble *swdb=NULL;
 
@@ -63,7 +56,7 @@ static void alloc_sw(void)
 
    error_root(sizeof(pauli)!=(36*sizeof(float)),1,"alloc_sw [swflds.c]",
               "The pauli structures are not properly packed");
-   
+
    swb=amalloc(2*VOLUME*sizeof(*swb),ALIGN);
    error(swb==NULL,1,"alloc_sw [swflds.c]",
          "Unable to allocate the global single-precision SW field");
@@ -99,7 +92,7 @@ static void alloc_swd(void)
 
    error_root(sizeof(pauli_dble)!=(36*sizeof(double)),1,"alloc_swd [swflds.c]",
               "The pauli_dble structures are not properly packed");
-   
+
    swdb=amalloc(2*VOLUME*sizeof(*swdb),ALIGN);
    error(swdb==NULL,1,"alloc_swd [swflds.c]",
          "Unable to allocate the global double-precision SW field");
@@ -129,30 +122,6 @@ pauli_dble *swdfld(void)
 }
 
 
-void free_sw(void)
-{
-   if (swb!=NULL)
-   {
-      afree(swb);
-      swb=NULL;
-   }
-
-   set_flags(ERASED_SW);
-}
-
-
-void free_swd(void)
-{
-   if (swdb!=NULL)
-   {
-      afree(swdb);
-      swdb=NULL;
-   }
-
-   set_flags(ERASED_SWD);
-}
-
-
 void assign_swd2sw(void)
 {
    error(swdb==NULL,1,"assign_swd2sw [swflds.c]",
@@ -160,7 +129,7 @@ void assign_swd2sw(void)
 
    if (swb==NULL)
       alloc_sw();
-   
+
    assign_pauli(2*VOLUME,swdb,swb);
    set_flags(ASSIGNED_SWD2SW);
 }

@@ -3,7 +3,7 @@
 *
 * File uflds.h
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,9 +32,7 @@ extern int shift_ud(int *s);
 /* UFLDS_C */
 extern su3 *ufld(void);
 extern su3_dble *udfld(void);
-extern void random_u(void);
 extern void random_ud(void);
-extern void renormalize_u(void);
 extern void renormalize_ud(void);
 extern void assign_ud2u(void);
 

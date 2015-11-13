@@ -9,16 +9,16 @@
 Files
 -----
 
-blk_grid.c     Block grid allocation
+blk_grid.c     Block grid allocation.
 
-block.c        Basic allocation programs for blocks of lattice points
+block.c        Basic allocation programs for blocks of lattice points.
 
 map_s2blk.c    Copying of spinor fields to and from the blocks in a
-               block grid
+               block grid.
 
-map_sw2blk.c   Copying of the SW fields to the blocks in a block grid
+map_sw2blk.c   Copying of the SW fields to the blocks in a block grid.
 
-map_u2blk.c    Copying of the gauge fields to the blocks in a block grid
+map_u2blk.c    Copying of the gauge fields to the blocks in a block grid.
 
 
 Include file
@@ -27,8 +27,8 @@ Include file
 The file block.h defines the prototypes for all externally accessible
 functions that are defined in the *.c files listed above.
 
-The types block_t, bndry_t and blk_grid_t are also defined there and the 
-meaning of the entries in these structures is explained in the file 
+The types block_t, bndry_t and blk_grid_t are also defined there and the
+meaning of the entries in these structures is explained in the file
 README.block.
 
 
@@ -54,7 +54,7 @@ void alloc_blk(block_t *b,int *bo,int *bs,
   of the other parameters. The single-precision gauge and SW fields are
   allocated if iu=1, the double-precision gauge and SW fields if iud=1,
   while ns and nsd are the numbers of single- and double-precision Dirac
-  fields that are allocated. All elements of the block are properly 
+  fields that are allocated. All elements of the block are properly
   initialized and the share flag b.shf is set to 0x0 (see the notes).
 
 void alloc_bnd(block_t *b,int iu,int iud,int nw,int nwd)
@@ -89,7 +89,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
 void free_blk(block_t *b)
   Frees the arrays in the block b and in the boundaries b.bb that were
   previously allocated by alloc_blk(), alloc_bnd() or clone_blk(). The
-  boundary structures are then freed too (if they were allocated) and 
+  boundary structures are then freed too (if they were allocated) and
   all entries in the block structure are set to 0 (or NULL).
 
 int ipt_blk(block_t *b,int *x)
@@ -99,7 +99,7 @@ int ipt_blk(block_t *b,int *x)
 void assign_s2sblk(blk_grid_t grid,int n,ptset_t set,spinor *s,int k)
   Assigns the relevant part of the global single-precision spinor field s
   to the single-precision field b.s[k] on the n'th block of the specified
-  block grid. Depending on the specified point set, the field on the even, 
+  block grid. Depending on the specified point set, the field on the even,
   odd or all points is copied.
 
 void assign_sblk2s(blk_grid_t grid,int n,ptset_t set,int k,spinor *s)
@@ -111,14 +111,14 @@ void assign_sblk2s(blk_grid_t grid,int n,ptset_t set,int k,spinor *s)
 void assign_s2sdblk(blk_grid_t grid,int n,ptset_t set,spinor *s,int k)
   Assigns the relevant part of the global single-precision spinor field s
   to the double-precision field b.sd[k] on the n'th block of the specified
-  block grid. Depending on the specified point set, the field on the even, 
+  block grid. Depending on the specified point set, the field on the even,
   odd or all points is copied.
 
 void assign_sd2sdblk(blk_grid_t grid,int n,ptset_t set,
                      spinor_dble *sd,int k)
   Assigns the relevant part of the global double-precision spinor field sd
   to the double-precision field b.sd[k] on the n'th block of the specified
-  block grid. Depending on the specified point set, the field on the even, 
+  block grid. Depending on the specified point set, the field on the even,
   odd or all points is copied.
 
 void assign_sdblk2sd(blk_grid_t grid,int n,ptset_t set,

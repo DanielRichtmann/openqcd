@@ -40,7 +40,7 @@
 *     called on other processes, the program does nothing and returns
 *     the value of NAME_SIZE.
 *
-*   long find_section(char *title)
+*   long find_section(FILE *stream,char *title)
 *     This program scans stream for a line starting with the string "[title]"
 *     (after any number of blanks). It terminates with an error message if no
 *     such line is found or if there are several of them. The program returns

@@ -3,17 +3,23 @@ Main program ym1
 
 SYNTAX
 
-ym1 -i <filename> [-noloc] [-noexp] [-rmold] [-noms] 
-                  [-c <filename> [-a [-norng]]] 
+ym1 -i <filename> [-noloc] [-noexp] [-rmold] [-noms]
+                  [-c <filename> [-a [-norng]]]
 
 
 DESCRIPTION
 
-This program generates a representative ensemble of field configurations in
-the SU(3) gauge theory with open boundary conditions using the HMC algorithm.
-The average plaquette <tr{U(p)}> is measured and the generated configurations
-are written to files in specified directories. Further observables,
-constructed using the Wilson flow, are measured as well.
+This program generates an ensemble of gauge fields representative of the
+(pure) SU(3) gauge theory. Exactly which theory is simulated depends on the
+parameters passed to the program. Moreover, one has a choice of boundary
+conditions in time (open, SF, open-SF and periodic). The simulation is
+based on a version of the HMC algorithm, which can be tuned in many ways via
+the input parameters.
+
+In the course of the simulation, the average plaquette <tr{U(p)}> is measured
+and the generated gauge field configurations are written out to files in
+specified directories. Further observables, constructed using the Wilson flow,
+are measured as well.
 
 
 COMMAND-LINE OPTIONS
@@ -22,41 +28,41 @@ The program has only few options since most of the parameters are passed
 through an input file. The options are
 
 -i <filename>    Specifies the name of the input file. The name can be
-                 a fully qualified name or be specified relative to the 
+                 a fully qualified name or be specified relative to the
                  working directory.
 
--noloc           Normally the generated configurations are saved to the 
+-noloc           Normally the generated configurations are saved to the
                  local disks on the nodes of the machine. In addition they
                  are exported from process 0 using the export function (see
                  archive/archive.c). Initial configurations can be imported
-                 or be read from the local disks. This option specifies that 
+                 or be read from the local disks. This option specifies that
                  the local disks should not be used.
 
 -noexp           Do not export the generated field configurations.
 
 -rmold           Remove old configurations and keep only the one which
-                 was last saved to disk. The initial configuration 
-                 given on the command line is not removed unless the 
+                 was last saved to disk. The initial configuration
+                 given on the command line is not removed unless the
                  -a option is set.
 
--noms            Do not measure any observables except for the average 
+-noms            Do not measure any observables except for the average
                  plaquette.
 
--c <filename>    This option instructs the program to read the initial 
+-c <filename>    This option instructs the program to read the initial
                  gauge-field configuration from the specified file. The
-                 file must be in one of the configuration directories 
-                 listed in the input file and its name must be of the form 
-                 described below. The run starts from a random gauge-field 
+                 file must be in one of the configuration directories
+                 listed in the input file and its name must be of the form
+                 described below. The run starts from a random gauge-field
                  configuration if this option is omitted.
 
 -a               This option specifies that the run is a continuation of a
                  previous run. The -c <filename> option is required in this
                  case and must point to the last configuration saved by
                  the previous run. All output data are appended to the
-                 previous output files. 
+                 previous output files.
 
 -norng           Continuation runs normally start from the saved state
-                 of the random number generators. This option specifies 
+                 of the random number generators. This option specifies
                  that the traditional initialization of the generators is
                  to be used (see section RANDOM NUMBER GENERATOR below).
                  NOTE: starting from the saved state is not possible if
@@ -88,8 +94,17 @@ cnfg_dir     /data/ym1/cnfg        # Exported configuration directory
 beta         6.00                  # Inverse gauge coupling
 c0           1.6667                # Coefficient of the plaquette term
                                    # in the gauge action
-cG           1.0                   # Coefficient of the boundary plaquettes 
-                                   # in the gauge action
+[Boundary conditions]
+type         2                     # Type of boundary condition (0: open,
+                                   # 1: SF, 2: open-SF, 3: periodic)
+phi          0.12 -0.56            # Boundary values of the gauge field at
+                                   # time 0
+phi'         0.92 0.76             # Boundary values of the gauge field at
+                                   # time NPROC0*L0
+cG           1.10                  # Gauge action improvement coefficient at
+                                   # time 0
+cG'          1.05                  # Gauge action improvement coefficient at
+                                   # time NPROC0*L0
 
 [Random number generator]
 level        0                     # Ranlux level
@@ -126,10 +141,10 @@ The chosen parameter values must satisfy the following constraints:
 
 - "dtr_cnfg" must be a multiple of "dtr_log".
 
-- "dtr_cnfg" must be a multiple of "dtr_ms" and the latter must be 
+- "dtr_cnfg" must be a multiple of "dtr_ms" and the latter must be
   a multiple of "dtr_log".
 
-- The number "nstep" of Wilson flow integration steps must be a multiple 
+- The number "nstep" of Wilson flow integration steps must be a multiple
   of "dnms".
 
 Depending on the specified options, the values of some parameters are ignored.
@@ -138,11 +153,11 @@ In particular,
 - "loc_dir" is not used if the -noloc option is set.
 
 - "cnfg_dir" is not used if -noexp is set and if the starting
-   configuration is not of the exported configuration type. 
+   configuration is not of the exported configuration type.
 
 - "lambda" is only required if the 2nd order OMF integrator is used.
 
-- The section "Wilson flow" and the parameter "dtr_ms" can be omitted 
+- The section "Wilson flow" and the parameter "dtr_ms" can be omitted
   if the -noms option is set.
 
 Superfluous sections and parameters may be deleted or commented out. If
@@ -175,11 +190,9 @@ from the files must be the same in this case.
 
 If the configuration is in exported form, it is read from the directory
 cnfg_dir on a disk accessible from process 0. The sizes of the current lattice
-need not be the same as those read from the file, but must be a multiple of
-the latter. The field is then periodically extended if the lattice sizes do
-not match (see import_cnfg() [archive/archive.c]; periodic extension in the
-time direction is not permitted if the configuration on disk satisfies open
-boundary conditions).
+need not be the same as those read from the configuration file, but must be
+integer multiples of the latter. The field is periodically extended if the
+lattice sizes do not match (see archive/archive.c for further explanations).
 
 
 FILES
@@ -193,7 +206,7 @@ names:
   <run name>.ms.dat    Measurement data file
   <run name>.rng       Exported state of the random number generators
 
-  <run name>.log~      Backup log file 
+  <run name>.log~      Backup log file
   <run name>.par~      Backup parameter file
   <run name>.dat~      Backup data file
   <run name>.ms.dat~   Backup measurement data file
@@ -228,8 +241,8 @@ is printed to the file STARTUP_ERROR in the program directory.
 
 EXAMPLES
 
-The command 
- 
+The command
+
    ym1 -i ym1.in -c <name>*
 
 starts a new run from the specified configuration <name> which is searched for
@@ -264,18 +277,22 @@ typedef struct
 
 with elements
 
-nt                 trajectory number
+nt                 trajectory number,
 
-dH                 MD hamiltonian deficit at the end of the trajectory
+dH                 MD hamiltonian deficit at the end of the trajectory,
 
 iac                0 or 1 depending on whether the trajectory was accepted
-                   or not
+                   or not,
 
-avpl               average plaquette of the current gauge field
+avpl               average plaquette of the current gauge field.
 
-The average plaquette is equal to 
+The average plaquette is equal to
 
-   plaq_wsum_dble(1)/{6*(N0-1)*N1*N2*N3}
+   plaq_wsum_dble(1)/npl,
+
+   npl=6*(N0-1)*N1*N2*N3 for open boundary conditions,
+
+      =6*N0*N1*N2*N3     otherwise,
 
 where N0=NPROC0*L0, etc., are the lattice sizes (see uflds/plaq_sum.c). In the
 course of the simulation, the collected data are written in binary form to the
@@ -321,7 +338,7 @@ static struct
 labeled by the molecular-dynamics trajectory number nt where the measurement
 was made. In each case the time-slice sums of the densities of the Wilson
 plaquette action, the Yang-Mills action and the topological charge are written
-to the arrays  
+to the arrays
 
   Wsl[in][t]   (in=0,..,nn, t=0,..,tmax-1)
   Ysl[in][t]
@@ -352,18 +369,18 @@ Random numbers are generated using the ranlux generator. Depending on the
 context, either single- or double-precision random numbers are generated. The
 initialization of the generator is as follows:
 
-- In the case of a new run, the program reads the parameters "level" and 
+- In the case of a new run, the program reads the parameters "level" and
   "seed" from the input file and uses these to initialize the generator.
 
 - Continuation runs starting from an imported field configuration read
   the state of the generator from the configuration files.
 
-- Continuation runs starting from an exported field configuration do 
+- Continuation runs starting from an exported field configuration do
   the following:
 
-  o If the option -norng is set, the parameters "level" and "seed" are read 
-    from the input parameter file and the generator is initialized using 
-    "seed"^n (bitwise exclusive or) as the seed value, where n is the number 
+  o If the option -norng is set, the parameters "level" and "seed" are read
+    from the input parameter file and the generator is initialized using
+    "seed"^n (bitwise exclusive or) as the seed value, where n is the number
     of the last field configuration saved in the previous run.
 
   o Otherwise the state of the generator is read from the file <run name>.rng.
@@ -385,8 +402,8 @@ A number of safety measures have been implemented:
 - It is not possible to overwrite an existing *.log or *.dat file; these
   must first be deleted or renamed by hand if a run is to be repeated.
 
-- Appending a run to a previous run, but not from the last saved 
-  configuration of that run, is not possible. 
+- Appending a run to a previous run, but not from the last saved
+  configuration of that run, is not possible.
 
 - The accessibility of the various directories and the compatibility
   of the selected options is checked at the beginning of the program.
@@ -398,9 +415,9 @@ before the log file is opened).
 
 On the other hand, the following should be kept in mind:
 
-- Filenames may not be longer than 127 characters. The program 
-  checks at an early stage whether this is the case or not. Longer 
-  filenames can be accommodated by setting the macro NAME_SIZE in 
+- Filenames may not be longer than 127 characters. The program
+  checks at an early stage whether this is the case or not. Longer
+  filenames can be accommodated by setting the macro NAME_SIZE in
   the global.h header file to a larger value.
 
 - Once a run started successfully, the configurations generated

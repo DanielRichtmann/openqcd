@@ -3,7 +3,7 @@
 *
 * File flags.h
 *
-* Copyright (C) 2009, 2010, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2009-2014 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -82,6 +82,13 @@ typedef struct
 
 typedef struct
 {
+   int type;
+   double cG[2],cF[2];
+   double phi[2][3];
+} bc_parms_t;
+
+typedef struct
+{
    int bs[4];
    int Ns;
 } dfl_parms_t;
@@ -123,10 +130,10 @@ typedef struct
 
 typedef struct
 {
+   int nk;
    double beta,c0,c1;
-   double kappa_u,kappa_s,kappa_c;
-   double csw,cG,cF;
-   double m0u,m0s,m0c;
+   double *kappa,*m0;
+   double csw;
 } lat_parms_t;
 
 typedef struct
@@ -146,14 +153,15 @@ typedef struct
 typedef struct
 {
    rwfact_t rwfact;
-   int im0,irp,nsrc;
-   int n,*np,*isp;
-   double mu;
+   int im0,nsrc;
+   int irp,nfct;
+   double *mu;
+   int *np,*isp;
 } rw_parms_t;
 
 typedef struct
 {
-   double m0,csw,cF;
+   double m0,csw,cF[2];
 } sw_parms_t;
 
 typedef struct
@@ -162,12 +170,6 @@ typedef struct
    int isolv;
    int nmr,ncy;
 } sap_parms_t;
-
-typedef struct
-{
-   int flg;
-   double phi[3],phi_prime[3];
-} sf_parms_t;
 
 typedef struct
 {
@@ -240,13 +242,21 @@ extern void check_hmc_parms(FILE *fdat);
 
 /* LAT_PARMS_C */
 extern lat_parms_t set_lat_parms(double beta,double c0,
-                                 double kappa_u,double kappa_s,double kappa_c,
-                                 double csw,double cG,double cF);
+                                 int nk,double *kappa,double csw);
 extern lat_parms_t lat_parms(void);
 extern void print_lat_parms(void);
 extern void write_lat_parms(FILE *fdat);
 extern void check_lat_parms(FILE *fdat);
+extern bc_parms_t set_bc_parms(int type,
+                               double cG,double cG_prime,
+                               double cF,double cF_prime,
+                               double *phi,double *phi_prime);
+extern bc_parms_t bc_parms(void);
+extern void print_bc_parms(void);
+extern void write_bc_parms(FILE *fdat);
+extern void check_bc_parms(FILE *fdat);
 extern double sea_quark_mass(int im0);
+extern int bc_type(void);
 extern sw_parms_t set_sw_parms(double m0);
 extern sw_parms_t sw_parms(void);
 extern tm_parms_t set_tm_parms(int eoflg);
@@ -271,8 +281,8 @@ extern void write_rat_parms(FILE *fdat);
 extern void check_rat_parms(FILE *fdat);
 
 /* RW_PARMS_C */
-extern rw_parms_t set_rw_parms(int irw,rwfact_t rwfact,int im0,double mu,
-                               int irp,int n,int *np,int *isp,int nsrc);
+extern rw_parms_t set_rw_parms(int irw,rwfact_t rwfact,int im0,int nsrc,
+                               int irp,int nfct,double *mu,int *np,int *isp);
 extern rw_parms_t rw_parms(int irw);
 extern void read_rw_parms(int irw);
 extern void print_rw_parms(void);
@@ -285,14 +295,6 @@ extern sap_parms_t sap_parms(void);
 extern void print_sap_parms(int ipr);
 extern void write_sap_parms(FILE *fdat);
 extern void check_sap_parms(FILE *fdat);
-
-/* SF_PARMS_C */
-extern sf_parms_t set_sf_parms(double *phi,double *phi_prime);
-extern sf_parms_t sf_parms(void);
-extern void print_sf_parms(void);
-extern void write_sf_parms(FILE *fdat);
-extern void check_sf_parms(FILE *fdat);
-extern int sf_flg(void);
 
 /* SOLVER_PARMS_C */
 extern solver_parms_t set_solver_parms(int isp,solver_t solver,

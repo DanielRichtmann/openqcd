@@ -3,95 +3,69 @@
 *
 * File Dw.c
 *
-* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Application of the O(a)-improved Wilson-Dirac operator Dw
+* Application of the O(a)-improved Wilson-Dirac operator D (single-
+* precision programs).
 *
 * The externally accessible functions are
 *
 *   void Dw(float mu,spinor *s,spinor *r)
 *     Depending on whether the twisted-mass flag is set or not, this
-*     program applies Dw+i*mu*gamma_5*1e or Dw+i*mu*gamma_5 to the field
-*     s and assigns the result to the field r. On exit s is unchanged at
-*     the interior points of the lattice and equal to zero at global time
-*     0 and NPROC0*L0-1. The field r is set to zero at these times too.
+*     program applies D+i*mu*gamma_5*1e or D+i*mu*gamma_5 to the field
+*     s and assigns the result to the field r.
 *
 *   void Dwee(float mu,spinor *s,spinor *r)
-*     Applies Dw_ee+i*mu*gamma_5 to the field s on the even points of the
-*     lattice and assigns the result to the field r. On exit s is unchanged
-*     except on the even points at global time 0 and NPROC0*L0-1, where it
-*     is set to zero. The field r is set to zero there too.
+*     Applies D_ee+i*mu*gamma_5 to the field s on the even points of the
+*     lattice and assigns the result to the field r.
 *
 *   void Dwoo(float mu,spinor *s,spinor *r)
 *     Depending on whether the twisted-mass flag is set or not, this
-*     program applies Dw_oo or Dw_oo+i*mu*gamma_5 to the field s on the
-*     odd points of the lattice and assigns the result to the field r. On
-*     exit s is unchanged except on the odd points at global time 0 and
-*     NPROC0*L0-1, where it is set to zero. The field r is set to zero at
-*     these points too.
+*     program applies D_oo or D_oo+i*mu*gamma_5 to the field s on the
+*     odd points of the lattice and assigns the result to the field r.
 *
 *   void Dwoe(spinor *s,spinor *r)
-*     Applies Dw_oe to the field s and assigns the result to the field r.
-*     On exit s is unchanged except on the even points at global time 0
-*     and NPROC0*L0-1, where it is set to zero. The field r is set to zero
-*     on the odd points at these times.
+*     Applies D_oe to the field s and assigns the result to the field r.
 *
 *   void Dweo(spinor *s,spinor *r)
-*     Applies Dw_eo to the field s and *subtracts* the result from the
-*     field r. On exit s is unchanged except on the odd points at global 
-*     time 0 and NPROC0*L0-1, where it is set to zero. The field r is set 
-*     to zero on the even points at these times.
+*     Applies D_eo to the field s and *subtracts* the result from the
+*     field r.
 *
 *   void Dwhat(float mu,spinor *s,spinor *r)
-*     Applies Dwhat+i*mu*gamma_5 to the field s and assigns the result to
-*     the field r. On exit s is unchanged except on the even points at
-*     global time 0 and NPROC0*L0-1, where it is set to zero. The field r
-*     is set to zero there too.
+*     Applies Dhat+i*mu*gamma_5 to the field s and assigns the result to
+*     the field r.
 *
-* The following programs operate on the the fields in the n'th block b of
-* the specified block grid:
+* The following programs operate on the fields in the n'th block b of the
+* specified block grid:
 *
 *   void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
 *     Depending on whether the twisted-mass flag is set or not, this
-*     program applies Dw+i*mu*gamma_5*1e or Dw+i*mu*gamma_5 to the field
-*     b.sd[k] and assigns the result to the field b.sd[l]. On exit b.sd[k]
-*     is unchanged except at global time 0 and NPROC0*L0-1, where it is
-*     set to zero. The field b.sd[l] is set to zero there too.
+*     program applies D+i*mu*gamma_5*1e or D+i*mu*gamma_5 to the field
+*     b.s[k] and assigns the result to the field b.s[l].
 *
 *   void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
-*     Applies Dw_ee+i*mu*gamma_5 to the field b.s[k] on the even points and
-*     assigns the result to the field b.s[l]. On exit b.s[k] is unchanged
-*     except on the even points at global time 0 and NPROC0*L0-1, where it
-*     is set to zero. The field b.s[l] is set to zero there too.
+*     Applies D_ee+i*mu*gamma_5 to the field b.s[k] on the even points and
+*     assigns the result to the field b.s[l].
 *
 *   void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
 *     Depending on whether the twisted-mass flag is set or not, this
-*     program applies Dw_oo or Dw_oo+i*mu*gamma_5 to the field b.sd[k] on
-*     the odd points and assigns the result to the field b.sd[l]. On exit
-*     b.sd[k] is unchanged except on the odd points at global time 0 and
-*     NPROC0*L0-1, where it is set to zero. The field b.sd[l] is set to
-*     zero there too.
+*     program applies D_oo or D_oo+i*mu*gamma_5 to the field b.s[k] on
+*     the odd points and assigns the result to the field b.s[l].
 *
 *   void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
-*     Applies Dw_oe to the field b.s[k] and assigns the result to the field
-*     b.s[l]. On exit b.s[k] is unchanged except on the even points at global
-*     time 0 and NPROC0*L0-1, where it is set to zero. The field b.[l] is set
-*     to zero on the odd points at these times.
+*     Applies D_oe to the field b.s[k] and assigns the result to the field
+*     b.s[l].
 *
 *   void Dweo_blk(blk_grid_t grid,int n,int k,int l)
-*     Applies Dw_eo to the field b.s[k] and *subtracts* the result from the
-*     field b.s[l]. On exit b.s[k] is unchanged except on the odd points at
-*     global time 0 and NPROC0*L0-1, where it is set to zero. The field b.s[l]
-*     is set to zero on the even points at these times.
+*     Applies D_eo to the field b.s[k] and *subtracts* the result from the
+*     field b.s[l].
 *
 *   void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
-*     Applies Dwhat+i*mu*gamma_5 to the field b.s[k] and assigns the result 
-*     to the field b.s[l]. On exit b.s[k] is unchanged except on the even
-*     points at global time 0 and NPROC0*L0-1, where it is set to zero. The
-*     field b.s[l] is set to zero there too.
+*     Applies Dhat+i*mu*gamma_5 to the field b.s[k] and assigns the result
+*     to the field b.s[l].
 *
 * Notes:
 *
@@ -99,18 +73,17 @@
 * "Implementation of the lattice Dirac operator" (file doc/dirac.pdf).
 *
 * In all these programs, it is assumed that the SW term is in the proper
-* condition and that the spinor fields have NSPIN elements. The programs 
-* check whether the twisted-mass flag (see flags/lat_parms.c) is set and
-* turn off the twisted-mass term on the odd lattice sites if it is. The
-* input and output fields may not coincide in the case of the programs
+* condition and that the global spinor fields have NSPIN elements. The
+* programs check whether the twisted-mass flag (see flags/lat_parms.c) is
+* set and turn off the twisted-mass term on the odd lattice sites if it is.
+* The input and output fields may not coincide in the case of the programs
 * Dw(), Dwhat(), Dw_blk() and Dwhat_blk().
 *
-* The block programs assume homogenous Dirichlet boundary conditions at the
-* block boundaries. In addition, the boundary conditions at global time 0
-* and NPROC0*L0-1 satisfied by the full-lattice Dirac operator are imposed.
-* The even-odd preconditioned operator is in all cases obtained from the
-* ee,eo,oe and oo parts of the un-preconditioned operator, where all parts
-* respect the boundary conditions.
+* When the input and output fields are different, the input field is not
+* changed except possibly at the points at global time 0 and NPROC0*L0-1,
+* where both fields are set to zero if so required by the chosen boundary
+* conditions. Depending on the operator considered, the fields are zeroed
+* only on the even or odd points at these times.
 *
 * The programs Dw(),..,Dwhat() perform global operations and must be called
 * simultaneously on all processes.
@@ -133,6 +106,8 @@
 #include "block.h"
 #include "dirac.h"
 #include "global.h"
+
+#define N0 (NPROC0*L0)
 
 typedef union
 {
@@ -180,7 +155,7 @@ static void doe(int *piup,int *pidn,su3 *u,spinor *pk)
    sm=pk+pidn[1];
    _prefetch_spinor(sp);
    _prefetch_spinor(sm);
-   
+
    _avx_spinor_mul_up(_avx_sgn_add);
    _avx_spinor_add();
 
@@ -245,7 +220,7 @@ static void doe(int *piup,int *pidn,su3 *u,spinor *pk)
    _avx_spinor_load(rs.s);
    _avx_weyl_imul(_sse_sgn23);
    _avx_spinor_unsplit();
-   _load_cst(coe);   
+   _load_cst(coe);
    _avx_spinor_add();
    _mul_cst();
    _avx_weyl_pair_store12(rs.w[0],rs.w[1]);
@@ -262,16 +237,16 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
    _avx_spinor_load(rs.s);
    _mul_cst();
    _avx_spinor_store(rs.s);
-   
+
 /******************************** direction 0 *********************************/
 
-   sm=pl+pidn[0];   
+   sm=pl+pidn[0];
    sp=pl+piup[0];
 
-   _prefetch_spinor(sm);   
+   _prefetch_spinor(sm);
    _prefetch_spinor(sp);
 
-   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_load_dup(rs.s);
    _avx_spinor_mul_up(_avx_sgn_add);
    _avx_spinor_add();
 
@@ -283,18 +258,18 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
 
    _avx_weyl_pair_load34(*sm,*sp);
    _avx_spinor_mul_up(_avx_sgn_add);
-   _avx_spinor_add();   
+   _avx_spinor_add();
    _avx_weyl_pair_store34(*sm,*sp);
 
 /******************************** direction 1 *********************************/
 
-   sm=pl+pidn[1];   
+   sm=pl+pidn[1];
    sp=pl+piup[1];
 
-   _prefetch_spinor(sm);   
+   _prefetch_spinor(sm);
    _prefetch_spinor(sp);
 
-   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_load_dup(rs.s);
    _avx_spinor_xch_imul_up(_avx_sgn_i_add);
    _avx_spinor_add();
 
@@ -306,18 +281,18 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
 
    _avx_weyl_pair_load34(*sm,*sp);
    _avx_spinor_xch_imul_up(_avx_sgn_i_add);
-   _avx_spinor_sub();   
+   _avx_spinor_sub();
    _avx_weyl_pair_store34(*sm,*sp);
 
 /******************************** direction 2 *********************************/
 
-   sm=pl+pidn[2];   
+   sm=pl+pidn[2];
    sp=pl+piup[2];
 
-   _prefetch_spinor(sm);   
+   _prefetch_spinor(sm);
    _prefetch_spinor(sp);
 
-   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_load_dup(rs.s);
    _avx_spinor_xch_up();
    _avx_spinor_mul_up(_avx_sgn_addsub);
    _avx_spinor_add();
@@ -330,19 +305,19 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
 
    _avx_weyl_pair_load34(*sm,*sp);
    _avx_spinor_xch_up();
-   _avx_spinor_mul_up(_avx_sgn_addsub);   
-   _avx_spinor_sub();   
+   _avx_spinor_mul_up(_avx_sgn_addsub);
+   _avx_spinor_sub();
    _avx_weyl_pair_store34(*sm,*sp);
 
 /******************************** direction 3 *********************************/
 
-   sm=pl+pidn[3];   
+   sm=pl+pidn[3];
    sp=pl+piup[3];
 
-   _prefetch_spinor(sm);   
+   _prefetch_spinor(sm);
    _prefetch_spinor(sp);
 
-   _avx_spinor_load_dup(rs.s);   
+   _avx_spinor_load_dup(rs.s);
    _avx_spinor_imul_up(_avx_sgn_i_addsub);
    _avx_spinor_add();
 
@@ -354,7 +329,7 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
 
    _avx_weyl_pair_load34(*sm,*sp);
    _avx_spinor_imul_up(_avx_sgn_i_addsub);
-   _avx_spinor_sub();   
+   _avx_spinor_sub();
    _avx_weyl_pair_store34(*sm,*sp);
 
    _avx_zeroupper();
@@ -566,11 +541,11 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
    sp=pl+(*(piup++));
    _prefetch_spinor(sp);
 
-   _load_cst(ceo);   
+   _load_cst(ceo);
    _sse_pair_load(rs.s.c1,rs.s.c2);
    _sse_pair_load_up(rs.s.c3,rs.s.c4);
    _mul_cst();
-   _mul_cst_up();   
+   _mul_cst_up();
    _sse_weyl_store(rs.w[0]);
    _sse_weyl_store_up(rs.w[1]);
 
@@ -674,7 +649,7 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
    _prefetch_spinor(sp);
    _sse_vector_xch();
    _sse_vector_addsub();
-   u+=1;   
+   u+=1;
    _sse_su3_multiply(*u);
 
    _sse_pair_load((*sm).c1,(*sm).c2);
@@ -694,7 +669,7 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
    sm=pl+(*(pidn));
    _prefetch_spinor(sm);
    _sse_vector_i_subadd();
-   u+=1;   
+   u+=1;
    _sse_su3_inverse_multiply(*u);
 
    _sse_pair_load((*sp).c1,(*sp).c2);
@@ -872,7 +847,7 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
    _vector_mul_assign(rs.s.c2,ceo);
    _vector_mul_assign(rs.s.c3,ceo);
    _vector_mul_assign(rs.s.c4,ceo);
-   
+
 /******************************* direction +0 *********************************/
 
    sp=pl+(*(piup++));
@@ -997,14 +972,14 @@ static void deo(int *piup,int *pidn,su3 *u,spinor *pl)
 
 void Dw(float mu,spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    int *piup,*pidn;
    su3 *u,*um;
    pauli *m;
    spin_t *so,*ro;
    tm_parms_t tm;
 
-   cps_int_bnd(0x1,s);   
+   cps_int_bnd(0x1,s);
    m=swfld();
    apply_sw(VOLUME/2,mu,m,s,r);
    set_s2zero(BNDRY/2,r+VOLUME);
@@ -1014,25 +989,26 @@ void Dw(float mu,spinor *s,spinor *r)
 
    coe=-0.5f;
    ceo=-0.5f;
+   bc=bc_type();
    piup=iup[VOLUME/2];
    pidn=idn[VOLUME/2];
 
    so=(spin_t*)(s+(VOLUME/2));
-   ro=(spin_t*)(r+(VOLUME/2));   
+   ro=(spin_t*)(r+(VOLUME/2));
    m+=VOLUME;
    u=ufld();
    um=u+4*VOLUME;
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=VOLUME/2;
-      
+
       for (;u<um;u+=8)
       {
          t=global_time(ix);
          ix+=1;
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
          {
             doe(piup,pidn,u,s);
 
@@ -1043,7 +1019,7 @@ void Dw(float mu,spinor *s,spinor *r)
             _vector_add_assign((*ro).s.c3,rs.s.c3);
             _vector_add_assign((*ro).s.c4,rs.s.c4);
             rs=(*so);
-      
+
             deo(piup,pidn,u,r);
          }
          else
@@ -1072,7 +1048,7 @@ void Dw(float mu,spinor *s,spinor *r)
          _vector_add_assign((*ro).s.c3,rs.s.c3);
          _vector_add_assign((*ro).s.c4,rs.s.c4);
          rs=(*so);
-      
+
          deo(piup,pidn,u,r);
 
          piup+=4;
@@ -1089,16 +1065,17 @@ void Dw(float mu,spinor *s,spinor *r)
 
 void Dwee(float mu,spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    pauli *m,*mm;
    spin_t *se,*re;
 
+   bc=bc_type();
    m=swfld();
    mm=m+VOLUME;
    se=(spin_t*)(s);
-   re=(spin_t*)(r); 
+   re=(spin_t*)(r);
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=0;
 
@@ -1106,8 +1083,8 @@ void Dwee(float mu,spinor *s,spinor *r)
       {
          t=global_time(ix);
          ix+=1;
-         
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
             mul_pauli2(mu,m,&((*se).s),&((*re).s));
          else
          {
@@ -1134,20 +1111,21 @@ void Dwee(float mu,spinor *s,spinor *r)
 
 void Dwoo(float mu,spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    pauli *m,*mm;
    spin_t *so,*ro;
    tm_parms_t tm;
 
+   bc=bc_type();
    m=swfld()+VOLUME;
    mm=m+VOLUME;
    so=(spin_t*)(s+(VOLUME/2));
-   ro=(spin_t*)(r+(VOLUME/2)); 
+   ro=(spin_t*)(r+(VOLUME/2));
    tm=tm_parms();
    if (tm.eoflg==1)
       mu=0.0f;
-   
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=VOLUME/2;
 
@@ -1156,7 +1134,7 @@ void Dwoo(float mu,spinor *s,spinor *r)
          t=global_time(ix);
          ix+=1;
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
             mul_pauli2(mu,m,&((*so).s),&((*ro).s));
          else
          {
@@ -1183,31 +1161,32 @@ void Dwoo(float mu,spinor *s,spinor *r)
 
 void Dwoe(spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    int *piup,*pidn;
    su3 *u,*um;
    spin_t *ro;
 
-   cps_int_bnd(0x1,s);   
+   cps_int_bnd(0x1,s);
 
    coe=-0.5f;
+   bc=bc_type();
    piup=iup[VOLUME/2];
    pidn=idn[VOLUME/2];
 
-   ro=(spin_t*)(r+(VOLUME/2));   
+   ro=(spin_t*)(r+(VOLUME/2));
    u=ufld();
    um=u+4*VOLUME;
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=VOLUME/2;
-      
+
       for (;u<um;u+=8)
       {
          t=global_time(ix);
          ix+=1;
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
          {
             doe(piup,pidn,u,s);
             (*ro)=rs;
@@ -1237,7 +1216,7 @@ void Dwoe(spinor *s,spinor *r)
 
 void Dweo(spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    int *piup,*pidn;
    su3 *u,*um;
    spin_t *so;
@@ -1245,6 +1224,7 @@ void Dweo(spinor *s,spinor *r)
    set_s2zero(BNDRY/2,r+VOLUME);
 
    ceo=0.5f;
+   bc=bc_type();
    piup=iup[VOLUME/2];
    pidn=idn[VOLUME/2];
 
@@ -1252,16 +1232,16 @@ void Dweo(spinor *s,spinor *r)
    u=ufld();
    um=u+4*VOLUME;
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=VOLUME/2;
-      
+
       for (;u<um;u+=8)
       {
          t=global_time(ix);
          ix+=1;
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
          {
             rs=(*so);
             deo(piup,pidn,u,r);
@@ -1293,18 +1273,19 @@ void Dweo(spinor *s,spinor *r)
 
 void Dwhat(float mu,spinor *s,spinor *r)
 {
-   int ix,t;
+   int bc,ix,t;
    int *piup,*pidn;
    su3 *u,*um;
    pauli *m;
 
-   cps_int_bnd(0x1,s);   
+   cps_int_bnd(0x1,s);
    m=swfld();
    apply_sw(VOLUME/2,mu,m,s,r);
    set_s2zero(BNDRY/2,r+VOLUME);
 
    coe=-0.5f;
    ceo=0.5f;
+   bc=bc_type();
    piup=iup[VOLUME/2];
    pidn=idn[VOLUME/2];
 
@@ -1312,20 +1293,20 @@ void Dwhat(float mu,spinor *s,spinor *r)
    u=ufld();
    um=u+4*VOLUME;
 
-   if ((cpr[0]==0)||(cpr[0]==(NPROC0-1)))
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
    {
       ix=VOLUME/2;
-      
+
       for (;u<um;u+=8)
       {
          t=global_time(ix);
          ix+=1;
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if ((t>0)&&((t<(N0-1))||(bc!=0)))
          {
             doe(piup,pidn,u,s);
 
-            mul_pauli2(0.0f,m,&(rs.s),&(rs.s));                              
+            mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
 
             deo(piup,pidn,u,r);
          }
@@ -1342,7 +1323,7 @@ void Dwhat(float mu,spinor *s,spinor *r)
          doe(piup,pidn,u,s);
 
          mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
-      
+
          deo(piup,pidn,u,r);
 
          piup+=4;
@@ -1357,7 +1338,7 @@ void Dwhat(float mu,spinor *s,spinor *r)
 
 void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
 {
-   int nb,isw,vol,volh,ib;
+   int nb,isw,vol,volh,ibu,ibd;
    int *piup,*pidn,*ibp,*ibm;
    su3 *u,*um;
    pauli *m;
@@ -1373,14 +1354,14 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
       error_loc(1,1,"Dw_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k==l)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dw_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
@@ -1388,7 +1369,7 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
    s=(*b).s[k];
    r=(*b).s[l];
    so=(spin_t*)(s+volh);
-   ro=(spin_t*)(r+volh);   
+   ro=(spin_t*)(r+volh);
 
    s[vol]=s0;
    r[vol]=s0;
@@ -1397,7 +1378,7 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
    tm=tm_parms();
    if (tm.eoflg==1)
       mu=0.0f;
-   
+
    coe=-0.5f;
    ceo=-0.5f;
    piup=(*b).iup[volh];
@@ -1410,15 +1391,16 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
    {
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          s[*ibp]=s0;
 
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
-      
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
+
       for (;u<um;u+=8)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
          {
             doe(piup,pidn,u,s);
 
@@ -1429,7 +1411,7 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
             _vector_add_assign((*ro).s.c3,rs.s.c3);
             _vector_add_assign((*ro).s.c4,rs.s.c4);
             rs=(*so);
-      
+
             deo(piup,pidn,u,r);
          }
          else
@@ -1447,7 +1429,7 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
 
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          r[*ibp]=s0;
    }
@@ -1464,7 +1446,7 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
          _vector_add_assign((*ro).s.c3,rs.s.c3);
          _vector_add_assign((*ro).s.c4,rs.s.c4);
          rs=(*so);
-      
+
          deo(piup,pidn,u,r);
 
          piup+=4;
@@ -1479,12 +1461,12 @@ void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
 
 void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
 {
-   int nb,isw,vol,ib;
+   int nb,isw,vol,ibu,ibd;
    int *piup,*pidn;
    pauli *m,*mm;
    spin_t *se,*re;
    block_t *b;
-   
+
    b=blk_list(grid,&nb,&isw);
 
    if ((n<0)||(n>=nb))
@@ -1492,31 +1474,33 @@ void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
       error_loc(1,1,"Dwee_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dwee_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
    se=(spin_t*)((*b).s[k]);
-   re=(spin_t*)((*b).s[l]); 
+   re=(spin_t*)((*b).s[l]);
    m=(*b).sw;
    mm=m+vol;
 
    if ((*b).nbp)
    {
       piup=(*b).iup[0];
-      pidn=(*b).idn[0];      
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
+      pidn=(*b).idn[0];
+
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
 
       for (;m<mm;m+=2)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))         
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
             mul_pauli2(mu,m,&((*se).s),&((*re).s));
          else
          {
@@ -1525,7 +1509,7 @@ void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
          }
 
          piup+=4;
-         pidn+=4;         
+         pidn+=4;
          se+=1;
          re+=1;
       }
@@ -1545,8 +1529,8 @@ void Dwee_blk(blk_grid_t grid,int n,float mu,int k,int l)
 
 void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
 {
-   int nb,isw,vol,volh,ib;
-   int *piup,*pidn;   
+   int nb,isw,vol,volh,ibu,ibd;
+   int *piup,*pidn;
    pauli *m,*mm;
    spin_t *so,*ro;
    block_t *b;
@@ -1559,20 +1543,20 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
       error_loc(1,1,"Dwoo_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dwoo_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
    volh=vol/2;
    so=(spin_t*)((*b).s[k]+volh);
-   ro=(spin_t*)((*b).s[l]+volh); 
+   ro=(spin_t*)((*b).s[l]+volh);
    tm=tm_parms();
    if (tm.eoflg==1)
       mu=0.0f;
@@ -1583,12 +1567,14 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
    if ((*b).nbp)
    {
       piup=(*b).iup[volh];
-      pidn=(*b).idn[volh];      
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
+      pidn=(*b).idn[volh];
+
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
 
       for (;m<mm;m+=2)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib))) 
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
             mul_pauli2(mu,m,&((*so).s),&((*ro).s));
          else
          {
@@ -1597,7 +1583,7 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
          }
 
          piup+=4;
-         pidn+=4;         
+         pidn+=4;
          so+=1;
          ro+=1;
       }
@@ -1617,7 +1603,7 @@ void Dwoo_blk(blk_grid_t grid,int n,float mu,int k,int l)
 
 void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
 {
-   int nb,isw,vol,volh,ib;
+   int nb,isw,vol,volh,ibu,ibd;
    int *piup,*pidn,*ibp,*ibm;
    su3 *u,*um;
    spinor *s;
@@ -1631,14 +1617,14 @@ void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
       error_loc(1,1,"Dwoe_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dwoe_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
@@ -1647,7 +1633,7 @@ void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
    ro=(spin_t*)((*b).s[l]+volh);
    s[vol]=s0;
 
-   coe=-0.5f;   
+   coe=-0.5f;
    piup=(*b).iup[volh];
    pidn=(*b).idn[volh];
    u=(*b).u;
@@ -1657,15 +1643,16 @@ void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
    {
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          s[*ibp]=s0;
 
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
-      
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
+
       for (;u<um;u+=8)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
          {
             doe(piup,pidn,u,s);
             (*ro)=rs;
@@ -1695,8 +1682,8 @@ void Dwoe_blk(blk_grid_t grid,int n,int k,int l)
 
 void Dweo_blk(blk_grid_t grid,int n,int k,int l)
 {
-   int nb,isw,vol,volh,ib;
-   int *piup,*pidn,*ibp,*ibm;   
+   int nb,isw,vol,volh,ibu,ibd;
+   int *piup,*pidn,*ibp,*ibm;
    su3 *u,*um;
    spinor *r;
    spin_t *so;
@@ -1709,14 +1696,14 @@ void Dweo_blk(blk_grid_t grid,int n,int k,int l)
       error_loc(1,1,"Dweo_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dweo_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
@@ -1733,11 +1720,12 @@ void Dweo_blk(blk_grid_t grid,int n,int k,int l)
 
    if ((*b).nbp)
    {
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
-      
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
+
       for (;u<um;u+=8)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
          {
             rs=(*so);
             deo(piup,pidn,u,r);
@@ -1752,7 +1740,7 @@ void Dweo_blk(blk_grid_t grid,int n,int k,int l)
 
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          r[*ibp]=s0;
    }
@@ -1773,7 +1761,7 @@ void Dweo_blk(blk_grid_t grid,int n,int k,int l)
 
 void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
 {
-   int nb,isw,vol,volh,ib;
+   int nb,isw,vol,volh,ibu,ibd;
    int *piup,*pidn,*ibp,*ibm;
    su3 *u,*um;
    pauli *m;
@@ -1787,14 +1775,14 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
       error_loc(1,1,"Dwhat_blk [Dw.c]",
                 "Block grid is not allocated or block number out of range");
       return;
-   }   
+   }
 
    if ((k<0)||(l<0)||(k==l)||(k>=(*b).ns)||(l>=(*b).ns)||((*b).u==NULL))
    {
       error_loc(1,1,"Dweo_blk [Dw.c]",
                 "Attempt to access unallocated memory space");
       return;
-   }       
+   }
 
    b+=n;
    vol=(*b).vol;
@@ -1819,20 +1807,21 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
    {
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          s[*ibp]=s0;
 
-      ib=((cpr[0]==0)&&((*b).bo[0]==0));
-      
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0));
+
       for (;u<um;u+=8)
       {
-         if (((pidn[0]<vol)||(!ib))&&((piup[0]<vol)||(ib)))
+         if (((pidn[0]<vol)||(!ibd))&&((piup[0]<vol)||(!ibu)))
          {
             doe(piup,pidn,u,s);
 
             mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
-      
+
             deo(piup,pidn,u,r);
          }
 
@@ -1843,7 +1832,7 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
 
       ibp=(*b).ibp;
       ibm=ibp+(*b).nbp/2;
-         
+
       for (;ibp<ibm;ibp++)
          r[*ibp]=s0;
    }
@@ -1854,7 +1843,7 @@ void Dwhat_blk(blk_grid_t grid,int n,float mu,int k,int l)
          doe(piup,pidn,u,s);
 
          mul_pauli2(0.0f,m,&(rs.s),&(rs.s));
-      
+
          deo(piup,pidn,u,r);
 
          piup+=4;

@@ -3,12 +3,12 @@
 *
 * File check6.c
 *
-* Copyright (C) 2010 Martin Luescher
+* Copyright (C) 2010, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program ym_action_slices()
+* Check of the program ym_action_slices().
 *
 *******************************************************************************/
 
@@ -19,6 +19,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "random.h"
 #include "su3fcts.h"
 #include "utils.h"
@@ -29,14 +30,18 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
 
-static int n,dn;
+static int bc,n,dn;
 static double eps,A1,A2,A[N0],A0[N0];
 
 
 int main(int argc,char *argv[])
 {
    int my_rank,i,imax,t;
+   double phi[2],phi_prime[2];   
    double dev;
    FILE *fin=NULL,*flog=NULL;   
 
@@ -64,12 +69,25 @@ int main(int argc,char *argv[])
       printf("n = %d\n",n);
       printf("dn = %d\n",dn);      
       printf("eps = %.2e\n\n",eps);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check6.c]",
+                    "Syntax: check6 [-bc <type>]");
    }
 
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);      
    MPI_Bcast(&dn,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime);
+   print_bc_parms(); 
    
    start_ranlux(0,123456);   
    geometry();

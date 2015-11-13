@@ -3,12 +3,12 @@
 *
 * File ftidx.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Labeling of the field tensor components on the faces of the local lattice
+* Labeling of the field tensor components on the faces of the local lattice.
 *
 * The externally accessible functions are
 *
@@ -77,8 +77,8 @@ static void set_nft(void)
    ofs[0]=VOLUME;
    ofs[1]=ofs[0]+FACE0;
    ofs[2]=ofs[1]+FACE1;
-   ofs[3]=ofs[2]+FACE2;   
-   
+   ofs[3]=ofs[2]+FACE2;
+
    for (n=0;n<6;n++)
    {
       mu=plns[n][0];
@@ -106,7 +106,7 @@ static void alloc_idx(void)
 
    if (BNDRY>0)
    {
-      iw=amalloc((np+9*(BNDRY/2))*sizeof(int),3);
+      iw=malloc((np+9*(BNDRY/2))*sizeof(*iw));
       error(iw==NULL,1,"alloc_idx [ftidx.c]",
             "Unable to allocate index arrays");
    }
@@ -114,19 +114,19 @@ static void alloc_idx(void)
       iw=NULL;
 
    for (n=0;n<6;n++)
-   {   
+   {
       idx[n].ift[0]=iw;
       iw+=idx[n].nft[0];
 
       idx[n].ift[1]=iw;
-      iw+=idx[n].nft[1];      
+      iw+=idx[n].nft[1];
    }
 
    for (n=0;n<6;n++)
    {
       mu=plns[n][0];
       nu=plns[n][1];
-      
+
       cn[n][0]=iw;
       iw+=3*nfc[mu];
 
@@ -188,22 +188,22 @@ static void set_idx(void)
                ibz=ibnd(nu,iz);
                ift[0][nfc0+icn]=VOLUME+nft0+ibz;
 
-               cnn[0][3*iby  ]=VOLUME+iby;               
+               cnn[0][3*iby  ]=VOLUME+iby;
                cnn[0][3*iby+1]=VOLUME+nft0+ibw;
                cnn[0][3*iby+2]=VOLUME+nfc0+icn;
 
                cnn[1][3*ibw  ]=cnn[0][3*iby  ];
                cnn[1][3*ibw+1]=cnn[0][3*iby+1];
                cnn[1][3*ibw+2]=cnn[0][3*iby+2];
-               
+
                icn+=1;
             }
             else
             {
                iz=iup[iw][mu];
                ibz=ibnd(mu,iz);
-               
-               cnn[0][3*iby  ]=VOLUME+iby;               
+
+               cnn[0][3*iby  ]=VOLUME+iby;
                cnn[0][3*iby+1]=iw;
                cnn[0][3*iby+2]=VOLUME+ibz;
             }
@@ -215,8 +215,8 @@ static void set_idx(void)
 
             iz=iup[iy][nu];
             ibz=ibnd(nu,iz);
-            
-            cnn[1][3*ibw  ]=iy;            
+
+            cnn[1][3*ibw  ]=iy;
             cnn[1][3*ibw+1]=VOLUME+nft0+ibw;
             cnn[1][3*ibw+2]=VOLUME+nft0+ibz;
          }
@@ -246,7 +246,7 @@ void plaq_ftidx(int n,int ix,int *ip)
 
    mu=plns[n][0];
    nu=plns[n][1];
-   
+
    iy=iup[ix][mu];
    iw=iup[ix][nu];
    ip[0]=ix;

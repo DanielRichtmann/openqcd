@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Rational function forces
+* Rational function forces.
 *
 * The externally accessible functions are
 *
@@ -19,7 +19,7 @@
 *
 *   void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
 *     Computes the force deriving from the action Spf+Sdet if isw=1 or
-*     Spf if isw!=1 (see the notes). The calculated force is multiplied 
+*     Spf if isw!=1 (see the notes). The calculated force is multiplied
 *     by c and added to the molecular-dynamics force field.
 *
 *   double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
@@ -42,7 +42,7 @@
 *   irat[0]       Index of the Zolotarev rational function in the
 *                 parameter data base.
 *
-*   irat[1]       Lower end k of the selected coefficient range.       
+*   irat[1]       Lower end k of the selected coefficient range.
 *
 *   irat[2]       Upper end l of the selected coefficient range.
 *
@@ -72,7 +72,7 @@
 *
 *   status        Array of the average status values returned by the
 *                 solver used for the solution of the Dirac equation
-*                 (in the case of the DFL_SAP_GCR solver, status[2] 
+*                 (in the case of the DFL_SAP_GCR solver, status[2]
 *                 and status[5] are not averaged).
 *
 * The supported solvers are MSCG, SAP_GCR and DFL_SAP_GCR. Depending
@@ -87,8 +87,8 @@
 * Note that, in force3(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
-* [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/solver_parms.c].
+* [flags/lat_parms.c] and it is taken for granted that the parameters of
+* the solver have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The required workspaces of double-precision spinor fields are
 *
@@ -126,6 +126,7 @@
 #include "forces.h"
 #include "global.h"
 
+#define N0 (NPROC0*L0)
 #define MAX_LEVELS 8
 #define BLK_LENGTH 8
 
@@ -136,7 +137,7 @@ static double smx[MAX_LEVELS],*rs;
 static void set_res(int np,double res)
 {
    int k;
-   
+
    if (np>nps)
    {
       if (nps>0)
@@ -154,7 +155,7 @@ static void set_res(int np,double res)
 
 static double sdet(void)
 {
-   int ix,iy,t,n,ie;
+   int bc,ix,iy,t,n,ie;
    double c,p;
    complex_dble z;
    pauli_dble *m;
@@ -173,11 +174,12 @@ static double sdet(void)
       smx[n]=0.0;
    }
 
-   sw_term(NO_PTS);   
+   sw_term(NO_PTS);
    m=swdfld()+VOLUME;
+   bc=bc_type();
    ix=(VOLUME/2);
    ie=0;
-   
+
    while (ix<VOLUME)
    {
       p=1.0;
@@ -189,7 +191,7 @@ static double sdet(void)
       {
          t=global_time(ix);
 
-         if ((t>0)&&(t<(NPROC0*L0-1)))
+         if (((t>0)||(bc==3))&&((t<(N0-1))||(bc!=0)))
          {
             z=det_pauli_dble(0.0,m);
 
@@ -197,7 +199,7 @@ static double sdet(void)
                p*=(c*z.re);
             else
                ie=1;
-            
+
             z=det_pauli_dble(0.0,m+1);
 
             if (z.re>0.0)
@@ -229,7 +231,7 @@ static double sdet(void)
 
    error(ie!=0,1,"sdet [force3.c]",
          "SW term has negative or vanishing determinant");
-   
+
    for (n=1;n<MAX_LEVELS;n++)
       smx[0]+=smx[n];
 
@@ -244,20 +246,20 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
    complex_dble z;
    spinor_dble *phi,**wsd,**rsd;
    mdflds_t *mdfs;
-   ratfct_t rf;   
+   ratfct_t rf;
    tm_parms_t tm;
    solver_parms_t sp;
    sap_parms_t sap;
-   
+
    tm=tm_parms();
    if (tm.eoflg!=1)
       set_tm_parms(1);
-   
+
    mdfs=mdflds();
    phi=(*mdfs).pf[ipf];
    random_sd(VOLUME/2,phi,1.0);
+   bnd_sd2zero(EVEN_PTS,phi);
    set_sd2zero(VOLUME/2,phi+(VOLUME/2));
-   bnd_sd2zero(ALL_PTS,phi);
 
    rf=ratfct(irat);
    np=rf.np;
@@ -270,7 +272,7 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
       act=sdet();
    else
       act=0.0;
-   
+
    if (sp.solver==MSCG)
    {
       rsd=reserve_wsd(np);
@@ -284,7 +286,7 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
       wsd=reserve_wsd(2);
       set_sd2zero(VOLUME/2,wsd[0]);
-      
+
       for (k=0;k<np;k++)
       {
          Dwhat_dble(-nu[k],rsd[k],wsd[1]);
@@ -293,13 +295,13 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
          act-=2.0*nu[k]*rnu[k]*norm_square_dble(VOLUME/2,0,wsd[1]);
       }
 
-      act-=norm_square_dble(VOLUME/2,0,wsd[0]);            
+      act-=norm_square_dble(VOLUME/2,0,wsd[0]);
       z.re=0.0;
       z.im=1.0;
       mulc_spinor_add_dble(VOLUME/2,phi,wsd[0],z);
 
-      release_wsd();        
-      release_wsd();  
+      release_wsd();
+      release_wsd();
    }
    else if (sp.solver==SAP_GCR)
    {
@@ -308,7 +310,7 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
       rsd=reserve_wsd(1);
       wsd=reserve_wsd(1);
-      set_sd2zero(VOLUME/2,wsd[0]);      
+      set_sd2zero(VOLUME/2,wsd[0]);
       mulg5_dble(VOLUME/2,phi);
       status[0]=0;
 
@@ -328,13 +330,12 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
       status[0]=(status[0]+(np/2))/np;
       mulg5_dble(VOLUME/2,phi);
       act-=norm_square_dble(VOLUME/2,0,wsd[0]);
-      
       z.re=0.0;
       z.im=1.0;
       mulc_spinor_add_dble(VOLUME/2,phi,wsd[0],z);
 
-      release_wsd();        
-      release_wsd(); 
+      release_wsd();
+      release_wsd();
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
@@ -343,11 +344,11 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
       rsd=reserve_wsd(1);
       wsd=reserve_wsd(1);
-      set_sd2zero(VOLUME/2,wsd[0]);      
+      set_sd2zero(VOLUME/2,wsd[0]);
       mulg5_dble(VOLUME/2,phi);
 
       for (l=0;l<3;l++)
-         status[l]=0;      
+         status[l]=0;
 
       for (k=0;k<np;k++)
       {
@@ -361,7 +362,7 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
          for (l=0;l<3;l++)
             status[l]+=stat[l];
 
-         mulr_spinor_add_dble(VOLUME/2,wsd[0],rsd[0],rnu[k]);         
+         mulr_spinor_add_dble(VOLUME/2,wsd[0],rsd[0],rnu[k]);
          act-=2.0*nu[k]*rnu[k]*norm_square_dble(VOLUME/2,0,rsd[0]);
       }
 
@@ -370,13 +371,12 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
       mulg5_dble(VOLUME/2,phi);
       act-=norm_square_dble(VOLUME/2,0,wsd[0]);
-      
       z.re=0.0;
       z.im=1.0;
       mulc_spinor_add_dble(VOLUME/2,phi,wsd[0],z);
 
-      release_wsd();        
-      release_wsd(); 
+      release_wsd();
+      release_wsd();
    }
    else
       error_root(1,1,"setpf3 [force3.c]","Unknown solver");
@@ -385,9 +385,9 @@ double setpf3(int *irat,int ipf,int isw,int isp,int icom,int *status)
    {
       r=act;
       MPI_Reduce(&r,&act,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&act,1,MPI_DOUBLE,0,MPI_COMM_WORLD);       
+      MPI_Bcast(&act,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return act;
 }
 
@@ -408,7 +408,7 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
       set_tm_parms(1);
 
    mdfs=mdflds();
-   phi=(*mdfs).pf[ipf];   
+   phi=(*mdfs).pf[ipf];
 
    rf=ratfct(irat);
    np=rf.np;
@@ -416,12 +416,12 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
    rmu=rf.rmu;
 
    sp=solver_parms(isp);
-   set_xt2zero();   
+   set_xt2zero();
    set_xv2zero();
 
    if (sp.solver==MSCG)
    {
-      rsd=reserve_wsd(np);      
+      rsd=reserve_wsd(np);
 
       set_res(np,sp.res);
       tmcgm(sp.nmx,rs,np,mu,phi,rsd,status);
@@ -431,12 +431,12 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
                  irat[0],irat[1],irat[2],isp,status[0]);
 
       wsd=reserve_wsd(1);
-      
+
       for (k=0;k<np;k++)
       {
          Dwoe_dble(rsd[k],rsd[k]);
          Dwoo_dble(0.0,rsd[k],rsd[k]);
-         
+
          Dwhat_dble(-mu[k],rsd[k],wsd[0]);
          mulg5_dble(VOLUME/2,wsd[0]);
          Dwoe_dble(wsd[0],wsd[0]);
@@ -457,12 +457,12 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
       rsd=reserve_wsd(2);
       wsd=reserve_wsd(1);
       mulg5_dble(VOLUME/2,phi);
-      set_sd2zero(VOLUME/2,phi+(VOLUME/2));      
+      set_sd2zero(VOLUME/2,phi+(VOLUME/2));
       set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
 
       for (l=0;l<2;l++)
          status[l]=0;
-      
+
       for (k=0;k<np;k++)
       {
          sap_gcr(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
@@ -477,15 +477,15 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
 
          for (l=0;l<2;l++)
             status[l]+=stat[l];
-         
+
          add_prod2xt(rmu[k],rsd[1],rsd[0]);
          add_prod2xv(rmu[k],rsd[1],rsd[0]);
       }
 
       for (l=0;l<2;l++)
-         status[l]=(status[l]+(np/2))/np;      
+         status[l]=(status[l]+(np/2))/np;
 
-      mulg5_dble(VOLUME/2,phi);      
+      mulg5_dble(VOLUME/2,phi);
       release_wsd();
       release_wsd();
    }
@@ -497,12 +497,12 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
       rsd=reserve_wsd(2);
       wsd=reserve_wsd(1);
       mulg5_dble(VOLUME/2,phi);
-      set_sd2zero(VOLUME/2,phi+(VOLUME/2));      
+      set_sd2zero(VOLUME/2,phi+(VOLUME/2));
       set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
 
       for (l=0;l<6;l++)
          status[l]=0;
-      
+
       for (k=0;k<np;k++)
       {
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
@@ -515,21 +515,21 @@ void force3(int *irat,int ipf,int isw,int isp,double c,int *status)
                     "(irat=%d,%d,%d, isp=%d, ""status=%d,%d,%d;%d,%d,%d)",
                     irat[0],irat[1],irat[2],isp,
                     stat[0],stat[1],stat[2],stat[3],stat[4],stat[5]);
-         
+
          for (l=0;l<6;l++)
             status[l]+=stat[l];
-         
+
          add_prod2xt(rmu[k],rsd[1],rsd[0]);
          add_prod2xv(rmu[k],rsd[1],rsd[0]);
       }
 
       for (l=0;l<2;l++)
       {
-         status[l]=(status[l]+(np/2))/np;      
+         status[l]=(status[l]+(np/2))/np;
          status[l+3]=(status[l+3]+(np/2))/np;
       }
 
-      mulg5_dble(VOLUME/2,phi);      
+      mulg5_dble(VOLUME/2,phi);
       release_wsd();
       release_wsd();
    }
@@ -559,13 +559,13 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
    solver_parms_t sp;
    sap_parms_t sap;
    tm_parms_t tm;
-   
+
    tm=tm_parms();
    if (tm.eoflg!=1)
       set_tm_parms(1);
 
    mdfs=mdflds();
-   phi=(*mdfs).pf[ipf];   
+   phi=(*mdfs).pf[ipf];
 
    rf=ratfct(irat);
    np=rf.np;
@@ -591,13 +591,13 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
                  irat[0],irat[1],irat[2],isp,status[0]);
 
       wsd=reserve_wsd(1);
-      
+
       for (k=0;k<np;k++)
       {
          Dwhat_dble(-mu[k],rsd[k],wsd[0]);
          act+=rmu[k]*norm_square_dble(VOLUME/2,0,wsd[0]);
       }
-      
+
       release_wsd();
       release_wsd();
    }
@@ -609,7 +609,7 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
       mulg5_dble(VOLUME/2,phi);
       set_sd2zero(VOLUME/2,phi+(VOLUME/2));
       status[0]=0;
-      
+
       for (k=0;k<np;k++)
       {
          sap_gcr(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
@@ -623,7 +623,7 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
          act+=rmu[k]*norm_square_dble(VOLUME/2,0,rsd[0]);
       }
 
-      status[0]=(status[0]+(np/2))/np;      
+      status[0]=(status[0]+(np/2))/np;
 
       mulg5_dble(VOLUME/2,phi);
       release_wsd();
@@ -638,7 +638,7 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
 
       for (l=0;l<3;l++)
          status[l]=0;
-      
+
       for (k=0;k<np;k++)
       {
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],phi,rsd[0],stat);
@@ -667,8 +667,8 @@ double action3(int *irat,int ipf,int isw,int isp,int icom,int *status)
    {
       r=act;
       MPI_Reduce(&r,&act,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&act,1,MPI_DOUBLE,0,MPI_COMM_WORLD);       
+      MPI_Bcast(&act,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return act;
 }

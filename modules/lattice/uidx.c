@@ -3,12 +3,12 @@
 *
 * File uidx.c
 *
-* Copyright (C) 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Labeling of the link variables on the faces of the local lattice
+* Labeling of the link variables on the faces of the local lattice.
 *
 * The externally accessible functions are
 *
@@ -25,13 +25,15 @@
 *
 * The layout of the double-precision gauge field array and contents of the
 * index structures returned by uidx() are described in the file README.uidx
-* in this directory.
+* in this directory. The index arrays calculated by uidx() are determined
+* by the local geometry of the lattice and are therefore independent of the
+* boundary conditions.
 *
 * There are six planes
 *
 *  (mu,nu)={(0,1),(0,2),(0,3),(2,3),(3,1),(1,2)}
 *
-* labeled by an integer n running from 0 to 5 and the links in the 
+* labeled by an integer n running from 0 to 5 and the links in the
 * (mu,nu)-plaquette at the point x are ordered such that
 *
 *   ip[0] -> U(x,mu)
@@ -41,6 +43,12 @@
 *
 * In the program plaq_uidx() it is taken for granted that 0<=ix<VOLUME.
 *
+* If SF or open-SF boundary conditions are chosen, the offsets ip[4]
+* returned by plaq_uidx() at global time NPROC0*L0-1 take into account the
+* fact that the boundary values of the gauge field are stored at the end
+* of the field array. On all MPI processes, and for all boundary conditions,
+* the correct field variables are thus found at the calculated offsets.
+*
 *******************************************************************************/
 
 #define UIDX_C
@@ -49,12 +57,15 @@
 #include <stdio.h>
 #include <math.h>
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "lattice.h"
 #include "global.h"
 
+#define N0 (NPROC0*L0)
+
 static const int plns[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
-static int nfc[4],ofs[4],snu[4],init=0;
+static int type,nfc[4],ofs[4],snu[4],init=0;
 static uidx_t idx[4];
 
 
@@ -65,7 +76,8 @@ static void alloc_idx(void)
 
    error(iup[0][0]==0,1,"alloc_idx [uidx.c]",
          "Geometry arrays are not set");
-   
+
+   type=bc_type();
    nfc[0]=FACE0/2;
    nfc[1]=FACE1/2;
    nfc[2]=FACE2/2;
@@ -79,11 +91,11 @@ static void alloc_idx(void)
    snu[0]=0;
    snu[1]=snu[0]+(FACE0/2);
    snu[2]=snu[1]+(FACE1/2);
-   snu[3]=snu[2]+(FACE2/2);   
+   snu[3]=snu[2]+(FACE2/2);
 
    if (BNDRY>0)
    {
-      iu0=amalloc(7*(BNDRY/4)*sizeof(*iu0),3);
+      iu0=malloc(7*(BNDRY/4)*sizeof(*iu0));
       error(iu0==NULL,1,"alloc_idx [uidx.c]",
             "Unable to allocate index array");
       iuk=iu0+(BNDRY/4);
@@ -121,7 +133,7 @@ static void alloc_idx(void)
 static int offset(int ix,int mu)
 {
    int iy,ib;
-   
+
    if (ix<(VOLUME/2))
    {
       iy=iup[ix][mu];
@@ -147,11 +159,11 @@ static void set_idx(void)
    int nu0,*iu0,*iuk;
 
    alloc_idx();
-   
+
    for (mu=0;mu<4;mu++)
    {
       nu0=idx[mu].nu0;
-      iu0=idx[mu].iu0;      
+      iu0=idx[mu].iu0;
       iuk=idx[mu].iuk;
 
       for (ib=0;ib<nu0;ib++)
@@ -163,7 +175,7 @@ static void set_idx(void)
 
       for (ib=0;ib<nu0;ib++)
       {
-         iy=ib+ofs[mu];         
+         iy=ib+ofs[mu];
          iz=map[iy-VOLUME];
 
          for (k=0;k<3;k++)
@@ -175,7 +187,7 @@ static void set_idx(void)
 
       for (ib=0;ib<nu0;ib++)
       {
-         iy=ib+ofs[mu]+(BNDRY/2);         
+         iy=ib+ofs[mu]+(BNDRY/2);
          iz=map[iy-VOLUME];
 
          for (k=0;k<3;k++)
@@ -209,20 +221,28 @@ void plaq_uidx(int n,int ix,int *ip)
 
    mu=plns[n][0];
    nu=plns[n][1];
-   
-   ip[0]=offset(ix,mu);
-   iy=iup[ix][mu];
 
-   if (iy<VOLUME)
-      ip[1]=offset(iy,nu);
+   ip[0]=offset(ix,mu);
+
+   if ((mu==0)&&(global_time(ix)==(N0-1))&&((type==1)||(type==2)))
+   {
+      ip[1]=4*VOLUME+7*(BNDRY/4)+nu-1;
+   }
    else
    {
-      if (iy<(VOLUME+(BNDRY/2)))
-         ic=iy-VOLUME-nfc[mu];
-      else
-         ic=iy-VOLUME-(BNDRY/2);
+      iy=iup[ix][mu];
 
-      ip[1]=4*VOLUME+(BNDRY/4)+3*ic+nu-(nu>mu);      
+      if (iy<VOLUME)
+         ip[1]=offset(iy,nu);
+      else
+      {
+         if (iy<(VOLUME+(BNDRY/2)))
+            ic=iy-VOLUME-nfc[mu];
+         else
+            ic=iy-VOLUME-(BNDRY/2);
+
+         ip[1]=4*VOLUME+(BNDRY/4)+3*ic+nu-(nu>mu);
+      }
    }
 
    ip[2]=offset(ix,nu);

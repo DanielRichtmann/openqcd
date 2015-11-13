@@ -8,45 +8,36 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Communication functions for single-precision spinor fields
+* Communication functions for single-precision spinor fields.
 *
 *   void cps_int_bnd(int is,spinor *s)
-*     Copies the field s on the even points at the interior boundary of
-*     the local lattice to the corresponding points on the neighbouring
-*     processes. Only two components of the spinors are copied so that 
-*     the copied spinor r satisfies theta[ifc^is]*(r-s)=0, where ifc 
-*     labels the faces of the local lattice on the sending process (see
-*     the notes).
-*      No copying is performed in the time direction across the boundaries
-*     at global time 0 and NPROC0*L0-1. The program instead sets the field
-*     on the even points at these times and the boundaries there to zero.
+*     Copies the spinors s at the even interior boundary points of the
+*     local lattice to the corresponding points on the neighbouring MPI
+*     processes. Only half of the spinor components are copied, namely
+*     theta[ifc^(is&0x1)]*s, where ifc labels the faces of the local
+*     lattice on the sending process.
 *
 *   void cps_ext_bnd(int is,spinor *s)
-*     Copies the spinors s at the exterior boundary points of the local
-*     lattice to the neighbouring processes and *adds* them to the field
-*     on the matching points of the target lattices. Only two components
-*     of the spinors are copied in such a way that the copied spinor rd
-*     satisfies theta[ifc^is]*(r-s)=0, where ifc labels the faces of the
-*     local lattice on the sending process (see the notes).
-*      No copying is performed in the time direction across the boundaries
-*     at global time 0 and NPROC0*L0-1. The program instead sets the field
-*     on the even points at these times to zero.
+*     Copies the spinors s at the even exterior boundary points of the
+*     local lattice to the neighbouring MPI processes and *adds* them to
+*     the field on the matching points of the target lattices. Only half
+*     of the spinor components are copied, assuming the spinors s satisfy
+*     s=theta[ifc^(is&0x1)]*s, where ifc labels the faces of the local
+*     lattice on the sending process.
 *
-*   void free_sbufs(void)
-*     Frees the communication buffers used by the programs in this module.
-* 
 * Notes:
 *
-* The spinor fields passed to cps_int_bnd() and cps_ext_bnd() must have
-* at least NSPIN elements. They are interpreted as quark fields on the
-* local lattice and the *even* exterior boundary points of the latter.
-* Copying spinors to or from the boundary refers to these points only.
-* The projector theta is described in the module sflds/Pbnd.c.
+* The spinor fields passed to cps_int_bnd() and cps_ext_bnd() must have at
+* least NSPIN elements. They are interpreted as quark fields on the local
+* lattice as described in main/README.global and doc/dirac.pdf. The projector
+* theta[ifc] is defined at the top of the module sflds/Pbnd.c.
 *
-* The copy programs allocate the required communication buffers when
-* needed. They can be freed using free_sbufs(), but if the programs are
-* called frequently, it is better to leave the buffers allocated (in which
-* case they will be reused).
+* If open, SF or open-SF boundary conditions are chosen, the programs do
+* not copy any spinors in the time direction across the boundaries of the
+* global lattice. The spinors on the even points at the boundaries are instead
+* set zero as required by the boundary conditions (see doc/dirac.pdf). More
+* precisely, cps_int_bnd() sets them to zero *before* copying any spinors in
+* the space directions, while cps_ext_bnd() does the opposite.
 *
 * All these programs involve global communications and must be called on
 * all processes simultaneously.
@@ -60,13 +51,14 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "lattice.h"
 #include "sflds.h"
 #include "global.h"
 
-static int np,nmu[8],nbf[8],ofs[8];
-static int ns,sfc[8];
+static int bc,np,nmu[8],nbf[8],ofs[8];
+static int ns,sfc[8],rfc[8],sflg[8];
 static int itags=0,tags[8];
 static weyl *wb=NULL,*snd_buf[8],*rcv_buf[8];
 static const weyl w0={{{0.0f}}};
@@ -76,7 +68,7 @@ static MPI_Request snd_req[8],rcv_req[8];
 static void get_tags(void)
 {
    int i;
-   
+
    if (itags==0)
    {
       for (i=0;i<8;i++)
@@ -89,12 +81,12 @@ static void get_tags(void)
 
 static void alloc_sbufs(void)
 {
-   int ifc,tag,saddr,raddr;
+   int n,ifc,tag,saddr,raddr;
    weyl *w,*wm;
 
    error(iup[0][0]==0,1,"alloc_sbufs [scom.c]",
-         "Geometry arrays are not initialized");
-   
+         "Geometry arrays are not set");
+
    wb=amalloc(BNDRY*sizeof(*wb),ALIGN);
    error(wb==NULL,1,"alloc_sbufs [scom.c]",
          "Unable to allocate communication buffers");
@@ -104,15 +96,16 @@ static void alloc_sbufs(void)
 
    for (;w<wm;w++)
       (*w)=w0;
-   
-   np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;   
+
+   bc=bc_type();
+   np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
 
    nbf[0]=FACE0/2;
    nbf[1]=FACE0/2;
    nbf[2]=FACE1/2;
    nbf[3]=FACE1/2;
    nbf[4]=FACE2/2;
-   nbf[5]=FACE2/2;   
+   nbf[5]=FACE2/2;
    nbf[6]=FACE3/2;
    nbf[7]=FACE3/2;
 
@@ -142,11 +135,22 @@ static void alloc_sbufs(void)
          saddr=npr[ifc];
          raddr=npr[ifc^0x1];
 
-         MPI_Send_init((float*)(snd_buf[ifc]),12*nbf[ifc],MPI_FLOAT,saddr,
+         MPI_Send_init(snd_buf[ifc],12*nbf[ifc],MPI_FLOAT,saddr,
                        tag,MPI_COMM_WORLD,&snd_req[ifc]);
-         MPI_Recv_init((float*)(rcv_buf[ifc]),12*nbf[ifc],MPI_FLOAT,raddr,
+         MPI_Recv_init(rcv_buf[ifc],12*nbf[ifc],MPI_FLOAT,raddr,
                        tag,MPI_COMM_WORLD,&rcv_req[ifc]);
       }
+
+      sflg[ifc]=((ifc>1)||
+                 ((ifc==0)&&(cpr[0]!=0))||
+                 ((ifc==1)&&(cpr[0]!=(NPROC0-1)))||
+                 (bc==3));
+   }
+
+   for (n=0;n<ns;n+=2)
+   {
+      rfc[n]=sfc[ns-n-2];
+      rfc[n+1]=sfc[ns-n-1];
    }
 }
 
@@ -156,9 +160,9 @@ static void alloc_sbufs(void)
 static void zip_weyl(int vol,spinor *pk,weyl *pl)
 {
    weyl *pm;
-   
+
    pm=pl+vol;
-   
+
    for (;pl<pm;pl++)
    {
       __asm__ __volatile__ ("movaps %0, %%xmm0 \n\t"
@@ -204,7 +208,7 @@ static void unzip_weyl(int vol,weyl *pk,spinor *pl)
                          "xmm5", "xmm6", "xmm7");
 
    pm=pl+vol;
-   
+
    for (;pl<pm;pl++)
    {
       __asm__ __volatile__ ("movaps %0, %%xmm0 \n\t"
@@ -213,9 +217,9 @@ static void unzip_weyl(int vol,weyl *pk,spinor *pl)
                             :
                             :
                             "m" ((*pk).c1.c1),
-                            "m" ((*pk).c1.c2),                            
+                            "m" ((*pk).c1.c2),
                             "m" ((*pk).c1.c3),
-                            "m" ((*pk).c2.c1),                            
+                            "m" ((*pk).c2.c1),
                             "m" ((*pk).c2.c2),
                             "m" ((*pk).c2.c3)
                             :
@@ -260,9 +264,9 @@ static void unzip_weyl(int vol,weyl *pk,spinor *pl)
 static void zip_weyl(int vol,spinor *pk,weyl *pl)
 {
    weyl *pm;
-   
+
    pm=pl+vol;
-   
+
    for (;pl<pm;pl++)
    {
       (*pl).c1=(*pk).c1;
@@ -276,9 +280,9 @@ static void zip_weyl(int vol,spinor *pk,weyl *pl)
 static void unzip_weyl(int vol,weyl *pk,spinor *pl)
 {
    weyl *pm;
-   
+
    pm=pk+vol;
-   
+
    for (;pk<pm;pk++)
    {
       _vector_add((*pl).c1,(*pk).c1,(*pk).c1);
@@ -297,9 +301,9 @@ static void send_bufs(int ifc,int eo)
    int io;
 
    io=(ifc^nmu[ifc]);
-   
-   if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1))))
-   {   
+
+   if (sflg[io])
+   {
       if (np==eo)
          MPI_Start(&snd_req[io]);
       else
@@ -314,9 +318,9 @@ static void wait_bufs(int ifc,int eo)
    MPI_Status stat_snd,stat_rcv;
 
    io=(ifc^nmu[ifc]);
-   
-   if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1))))
-   {      
+
+   if (sflg[io])
+   {
       if (np==eo)
          MPI_Wait(&snd_req[io],&stat_snd);
       else
@@ -336,13 +340,16 @@ void cps_int_bnd(int is,spinor *s)
 
    if (NPROC==1)
       return;
-   
-   if (wb==NULL)
+   else if (wb==NULL)
+   {
       alloc_sbufs();
+      bnd_s2zero(NO_PTS,s);
+   }
 
+   is&=0x1;
    m=0;
    eo=0;
-   sb=s+VOLUME;   
+   sb=s+VOLUME;
 
    for (n=0;n<ns;n++)
    {
@@ -352,7 +359,7 @@ void cps_int_bnd(int is,spinor *s)
       ifc=sfc[n];
       io=ifc^nmu[ifc];
 
-      if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1)))) 
+      if (sflg[io])
          assign_s2w[io^is](map+ofs[io^0x1],nbf[io],s,snd_buf[io]);
       else
          bnd_s2zero(EVEN_PTS,s);
@@ -372,7 +379,7 @@ void cps_int_bnd(int is,spinor *s)
       m+=eo;
       eo^=0x1;
    }
-   
+
    for (n=0;n<ns;n++)
    {
       if (m<ns)
@@ -381,11 +388,11 @@ void cps_int_bnd(int is,spinor *s)
       ifc=sfc[n];
       io=(ifc^nmu[ifc])^0x1;
 
-      if ((io>1)||((io==1)&&(cpr[0]!=0))||((io==0)&&(cpr[0]!=(NPROC0-1))))
+      if (sflg[io^0x1])
          unzip_weyl(nbf[io],rcv_buf[io],sb+ofs[io^0x1]);
-      else
+      else if ((io==0)&&((bc==1)||(bc==2)))
          set_s2zero(nbf[io],sb+ofs[io^0x1]);
-      
+
       if (m<ns)
       {
          wait_bufs(sfc[m],eo);
@@ -402,33 +409,36 @@ void cps_ext_bnd(int is,spinor *s)
    int n,m,eo;
    spinor *sb;
 
-   if (NPROC0==1)
-      bnd_s2zero(EVEN_PTS,s);
-   
    if (NPROC==1)
-      return;   
-   
-   if (wb==NULL)
+   {
+      bnd_s2zero(EVEN_PTS,s);
+      return;
+   }
+   else if (wb==NULL)
+   {
       alloc_sbufs();
+      bnd_s2zero(NO_PTS,s);
+   }
 
+   is&=0x1;
    m=0;
    eo=0;
    sb=s+VOLUME;
-   
+
    for (n=0;n<ns;n++)
    {
       if (n>0)
-         send_bufs(sfc[m],eo);
+         send_bufs(rfc[m],eo);
 
-      ifc=sfc[n];
+      ifc=rfc[n];
       io=ifc^nmu[ifc];
 
-      if ((io>1)||((io==0)&&(cpr[0]!=0))||((io==1)&&(cpr[0]!=(NPROC0-1))))
+      if (sflg[io])
          zip_weyl(nbf[io],sb+ofs[io],snd_buf[io]);
 
       if (n>0)
       {
-         wait_bufs(sfc[m],eo);
+         wait_bufs(rfc[m],eo);
          m+=eo;
          eo^=0x1;
       }
@@ -436,49 +446,33 @@ void cps_ext_bnd(int is,spinor *s)
 
    for (n=0;n<2;n++)
    {
-      send_bufs(sfc[m],eo);
-      wait_bufs(sfc[m],eo);
+      send_bufs(rfc[m],eo);
+      wait_bufs(rfc[m],eo);
       m+=eo;
       eo^=0x1;
    }
-   
+
    for (n=0;n<ns;n++)
    {
       if (m<ns)
-         send_bufs(sfc[m],eo);
+         send_bufs(rfc[m],eo);
 
-      ifc=sfc[n];
+      ifc=rfc[n];
       io=(ifc^nmu[ifc])^0x1;
 
-      if ((io>1)||((io==1)&&(cpr[0]!=0))||((io==0)&&(cpr[0]!=(NPROC0-1))))      
+      if (sflg[io^0x1])
          add_assign_w2s[io^is](map+ofs[io],nbf[io],rcv_buf[io],s);
       else
          bnd_s2zero(EVEN_PTS,s);
 
       if (m<ns)
       {
-         wait_bufs(sfc[m],eo);
+         wait_bufs(rfc[m],eo);
          m+=eo;
          eo^=0x1;
       }
    }
-}
 
-
-void free_sbufs(void)
-{
-   int n,ifc;
-
-   if (wb==NULL)
-      return;
-
-   for (n=0;n<ns;n++)
-   {
-      ifc=sfc[n];
-      MPI_Request_free(&snd_req[ifc]);
-      MPI_Request_free(&rcv_req[ifc]);
-   }
-
-   afree(wb);
-   wb=NULL;
+   if (NPROC0==1)
+      bnd_s2zero(EVEN_PTS,s);
 }

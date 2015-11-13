@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Allocation and initialization of the little Dirac operator
+* Allocation and initialization of the little Dirac operator.
 *
 * The externally accessible functions are
 *
@@ -44,7 +44,7 @@
 * Notes:
 *
 * For a description of the little Dirac operator and the associated data
-* structures see README.Aw. The twisted-mass flag is retrieved from the 
+* structures see README.Aw. The twisted-mass flag is retrieved from the
 * parameter data base (see flags/lat_parms.c).
 *
 * The inversion of a double-precision complex matrix is considered to be
@@ -88,8 +88,8 @@ static void set_constants(void)
 {
    dfl_parms_t dfl;
    dfl_grid_t grd;
-   
-   dfl=dfl_parms();   
+
+   dfl=dfl_parms();
    grd=dfl_geometry();
 
    Ns=dfl.Ns;
@@ -117,7 +117,7 @@ static void alloc_Awd(Aw_dble_t *Aw)
    if (Aw==(&Awdhat))
       nbee=nbbh;
    n=18*nbh+nbee+2*nboe;
-   ww=amalloc(n*sizeof(*ww),3);
+   ww=malloc(n*sizeof(*ww));
    w=amalloc(n*nmat*sizeof(*w),ALIGN);
    error((ww==NULL)||(w==NULL),1,"alloc_Awd [Aw_ops.c]",
          "Unable to allocate matrix arrays");
@@ -132,7 +132,7 @@ static void alloc_Awd(Aw_dble_t *Aw)
       for (k=0;k<Ns;k++)
          ww[n][Ns*k+k].re=1.0;
    }
-   
+
    (*Aw).Ns=Ns;
    (*Aw).nb=nb;
    (*Aw).Aee=ww;
@@ -152,10 +152,10 @@ static void alloc_Aws(Aw_t *Aw)
 
    if (Ns==0)
       set_constants();
-   
+
    nmat=Ns*Ns;
    n=18*nbh;
-   ww=amalloc(n*sizeof(*ww),3);   
+   ww=malloc(n*sizeof(*ww));
    w=amalloc(n*nmat*sizeof(*w),ALIGN);
    error((ww==NULL)||(w==NULL),1,"alloc_Aws [Aw_ops.c]",
          "Unable to allocate matrix arrays");
@@ -170,7 +170,7 @@ static void alloc_Aws(Aw_t *Aw)
       for (k=0;k<Ns;k++)
          ww[n][Ns*k+k].re=1.0f;
    }
-   
+
    (*Aw).Ns=Ns;
    (*Aw).nb=nb;
    (*Aw).Aee=ww;
@@ -228,7 +228,7 @@ static void assign_Awd2Aw(Aw_dble_t *Bwd,Aw_t *Bw)
    assign_vd2v(n,(*Bwd).Aee[0],(*Bw).Aee[0]);
    assign_vd2v(n,(*Bwd).Aoo[0],(*Bw).Aoo[0]);
    assign_vd2v(8*n,(*Bwd).Aoe[0],(*Bw).Aoe[0]);
-   assign_vd2v(8*n,(*Bwd).Aeo[0],(*Bw).Aeo[0]);   
+   assign_vd2v(8*n,(*Bwd).Aeo[0],(*Bw).Aeo[0]);
 }
 
 
@@ -258,7 +258,7 @@ static void update_Awdiag(double m0,double mu,int eo)
       else
          dmo=dme;
    }
-   
+
    b=blk_list(DFL_BLOCKS,&nbs,&isw);
    vol=(*b).vol;
    volh=vol/2;
@@ -268,18 +268,18 @@ static void update_Awdiag(double m0,double mu,int eo)
       for (n=0;n<nb;n++)
       {
          nsw=idx[n];
-      
+
          if (nsw<nbh)
             z=Awd.Aee[nsw];
          else
             z=Awd.Aoo[nsw-nbh];
 
          sd=(*b).sd;
-         
+
          for (k=0;k<Ns;k++)
          {
             z[Ns*k+k].re+=dm0;
-            
+
             if (dme!=0.0)
             {
                for (l=k;l<Ns;l++)
@@ -314,7 +314,7 @@ static void update_Awdiag(double m0,double mu,int eo)
                   else
                      z[Ns*k+k].im+=dmo*w.re;
                }
-            }            
+            }
          }
 
          b+=1;
@@ -331,25 +331,25 @@ static void update_Awdiag(double m0,double mu,int eo)
          assign_ud2udblk(DFL_BLOCKS,n);
          assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
          nsw=idx[n];
-      
+
          if (nsw<nbh)
             z=Awd.Aee[nsw];
          else
             z=Awd.Aoo[nsw-nbh];
 
          sd=(*b).sd;
-         
+
          for (l=0;l<Ns;l++)
          {
             Dw_blk_dble(DFL_BLOCKS,n,mu,l+1,0);
-         
+
             for (k=0;k<Ns;k++)
                z[Ns*k+l]=spinor_prod_dble(vol,0,sd[k+1],sd[0]);
          }
 
          b+=1;
       }
-      
+
       nupd=0;
    }
 
@@ -379,7 +379,7 @@ void set_Aw(double mu)
       error(dprms[0]!=mu,1,
             "set_Aw [Aw_ops.c]","Parameters are not global");
    }
-   
+
    if (Awd.Ns==0)
       alloc_Awd(&Awd);
 
@@ -387,7 +387,7 @@ void set_Aw(double mu)
    m0=sw.m0;
    tm=tm_parms();
    eo=tm.eoflg;
-   
+
    if (query_flags(AW_UP2DATE)==1)
    {
       if ((m0!=old_m0[0])||(mu!=old_mu[0])||(eo!=old_eo[0]))
@@ -403,7 +403,7 @@ void set_Aw(double mu)
       assign_ud2udblk(DFL_BLOCKS,n);
       assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
       nsw=idx[n];
-      
+
       if (nsw<nbh)
          z=Awd.Aee[nsw];
       else
@@ -411,11 +411,11 @@ void set_Aw(double mu)
 
       vol=(*b).vol;
       sd=(*b).sd;
-         
+
       for (l=0;l<Ns;l++)
       {
          Dw_blk_dble(DFL_BLOCKS,n,mu,l+1,0);
-         
+
          for (k=0;k<Ns;k++)
             z[Ns*k+l]=spinor_prod_dble(vol,0,sd[k+1],sd[0]);
       }
@@ -423,7 +423,7 @@ void set_Aw(double mu)
       for (nu=0;nu<4;nu++)
       {
          b2b=b2b_flds(n,nu);
-         msw=idx[(*b2b).n[1]];         
+         msw=idx[(*b2b).n[1]];
          vol=(*b2b).vol;
          ibn=(*b2b).ibn;
          ifc=2*nu+1;
@@ -440,14 +440,14 @@ void set_Aw(double mu)
          {
             mbd=inn[msw][ifc^0x1]-nb-nbbh;
             z=Awd.Aoe[8*nbh+mbd];
-            w=Awd.Aeo[8*nbh+mbd];           
+            w=Awd.Aeo[8*nbh+mbd];
          }
          else
          {
             z=Awd.Aoe[8*(nsw-nbh)+ifc];
-            w=Awd.Aeo[8*(nsw-nbh)+ifc];           
+            w=Awd.Aeo[8*(nsw-nbh)+ifc];
          }
-         
+
          for (k=0;k<Ns;k++)
          {
             for (l=0;l<Ns;l++)
@@ -468,20 +468,20 @@ void set_Aw(double mu)
          if (nsw>=nbh)
          {
             z=Awd.Aoe[8*(nsw-nbh)+ifc];
-            w=Awd.Aeo[8*(nsw-nbh)+ifc];           
+            w=Awd.Aeo[8*(nsw-nbh)+ifc];
          }
          else if (ibn)
          {
             nbd=inn[nsw][ifc]-nb-nbbh;
             z=Awd.Aeo[8*nbh+nbd];
-            w=Awd.Aoe[8*nbh+nbd];           
+            w=Awd.Aoe[8*nbh+nbd];
          }
          else
          {
             z=Awd.Aeo[8*(msw-nbh)+(ifc^0x1)];
             w=Awd.Aoe[8*(msw-nbh)+(ifc^0x1)];
          }
-         
+
          for (k=0;k<Ns;k++)
          {
             for (l=0;l<Ns;l++)
@@ -514,7 +514,7 @@ void set_Aw(double mu)
    cpAoe_ext_bnd();
 
    if (Aws.Ns==0)
-      alloc_Aws(&Aws);      
+      alloc_Aws(&Aws);
    assign_Awd2Aw(&Awd,&Aws);
 
    nupd=0;
@@ -537,13 +537,13 @@ int set_Awhat(double mu)
    m0=sw.m0;
    tm=tm_parms();
    eo=tm.eoflg;
-   
+
    if (query_flags(AWHAT_UP2DATE)==1)
    {
       if ((m0==old_m0[1])&&(mu==old_mu[1])&&(eo==old_eo[1]))
          return 0;
    }
-   
+
    if (Awdhat.Ns==0)
       alloc_Awd(&Awdhat);
 
@@ -556,7 +556,7 @@ int set_Awhat(double mu)
          ifail=1;
    }
 
-   cpAee_int_bnd();   
+   cpAee_int_bnd();
 
    for (n=0;n<nbh;n++)
    {
@@ -571,7 +571,7 @@ int set_Awhat(double mu)
                        Awdhat.Aeo[8*n+ifc]);
       }
    }
-   
+
    for (n=0;n<nbh;n++)
    {
       ifail|=cmat_inv_dble(Ns,Awd.Aoo[n],Awdhat.Aoo[n],&cn);
@@ -583,15 +583,15 @@ int set_Awhat(double mu)
    }
 
    if (Awshat.Ns==0)
-      alloc_Aws(&Awshat);      
+      alloc_Aws(&Awshat);
    assign_Awd2Aw(&Awdhat,&Awshat);
    set_flags(COMPUTED_AWHAT);
-   
+
    old_m0[1]=m0;
    old_mu[1]=mu;
    old_eo[1]=eo;
    ifail|=set_ltl_modes();
    MPI_Allreduce(&ifail,&n,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-   
+
    return n;
 }

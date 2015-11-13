@@ -3,12 +3,12 @@
 *
 * File check5.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Action of Dw_dble() on plane waves
+* Action of Dw_dble() on plane waves.
 *
 *******************************************************************************/
 
@@ -106,10 +106,11 @@ static spinor_dble mul_gamma(int mu,spinor_dble s)
 
 int main(int argc,char *argv[])
 {
-   int my_rank;
+   int my_rank,bc;
    int n,i,ix,nu,x0,x1,x2,x3;
    int np[4],bo[4];
    float ran[4];
+   double phi[2],phi_prime[2];
    double mu,pi,d,dmax;
    double mp,pt,pv,p[4],sp[4];
    complex_dble z;
@@ -133,23 +134,40 @@ int main(int argc,char *argv[])
 
       printf("For this test to pass, the calculated differences delta\n");
       printf("should be at most 1*10^(-14) or so\n\n");
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check5.c]",
+                    "Syntax: check5 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.0;
+   phi[1]=0.0;
+   phi_prime[0]=0.0;
+   phi_prime[1]=0.0;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
    alloc_wsd(3);
    psd=reserve_wsd(3);
 
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,0.789,1.234);
    swp=set_sw_parms(-0.0123);
    mu=0.0876;
 
    if (my_rank==0)
-      printf("m0 = %.4e, mu= %.4e, csw = %.4e, cF = %.4e\n\n",
-             swp.m0,mu,swp.csw,swp.cF);
+      printf("m0 = %.4e, csw = %.4e, cF = %.4e, cF' = %.4e\n\n",
+             swp.m0,swp.csw,swp.cF[0],swp.cF[1]);
 
-   (void)udfld();   
-   sw_term(NO_PTS);   
+   (void)udfld();
+   chs_ubnd(-1);
+   sw_term(NO_PTS);
    pi=4.0*atan(1.0);
    n=10;
    bo[0]=cpr[0]*L0;
@@ -162,24 +180,32 @@ int main(int argc,char *argv[])
    {
       ranlxs(ran,4);
 
-      np[0]=(int)(ran[0]*(float)(NPROC0*L0-1));
+      if (bc==0)
+         np[0]=(int)(ran[0]*(float)(NPROC0*L0-1));
+      else
+         np[0]=(int)(ran[0]*(float)(NPROC0*L0));
       np[1]=(int)(ran[1]*(float)(NPROC1*L1));
       np[2]=(int)(ran[2]*(float)(NPROC2*L2));
       np[3]=(int)(ran[3]*(float)(NPROC3*L3));
 
       if (np[0]==0)
-         np[0]=1;      
-      
-      p[0]=(double)(np[0])*pi/(double)(NPROC0*L0-1);
+         np[0]=1;
+
+      if (bc==0)
+         p[0]=(double)(np[0])*pi/(double)(NPROC0*L0-1);
+      else if (bc==3)
+         p[0]=((double)(np[0])*2.0*pi+pi)/(double)(NPROC0*L0);
+      else
+         p[0]=(double)(np[0])*pi/(double)(NPROC0*L0);
       p[1]=(double)(np[1])*2.0*pi/(double)(NPROC1*L1);
       p[2]=(double)(np[2])*2.0*pi/(double)(NPROC2*L2);
       p[3]=(double)(np[3])*2.0*pi/(double)(NPROC3*L3);
 
       random_sd(1,&rs,1.0);
 
-      MPI_Bcast(p,4,MPI_DOUBLE,0,MPI_COMM_WORLD);      
-      MPI_Bcast((double*)(&rs),24,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+      MPI_Bcast(p,4,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      MPI_Bcast(&rs,24,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
       sp[0]=sin(p[0]);
       sp[1]=sin(p[1]);
       sp[2]=sin(p[2]);
@@ -190,7 +216,7 @@ int main(int argc,char *argv[])
       mp+=(1.0-cos(p[1]));
       mp+=(1.0-cos(p[2]));
       mp+=(1.0-cos(p[3]));
-   
+
       for (x0=0;x0<L0;x0++)
       {
          for (x1=0;x1<L1;x1++)
@@ -204,9 +230,17 @@ int main(int argc,char *argv[])
                   pt=p[0]*(double)(x0+bo[0]);
                   pv=p[1]*(double)(x1+bo[1])+p[2]*(double)(x2+bo[2])+
                      p[3]*(double)(x3+bo[3]);
-               
-                  z.re=sin(pt)*cos(pv);
-                  z.im=sin(pt)*sin(pv);
+
+                  if (bc!=3)
+                  {
+                     z.re=sin(pt)*cos(pv);
+                     z.im=sin(pt)*sin(pv);
+                  }
+                  else
+                  {
+                     z.re=cos(pt+pv);
+                     z.im=sin(pt+pv);
+                  }
 
                   s0.c1=mul_cplx(z,rs.c1);
                   s0.c2=mul_cplx(z,rs.c2);
@@ -222,13 +256,18 @@ int main(int argc,char *argv[])
                   s1.c2=mul_cplx(z,rs.c2);
                   s1.c3=mul_cplx(z,rs.c3);
                   s1.c4=mul_cplx(z,rs.c4);
-                  
+
                   z.re=mp;
                   z.im=0.0;
 
-                  if (((cpr[0]==0)&&(x0==1))||
-                      ((cpr[0]==(NPROC0-1))&&(x0==(L0-2))))
-                     z.re+=(swp.cF-1.0);
+                  if ((cpr[0]==0)&&(x0==1)&&(bc!=3))
+                     z.re+=(swp.cF[0]-1.0);
+
+                  if ((cpr[0]==(NPROC0-1))&&(x0==(L0-2))&&(bc==0))
+                     z.re+=(swp.cF[1]-1.0);
+
+                  if ((cpr[0]==(NPROC0-1))&&(x0==(L0-1))&&((bc==1)||(bc==2)))
+                     z.re+=(swp.cF[1]-1.0);
 
                   s2.c1=mul_cplx(z,s0.c1);
                   s2.c2=mul_cplx(z,s0.c2);
@@ -237,7 +276,7 @@ int main(int argc,char *argv[])
 
                   for (nu=0;nu<5;nu++)
                   {
-                     if (nu==0)
+                     if ((nu==0)&&(bc!=3))
                      {
                         s3=mul_gamma(0,s1);
                         z.re=sp[0];
@@ -267,8 +306,8 @@ int main(int argc,char *argv[])
                      _vector_add_assign(s2.c4,s4.c4);
                   }
 
-                  if (((cpr[0]==0)&&(x0==0))||
-                      ((cpr[0]==(NPROC0-1))&&(x0==(L0-1))))
+                  if (((cpr[0]==0)&&(x0==0)&&(bc!=3))||
+                      ((cpr[0]==(NPROC0-1))&&(x0==(L0-1))&&(bc==0)))
                      psd[1][ix]=sd0;
                   else
                      psd[1][ix]=s2;
@@ -279,9 +318,7 @@ int main(int argc,char *argv[])
 
       Dw_dble(mu,psd[0],psd[2]);
 
-      z.re=-1.0;
-      z.im=0.0;
-      mulc_spinor_add_dble(VOLUME,psd[2],psd[1],z);
+      mulr_spinor_add_dble(VOLUME,psd[2],psd[1],-1.0);
       d=norm_square_dble(VOLUME,1,psd[2])/norm_square_dble(VOLUME,1,psd[0]);
       d=sqrt(d);
       if (d>dmax)

@@ -23,7 +23,7 @@ MAIN = check1 check2 check3 check4 check5 check6
 
 FORCES = force0
 
-FLAGS = flags lat_parms hmc_parms dfl_parms sf_parms
+FLAGS = flags lat_parms hmc_parms dfl_parms
 
 LATTICE = bcnds uidx ftidx geometry 
 

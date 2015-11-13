@@ -3,13 +3,13 @@
 *
 * File chexp.c
 *
-* Copyright (C) 2009, 2010, 2011 Filippo Palombi, Martin Luescher
+* Copyright (C) 2009, 2010, 2011, 2013 Filippo Palombi, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Computation of the SU(3) exponential function and its first and second
-* derivatives using the Cayley-Hamilton representation
+* derivatives using the Cayley-Hamilton representation.
 *
 * The externally accessible functions are
 *
@@ -45,20 +45,20 @@
 *   M. Luescher: "SU(3) matrix functions", August 2009
 *
 * The output is delivered in structures of the type
-* 
+*
 *   typedef struct
 *   {
 *      double t,d;
 *      complex_dble p[3];
 *   } ch_drv0_t;
-* 
+*
 *   typedef struct
 *   {
 *      double t,d;
 *      complex_dble p[3];
 *      complex_dble pt[3],pd[3];
 *   } ch_drv1_t;
-* 
+*
 *   typedef struct
 *   {
 *      double t,d;
@@ -66,12 +66,12 @@
 *      complex_dble pt[3],pd[3];
 *      complex_dble ptt[3],ptd[3],pdd[3];
 *   } ch_drv2_t;
-* 
+*
 * defined in wflow.h. Their elements are the Cayley-Hamilton coefficients
 * of the exponential function and their derivatives with respect to the
 * parameters t and d (see the notes cited above).
 *
-* The programs in this module do not perform any communications and can be 
+* The programs in this module do not perform any communications and can be
 * called locally. All errors are registered by the error_loc() function. If
 * SSE instructions are used, it is assumed that the output structures are
 * aligned to a 16 byte boundary.
@@ -80,12 +80,17 @@
 
 #define CHEXP_C
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
 #include "utils.h"
 #include "su3.h"
 #include "su3fcts.h"
+
+#ifndef ALIGN
+#define ALIGN 6
+#endif
 
 static void mapX2v(su3_alg_dble *X);
 static void eval_td(su3_alg_dble *X);
@@ -124,7 +129,7 @@ static void ch_init(void)
 
    N=7;
    fctr=1.0;
-   
+
    while (fctr>DBL_EPSILON)
    {
       N++;
@@ -132,8 +137,7 @@ static void ch_init(void)
    }
 
    N+=(N%2);
-
-   c=amalloc((N+1)*sizeof(*c),4);
+   c=amalloc((N+1)*sizeof(*c),ALIGN);
 
    if (error_loc(c==NULL,1,"ch_init [chexp.c]",
 		 "Unable to allocate auxiliary array")==0)
@@ -180,7 +184,7 @@ void expXsu3(double eps,su3_alg_dble *X,su3_dble *u)
 
    u1=&umat1;
    u2=&umat2;
-   
+
    chexp_drv0(&Y,&s);
    ch2mat(s.p,&Y,u2);
 
@@ -193,7 +197,7 @@ void expXsu3(double eps,su3_alg_dble *X,su3_dble *u)
    }
 
    su3xsu3(u2,u,u);
-}   
+}
 
 #if (defined x64)
 #include "sse2.h"
@@ -214,7 +218,7 @@ static void mapX2v(su3_alg_dble *X)
                         "shufpd $0x1, %%xmm1, %%xmm1 \n\t"
                         "movapd %%xmm2, %0 \n\t"
                         "movapd %%xmm3, %1 \n\t"
-                        "movapd %%xmm1, %2"                        
+                        "movapd %%xmm1, %2"
 			:
 			"=m" (v2.c2),
 			"=m" (v3.c3),
@@ -278,7 +282,7 @@ void ch2mat(complex_dble *p,su3_alg_dble *X,su3_dble *u)
                         "shufpd $0x1, %%xmm1, %%xmm1 \n\t"
                         "movapd %%xmm2, %0 \n\t"
                         "movapd %%xmm3, %1 \n\t"
-                        "movapd %%xmm1, %2"                        
+                        "movapd %%xmm1, %2"
 			:
 			"=m" (umat1.c22),
 			"=m" (umat1.c33),
@@ -335,18 +339,18 @@ void ch2mat(complex_dble *p,su3_alg_dble *X,su3_dble *u)
 			"addpd %6, %%xmm2 \n\t"
 			"movapd %%xmm0, %0 \n\t"
 			"movapd %%xmm1, %1 \n\t"
-			"movapd %%xmm2, %2"                        
+			"movapd %%xmm2, %2"
 			:
 			"=m" ((*u).c11),
 			"=m" ((*u).c22),
-			"=m" ((*u).c33)                        
+			"=m" ((*u).c33)
 			:
 			"m" ((*u).c11),
 			"m" ((*u).c22),
-			"m" ((*u).c33),                        
+			"m" ((*u).c33),
 			"m" (p[0])
 			:
-			"xmm0", "xmm1", "xmm2");   
+			"xmm0", "xmm1", "xmm2");
 }
 
 void chexp_drv0(su3_alg_dble *X,ch_drv0_t *s)
@@ -391,23 +395,23 @@ void chexp_drv0(su3_alg_dble *X,ch_drv0_t *s)
       __asm__ __volatile__("movapd %%xmm2, %%xmm4 \n\t"
 			   "mulpd %%xmm6, %%xmm2 \n\t"
 			   "shufpd $0x1, %%xmm4, %%xmm4 \n\t"
-			   "addpd %%xmm0, %%xmm2\n\t"	
+			   "addpd %%xmm0, %%xmm2\n\t"
                            "mulpd %%xmm7, %%xmm4 \n\t"
                            "movapd %%xmm1, %%xmm0 \n\t"
-			   "addsd %0, %%xmm4 \n\t"                           
+			   "addsd %0, %%xmm4 \n\t"
 			   "shufpd $0x1, %%xmm0, %%xmm0 \n\t"
 			   "mulpd %%xmm6, %%xmm1 \n\t"
 			   "mulpd %%xmm7, %%xmm0 \n\t"
-			   "addpd %%xmm4, %%xmm1 \n\t"	
+			   "addpd %%xmm4, %%xmm1 \n\t"
 			   "addsd %1, %%xmm0"
 			   :
 			   :
-			   "m" (c[n]),                           
+			   "m" (c[n]),
 			   "m" (c[n-1])
 			   :
-			   "xmm0", "xmm1", "xmm2", "xmm4");      
+			   "xmm0", "xmm1", "xmm2", "xmm4");
    }
-   
+
    __asm__ __volatile__ ("movapd %%xmm0, %0 \n\t"
 			 "movapd %%xmm1, %1 \n\t"
 			 "movapd %%xmm2, %2"
@@ -447,7 +451,7 @@ void chexp_drv1(su3_alg_dble *X,ch_drv1_t *s)
 			"xorpd %%xmm4, %%xmm4 \n\t"
 			"xorpd %%xmm5, %%xmm5 \n\t"
                         "shufpd $0x0, %%xmm14, %%xmm14 \n\t"
-                        "shufpd $0x1, %%xmm15, %%xmm15"                        
+                        "shufpd $0x1, %%xmm15, %%xmm15"
 			:
 			:
 			"m" ((*s).t),
@@ -466,7 +470,7 @@ void chexp_drv1(su3_alg_dble *X,ch_drv1_t *s)
                            "movapd %%xmm5, %%xmm9 \n\t"
                            "shufpd $0x1, %%xmm6, %%xmm6 \n\t"
                            "shufpd $0x1, %%xmm7, %%xmm7 \n\t"
-                           "mulpd %0, %%xmm2 \n\t"                           
+                           "mulpd %0, %%xmm2 \n\t"
                            "mulpd %%xmm14, %%xmm8 \n\t"
                            "mulpd %%xmm14, %%xmm9 \n\t"
                            "mulpd %%xmm15, %%xmm6 \n\t"
@@ -483,7 +487,7 @@ void chexp_drv1(su3_alg_dble *X,ch_drv1_t *s)
 
       __asm__ __volatile__("addpd %%xmm0, %%xmm8 \n\t"
                            "addpd %%xmm2, %%xmm7 \n\t"
-                           "addpd %%xmm3, %%xmm9 \n\t"                           
+                           "addpd %%xmm3, %%xmm9 \n\t"
                            "movapd %%xmm1, %%xmm2 \n\t"
                            "movapd %%xmm6, %%xmm0 \n\t"
                            "movapd %%xmm8, %%xmm1 \n\t"
@@ -572,7 +576,7 @@ void chexp_drv2(su3_alg_dble *X,ch_drv2_t *s)
 			   "mulpd %%xmm14, %%xmm9 \n\t"
 			   "mulpd %%xmm15, %%xmm11 \n\t"
 			   "addsd %0, %%xmm9 \n\t"
-			   "subpd %%xmm11, %%xmm10"	
+			   "subpd %%xmm11, %%xmm10"
 			   :
 			   :
 			   "m" (c[n])
@@ -699,34 +703,34 @@ static void mapX2v(su3_alg_dble *X)
    v3.c2.re=-(*X).c7;
    v3.c2.im=(*X).c8;
    v3.c3.re=0.0;
-   v3.c3.im=(*X).c1-2.0*(*X).c2;   
+   v3.c3.im=(*X).c1-2.0*(*X).c2;
 }
 
 
 void ch2mat(complex_dble *p,su3_alg_dble *X,su3_dble *u)
 {
    complex_dble z;
-   
+
    mapX2v(X);
-   
+
    (*u).c11.re=p[0].re-p[1].im*v1.c1.im;
    (*u).c11.im=p[0].im+p[1].re*v1.c1.im;
    (*u).c12.re=p[1].re*v1.c2.re-p[1].im*v1.c2.im;
    (*u).c12.im=p[1].re*v1.c2.im+p[1].im*v1.c2.re;
    (*u).c13.re=p[1].re*v1.c3.re-p[1].im*v1.c3.im;
-   (*u).c13.im=p[1].re*v1.c3.im+p[1].im*v1.c3.re;    
+   (*u).c13.im=p[1].re*v1.c3.im+p[1].im*v1.c3.re;
 
    (*u).c21.re=p[1].re*v2.c1.re-p[1].im*v2.c1.im;
-   (*u).c21.im=p[1].re*v2.c1.im+p[1].im*v2.c1.re;    
+   (*u).c21.im=p[1].re*v2.c1.im+p[1].im*v2.c1.re;
    (*u).c22.re=p[0].re-p[1].im*v2.c2.im;
    (*u).c22.im=p[0].im+p[1].re*v2.c2.im;
    (*u).c23.re=p[1].re*v2.c3.re-p[1].im*v2.c3.im;
-   (*u).c23.im=p[1].re*v2.c3.im+p[1].im*v2.c3.re;    
-   
+   (*u).c23.im=p[1].re*v2.c3.im+p[1].im*v2.c3.re;
+
    (*u).c31.re=p[1].re*v3.c1.re-p[1].im*v3.c1.im;
-   (*u).c31.im=p[1].re*v3.c1.im+p[1].im*v3.c1.re;    
+   (*u).c31.im=p[1].re*v3.c1.im+p[1].im*v3.c1.re;
    (*u).c32.re=p[1].re*v3.c2.re-p[1].im*v3.c2.im;
-   (*u).c32.im=p[1].re*v3.c2.im+p[1].im*v3.c2.re;    
+   (*u).c32.im=p[1].re*v3.c2.im+p[1].im*v3.c2.re;
    (*u).c33.re=p[0].re-p[1].im*v3.c3.im;
    (*u).c33.im=p[0].im+p[1].re*v3.c3.im;
 
@@ -737,31 +741,31 @@ void ch2mat(complex_dble *p,su3_alg_dble *X,su3_dble *u)
    z.re=_vector_prod_re(v2,v2);
    (*u).c22.re-=p[2].re*z.re;
    (*u).c22.im-=p[2].im*z.re;
-   
+
    z.re=_vector_prod_re(v3,v3);
    (*u).c33.re-=p[2].re*z.re;
    (*u).c33.im-=p[2].im*z.re;
-   
+
    z.re=_vector_prod_re(v1,v2);
-   z.im=_vector_prod_im(v1,v2);   
+   z.im=_vector_prod_im(v1,v2);
    (*u).c12.re-=p[2].re*z.re+p[2].im*z.im;
    (*u).c12.im-=p[2].im*z.re-p[2].re*z.im;
    (*u).c21.re-=p[2].re*z.re-p[2].im*z.im;
-   (*u).c21.im-=p[2].im*z.re+p[2].re*z.im;   
+   (*u).c21.im-=p[2].im*z.re+p[2].re*z.im;
 
    z.re=_vector_prod_re(v1,v3);
-   z.im=_vector_prod_im(v1,v3);   
+   z.im=_vector_prod_im(v1,v3);
    (*u).c13.re-=p[2].re*z.re+p[2].im*z.im;
    (*u).c13.im-=p[2].im*z.re-p[2].re*z.im;
    (*u).c31.re-=p[2].re*z.re-p[2].im*z.im;
-   (*u).c31.im-=p[2].im*z.re+p[2].re*z.im;   
+   (*u).c31.im-=p[2].im*z.re+p[2].re*z.im;
 
    z.re=_vector_prod_re(v2,v3);
-   z.im=_vector_prod_im(v2,v3);   
+   z.im=_vector_prod_im(v2,v3);
    (*u).c23.re-=p[2].re*z.re+p[2].im*z.im;
    (*u).c23.im-=p[2].im*z.re-p[2].re*z.im;
    (*u).c32.re-=p[2].re*z.re-p[2].im*z.im;
-   (*u).c32.im-=p[2].im*z.re+p[2].re*z.im;   
+   (*u).c32.im-=p[2].im*z.re+p[2].re*z.im;
 }
 
 
@@ -785,13 +789,13 @@ void chexp_drv0(su3_alg_dble *X,ch_drv0_t *s)
    (*s).t=t;
    (*s).d=d;
    (*s).p[0].re=c[N-6];
-   
+
    for (n=(N-7);n>=0;n--)
    {
       q0=(*s).p[0];
       q1=(*s).p[1];
       q2=(*s).p[2];
-      
+
       (*s).p[0].re=c[n]+d*q2.im;
       (*s).p[0].im=-d*q2.re;
       (*s).p[1].re=q0.re-t*q2.re;
@@ -818,12 +822,12 @@ void chexp_drv1(su3_alg_dble *X,ch_drv1_t *s)
       return;
    }
 
-   eval_td(X);   
+   eval_td(X);
    (*s)=sp1;
    (*s).t=t;
    (*s).d=d;
    (*s).p[0].re=c[N-3];
-   
+
    for (n=(N-4);n>=0;n--)
    {
       q0=(*s).p[0];
@@ -840,7 +844,7 @@ void chexp_drv1(su3_alg_dble *X,ch_drv1_t *s)
       q0d=(*s).pd[0];
       q1d=(*s).pd[1];
       q2d=(*s).pd[2];
-      
+
       (*s).pd[0].re= q2.im+d*q2d.im;
       (*s).pd[0].im=-q2.re-d*q2d.re;
       (*s).pd[1].re=q0d.re-t*q2d.re;
@@ -875,12 +879,12 @@ void chexp_drv2(su3_alg_dble *X,ch_drv2_t *s)
       return;
    }
 
-   eval_td(X);   
+   eval_td(X);
    (*s)=sp2;
    (*s).t=t;
    (*s).d=d;
    (*s).p[0].re=c[N];
-   
+
    for (n=(N-1);n>=0;n--)
    {
       q0=(*s).p[0];
@@ -897,7 +901,7 @@ void chexp_drv2(su3_alg_dble *X,ch_drv2_t *s)
       q0d=(*s).pd[0];
       q1d=(*s).pd[1];
       q2d=(*s).pd[2];
-      
+
       (*s).pd[0].re= q2.im+d*q2d.im;
       (*s).pd[0].im=-q2.re-d*q2d.re;
       (*s).pd[1].re=q0d.re-t*q2d.re;
@@ -908,7 +912,7 @@ void chexp_drv2(su3_alg_dble *X,ch_drv2_t *s)
       q0dd=(*s).pdd[0];
       q1dd=(*s).pdd[1];
       q2dd=(*s).pdd[2];
-      
+
       (*s).pdd[0].re= 2.0*q2d.im+d*q2dd.im;
       (*s).pdd[0].im=-2.0*q2d.re-d*q2dd.re;
       (*s).pdd[1].re=q0dd.re-t*q2dd.re;

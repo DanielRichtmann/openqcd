@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Allocation, assignment and inversion of the global SW arrays
+* Allocation, assignment and inversion of the global SW arrays.
 *
 *******************************************************************************/
 
@@ -29,6 +29,8 @@
 #include "sw_term.h"
 #include "global.h"
 
+#define N0 (NPROC0*L0)
+
 typedef union
 {
    weyl_dble w;
@@ -48,9 +50,9 @@ static void save_swd(void)
    {
       sswd=amalloc(2*VOLUME*sizeof(*sswd),ALIGN);
       error(sswd==NULL,1,"save_swd [check1.c]",
-            "Unable to allocate auxiliary array"); 
+            "Unable to allocate auxiliary array");
    }
-   
+
    pa=swdfld();
    pb=sswd;
    pm=pa+2*VOLUME;
@@ -60,6 +62,67 @@ static void save_swd(void)
       (*pb)=(*pa);
       pb+=1;
    }
+}
+
+
+static int is_unity(pauli *p)
+{
+   int i,ie;
+   float *u;
+
+   ie=1;
+   u=(*p).u;
+
+   for (i=0;i<6;i++)
+      ie|=(u[i]==1.0f);
+
+   for (i=7;i<36;i++)
+      ie|=(u[i]==0.0f);
+
+   return ie;
+}
+
+
+static int is_unity_dble(pauli_dble *p)
+{
+   int i,ie;
+   double *u;
+
+   ie=1;
+   u=(*p).u;
+
+   for (i=0;i<6;i++)
+      ie|=(u[i]==1.0);
+
+   for (i=7;i<36;i++)
+      ie|=(u[i]==0.0);
+
+   return ie;
+}
+
+
+static int check_swbnd(void)
+{
+   int bc,ix,t,ie;
+   pauli_dble *swd;
+
+   bc=bc_type();
+   swd=swdfld();
+   ie=1;
+
+   for (ix=0;ix<(2*VOLUME);ix++)
+   {
+      t=global_time(ix/2);
+
+      if (((t==0)&&(bc!=3))||((t==(N0-1))&&(bc==0)))
+         ie|=is_unity_dble(swd);
+      else
+         ie|=(is_unity_dble(swd)^0x1);
+
+      swd+=1;
+   }
+
+   return ie;
 }
 
 
@@ -195,9 +258,9 @@ static double cmp_sw2swd(ptset_t set)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,ix,k,ifail;
-   float *r;
-   double *rd,d,dmax,dmax_all;
+   int my_rank,bc,ix,ie;
+   double phi[2],phi_prime[2];
+   double d,dmax;
    pauli *sw;
    pauli_dble *swd;
    FILE *flog=NULL;
@@ -215,120 +278,103 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,123456);
    geometry();
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,1.0,1.234);
-   set_sw_parms(-0.0123);
 
+   set_sw_parms(-0.0123);
    sw=swfld();
    swd=swdfld();
-   dmax=0.0;
+   ie=1;
 
    for (ix=0;ix<(2*VOLUME);ix++)
    {
-      r=sw[ix].u;
-
-      for (k=0;k<36;k++)
-      {
-         if (k<6)
-            d=fabs((double)(r[k]-1.0f));
-         else
-            d=fabs((double)(r[k]));
-
-         if (d>dmax)
-            dmax=d;
-      }
+      ie|=is_unity(sw);
+      ie|=is_unity_dble(swd);
+      sw+=1;
+      swd+=1;
    }
 
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-
-   if (my_rank==0)
-   {
-      printf("Allocated global single-precision SW field\n");
-      printf("max|p-1| = %.1e\n\n",dmax_all);
-   }
-
-   dmax=0.0;
-
-   for (ix=0;ix<(2*VOLUME);ix++)
-   {
-      rd=swd[ix].u;
-
-      for (k=0;k<36;k++)
-      {
-         if (k<6)
-            d=fabs(rd[k]-1.0);
-         else
-            d=fabs(rd[k]);
-
-         if (d>dmax)
-            dmax=d;
-      }
-   }
-
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-
-   if (my_rank==0)
-   {
-      printf("Allocated global double-precision SW field\n");
-      printf("max|p-1| = %.1e\n\n",dmax_all);
-   }
+   error(ie!=1,1,"main [check1.c]","SW fields are not correctly initialized");
 
    print_flags();
    random_ud();
    sw_term(NO_PTS);
+   ie=check_swbnd();
+   error(ie!=1,1,"main [check1.c]","SW field has incorrect boundary values");
    save_swd();
 
-   ifail=sw_term(EVEN_PTS);
-   error(ifail!=0,1,"main [check1.c]","Unsafe inversion of swd_e");
-   dmax=cmp_iswd(EVEN_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   chs_ubnd(-1);
+   sw_term(NO_PTS);
+   d=cmp_swd(ALL_PTS);
+   error(d!=0.0,1,"main [check1.c]",
+         "SW term changed after calling chs_ubnd(-1)");
+
+   ie=sw_term(EVEN_PTS);
+   error(ie!=0,1,"main [check1.c]","Unsafe inversion of swd_e");
+   d=cmp_iswd(EVEN_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
    {
       printf("Inverted swd_e\n");
-      printf("Maximal deviation of swd_e = %.1e\n",dmax_all);
+      printf("Maximal deviation of swd_e = %.1e\n",dmax);
    }
 
-   dmax=cmp_swd(ODD_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   d=cmp_swd(ODD_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
-      printf("Maximal deviation of swd_o = %.1e\n\n",dmax_all);
+      printf("Maximal deviation of swd_o = %.1e\n\n",dmax);
 
    print_flags();
    random_ud();
    sw_term(NO_PTS);
    save_swd();
 
-   ifail=sw_term(ODD_PTS);
-   error(ifail!=0,1,"main [check1.c]","Unsafe inversion of swd_o");
-   dmax=cmp_swd(EVEN_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   ie=sw_term(ODD_PTS);
+   error(ie!=0,1,"main [check1.c]","Unsafe inversion of swd_o");
+   d=cmp_swd(EVEN_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
    {
       printf("Inverted swd_o\n");
-      printf("Maximal deviation of swd_e = %.1e\n",dmax_all);
+      printf("Maximal deviation of swd_e = %.1e\n",dmax);
    }
 
-   dmax=cmp_iswd(ODD_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   d=cmp_iswd(ODD_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
-      printf("Maximal deviation of swd_o = %.1e\n\n",dmax_all);
+      printf("Maximal deviation of swd_o = %.1e\n\n",dmax);
 
    print_flags();
    assign_swd2sw();
-   dmax=cmp_sw2swd(ALL_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   d=cmp_sw2swd(ALL_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
    {
       printf("Assigned swd to sw\n");
-      printf("Maximal deviation = %.1e\n\n",dmax_all);
+      printf("Maximal deviation = %.1e\n\n",dmax);
    }
 
    print_flags();
@@ -336,23 +382,16 @@ int main(int argc,char *argv[])
    sw_term(NO_PTS);
    save_swd();
 
-   ifail=sw_term(ALL_PTS);
-   error(ifail!=0,1,"main [check1.c]","Unsafe inversion of swd");
-   dmax=cmp_iswd(ALL_PTS);
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   ie=sw_term(ALL_PTS);
+   error(ie!=0,1,"main [check1.c]","Unsafe inversion of swd");
+   d=cmp_iswd(ALL_PTS);
+   MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
    if (my_rank==0)
    {
       printf("Inverted swd\n");
-      printf("Maximal deviation = %.1e\n\n",dmax_all);
+      printf("Maximal deviation = %.1e\n\n",dmax);
    }
-
-   print_flags();
-   free_sw();
-   free_swd();
-
-   if (my_rank==0)
-      printf("Freed sw and swd\n\n");
 
    print_flags();
 

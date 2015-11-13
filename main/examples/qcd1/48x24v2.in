@@ -1,8 +1,8 @@
 
 ################################################################################
 #
-# Two-flavour QCD with Wilson plaquette action and twisted-mass reweighting
-# of the second kind
+# Two-flavour QCD with Wilson plaquette action, periodic boundary conditions
+# and twisted-mass reweighting of the second kind.
 #
 ################################################################################
 
@@ -18,12 +18,11 @@ cnfg_dir     /data/openQCD/cnfg
 [Lattice parameters]
 beta         5.3
 c0           1.0
-kappa_u      0.13635
-kappa_s      0.0
-kappa_c      0.0
+kappa        0.13635
 csw          1.90952
-cG           1.0
-cF           1.0
+
+[Boundary conditions]
+type         3
 
 [Random number generator]
 level        0
@@ -126,7 +125,7 @@ ncr          1
 
 [Solver 0]
 solver       CGNE
-nmx          256
+nmx          512
 res          1.0e-11
 
 [Solver 1]
@@ -140,7 +139,7 @@ res          1.0e-11
 
 [Solver 2]
 solver       CGNE
-nmx          256
+nmx          512
 res          1.0e-10
 
 [Solver 3]
@@ -157,18 +156,18 @@ bs           4 6 6 4
 
 [Deflation subspace]
 bs           4 6 6 4
-Ns           20
+Ns           28
 
 [Deflation subspace generation]
 kappa        0.13635
-mu           0.01
+mu           0.001
 ninv         9
 nmr          4
 ncy          4
 
 [Deflation projection]
 nkv          16
-nmx          256
+nmx          128
 res          1.0e-2
 
 [Deflation update scheme]

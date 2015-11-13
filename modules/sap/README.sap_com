@@ -6,7 +6,7 @@
 ********************************************************************************
 
 The application of the Schwarz Alternating Procedure (SAP) as a preconditioner
-for the Wilson-Dirac operator in lattice QCD is described in 
+for the Wilson-Dirac operator in lattice QCD is described in
 
   M. Luescher: "Solution of the Dirac equation in lattice QCD using a domain
                 decomposition method", Comp. Phys. Commun. 156 (2004) 209.
@@ -87,7 +87,7 @@ to
 
        np=0 nodes                        np=1 nodes
 
-  io=ifc^nmu[ifc]                   io=(ifc^nmu[ifc])^0x1   
+  io=ifc^nmu[ifc]                   io=(ifc^nmu[ifc])^0x1
   snd_buf[ic][io] -> npr[io]        rcv_buf[ic][io] <- npr[io^0x1]
 
 The communication from the np=1 to the np=0 nodes is then performed according
@@ -104,9 +104,10 @@ All nodes thus have exactly the same communication load.
 
 This pattern is such that the communication proceeds, in each case, across the
 hyperplanes orthogonal to the direction ifc, the planes being separated by
-2x(block size in that direction). Since open boundary conditions are imposed,
-communications across the equal-time hyperplanes at time 0 and NPROC0*L0-1 are
-not needed. The chosen communication scheme allows these to be easily omitted.
+2x(local lattice size in that direction). If boundary conditions of type 0,1
+or 2 are chosen, no communications across the boundaries of the lattice at
+time 0 and NPROC0*L0-1 are performed. The chosen scheme allows these to be
+easily omitted.
 
 
 Subtraction from the residue
@@ -116,10 +117,10 @@ After communicating the Weyl fields, the fields to be subtracted from the
 residue are contained in the arrays loc_buf[ic][ifc] and rcv_buf[ic][ifc]. For
 any given colour index ic and face index ifc, these two arrays come one after
 the other in memory so that one has in fact a single array of Weyl spinors
-with address loc_buf[ic][ifc] and size 
+with address loc_buf[ic][ifc].
 
 The Weyl spinors w on the block boundaries are the first two components
-of the Dirac spinors s obtained by applying the block boundary part of 
+of the Dirac spinors s obtained by applying the block boundary part of
 the Dirac operator to a field on the block (see dirac/Dw_bnd.c). Since
 
   theta[ifc]*s=0

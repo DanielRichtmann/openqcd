@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the block solver programs
+* Check of the block solver programs.
 *
 *******************************************************************************/
 
@@ -35,10 +35,11 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,nb,isw,ie,itm;
+   int my_rank,bc;
+   int nb,isw,ie,itm;
    int bs[4],n,k,vol,volh;
    float mu,res0,res[8],res_max[8];
-   complex z;
+   double phi[2],phi_prime[2];
    spinor **ps;
    block_t *b;
    tm_parms_t tm;
@@ -64,17 +65,32 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("bs = %d %d %d %d\n\n",bs[0],bs[1],bs[2],bs[3]);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
 
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,1234);
    geometry();
    set_sap_parms(bs,0,1,1);
    alloc_bgr(SAP_BLOCKS);
    alloc_ws(4);
-   
-   set_lat_parms(5.6,1.0,0.0,0.0,0.0,0.1,1.3,1.15);
+
    set_sw_parms(0.05);
    mu=0.123f;
    ps=reserve_ws(4);
@@ -83,8 +99,9 @@ int main(int argc,char *argv[])
    {
       if (itm==1)
          set_tm_parms(1);
-   
+
       random_ud();
+      chs_ubnd(-1);
       sw_term(NO_PTS);
       assign_ud2ubgr(SAP_BLOCKS);
       assign_swd2swbgr(SAP_BLOCKS,NO_PTS);
@@ -92,7 +109,6 @@ int main(int argc,char *argv[])
       b=blk_list(SAP_BLOCKS,&nb,&isw);
       vol=(*b).vol;
       volh=vol/2;
-      z.im=0.0f;
 
       for (k=0;k<8;k++)
          res_max[k]=0.0f;
@@ -100,7 +116,7 @@ int main(int argc,char *argv[])
       random_s(VOLUME,ps[0],1.0f);
       bnd_s2zero(ALL_PTS,ps[0]);
       set_s2zero(VOLUME,ps[1]);
-   
+
       for (n=0;n<nb;n++)
       {
          assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,ps[0],1);
@@ -111,21 +127,19 @@ int main(int argc,char *argv[])
             blk_mres(n,mu,4);
 
             assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,ps[1],2);
-            z.re=1.0f;
-            mulc_spinor_add(vol,b[n].s[2],b[n].s[0],z);
+            mulr_spinor_add(vol,b[n].s[2],b[n].s[0],1.0f);
             assign_sblk2s(SAP_BLOCKS,n,ALL_PTS,2,ps[1]);
-         
+
             Dw_blk(SAP_BLOCKS,n,mu,2,0);
             assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,ps[0],2);
-            z.re=-1.0f;
-            mulc_spinor_add(vol,b[n].s[2],b[n].s[0],z);
+            mulr_spinor_add(vol,b[n].s[2],b[n].s[0],-1.0f);
             res[k]=norm_square(vol,0,b[n].s[2])/res0;
-      
+
             if (res[k]>res_max[k])
                res_max[k]=res[k];
          }
       }
-   
+
       error_chk();
 
       if (NPROC>1)
@@ -150,14 +164,14 @@ int main(int argc,char *argv[])
       for (k=0;k<8;k++)
          res_max[k]=0.0f;
 
-      ie=assign_swd2swbgr(SAP_BLOCKS,ODD_PTS);   
+      ie=assign_swd2swbgr(SAP_BLOCKS,ODD_PTS);
       error_root(ie,1,"main [check1.c]",
                  "The inversion of the SW term was not safe");
 
       random_s(VOLUME,ps[0],1.0f);
       bnd_s2zero(ALL_PTS,ps[0]);
       set_s2zero(VOLUME,ps[1]);
-   
+
       for (n=0;n<nb;n++)
       {
          assign_s2sblk(SAP_BLOCKS,n,EVEN_PTS,ps[0],1);
@@ -168,21 +182,19 @@ int main(int argc,char *argv[])
             blk_eo_mres(n,mu,3);
 
             assign_s2sblk(SAP_BLOCKS,n,EVEN_PTS,ps[1],2);
-            z.re=1.0f;
-            mulc_spinor_add(volh,b[n].s[2],b[n].s[0],z);
+            mulr_spinor_add(volh,b[n].s[2],b[n].s[0],1.0f);
             assign_sblk2s(SAP_BLOCKS,n,EVEN_PTS,2,ps[1]);
-         
+
             Dwhat_blk(SAP_BLOCKS,n,mu,2,0);
             assign_s2sblk(SAP_BLOCKS,n,EVEN_PTS,ps[0],2);
-            z.re=-1.0f;
-            mulc_spinor_add(volh,b[n].s[2],b[n].s[0],z);
+            mulr_spinor_add(volh,b[n].s[2],b[n].s[0],-1.0f);
             res[k]=norm_square(volh,0,b[n].s[2])/res0;
 
             if (res[k]>res_max[k])
                res_max[k]=res[k];
          }
       }
-   
+
       error_chk();
 
       if (NPROC>1)
@@ -207,7 +219,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
       fclose(flog);
-   
+
    MPI_Finalize();
    exit(0);
 }

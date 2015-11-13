@@ -8,11 +8,11 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the spectral range of the hermitian Dirac operator
+* Computation of the spectral range of the hermitian Dirac operator.
 *
 * Syntax: ms2 -i <input file> [-noexp]
 *
-* For usage instructions see the file README.ms2
+* For usage instructions see the file README.ms2.
 *
 *******************************************************************************/
 
@@ -50,7 +50,7 @@
       (n)=(m)
 
 static int my_rank,noexp,endian;
-static int first,last,step,pmx;
+static int first,last,step,np_ra,np_rb;
 static int *rlxs_state=NULL,*rlxd_state=NULL;
 static double ar[256];
 
@@ -58,6 +58,9 @@ static char log_dir[NAME_SIZE],loc_dir[NAME_SIZE],cnfg_dir[NAME_SIZE];
 static char log_file[NAME_SIZE],log_save[NAME_SIZE],end_file[NAME_SIZE];
 static char cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fend=NULL;
+
+static lat_parms_t lat;
+static bc_parms_t bcp;
 
 
 static void read_dirs(void)
@@ -77,7 +80,7 @@ static void read_dirs(void)
       }
       else
       {
-         read_line("cnfg_dir","%s",cnfg_dir);         
+         read_line("cnfg_dir","%s",cnfg_dir);
          loc_dir[0]='\0';
       }
 
@@ -95,10 +98,10 @@ static void read_dirs(void)
    MPI_Bcast(log_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   
+
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
 }
 
 
@@ -111,10 +114,10 @@ static void setup_files(void)
       error_root(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,
                  1,"setup_files [ms2.c]","cnfg_dir name is too long");
 
-   check_dir_root(log_dir);   
+   check_dir_root(log_dir);
    error_root(name_size("%s/%s.ms2.log~",log_dir,nbase)>=NAME_SIZE,
               1,"setup_files [ms2.c]","log_dir name is too long");
-      
+
    sprintf(log_file,"%s/%s.ms2.log",log_dir,nbase);
    sprintf(end_file,"%s/%s.ms2.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
@@ -123,29 +126,60 @@ static void setup_files(void)
 
 static void read_lat_parms(void)
 {
-   double kappa,csw,cF;
+   double kappa,csw;
 
    if (my_rank==0)
    {
       find_section("Dirac operator");
       read_line("kappa","%lf",&kappa);
       read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);   
-
-      find_section("Power method");
-      read_line("pmx","%d",&pmx);
-
-      error_root(pmx<1,1,"read_lat_parms [ms2.c]",
-                 "pmx must be at least 1");
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   lat=set_lat_parms(0.0,1.0,1,&kappa,csw);
+}
+
+
+static void read_bc_parms(void)
+{
+   int bc;
+   double cF,cF_prime;
+   double phi[2],phi_prime[2];
+
+   if (my_rank==0)
+   {
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
+
+      if (bc!=3)
+         read_line("cF","%lf",&cF);
+
+      if (bc==2)
+         read_line("cF'","%lf",&cF_prime);
+   }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&pmx,1,MPI_INT,0,MPI_COMM_WORLD);
-   
-   set_lat_parms(0.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
-   set_sw_parms(sea_quark_mass(0));
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   bcp=set_bc_parms(bc,1.0,1.0,cF,cF_prime,phi,phi_prime);
 }
 
 
@@ -178,15 +212,15 @@ static void read_dfl_parms(void)
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_parms(bs,Ns);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation subspace generation");
       read_line("kappa","%lf",&kappa);
       read_line("mu","%lf",&mu);
-      read_line("ninv","%d",&ninv);     
+      read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
    }
@@ -197,16 +231,16 @@ static void read_dfl_parms(void)
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
+      read_line("nmx","%d",&nmx);
       read_line("res","%lf",&res);
    }
 
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    set_dfl_pro_parms(nkv,nmx,res);
@@ -222,7 +256,7 @@ static void read_solver(void)
 
    if ((sp.solver==SAP_GCR)||(sp.solver==DFL_SAP_GCR))
       read_sap_parms();
-      
+
    if (sp.solver==DFL_SAP_GCR)
       read_dfl_parms();
 }
@@ -235,8 +269,8 @@ static void read_infile(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("STARTUP_ERROR","w",stdout);
- 
-      ifile=find_opt(argc,argv,"-i");      
+
+      ifile=find_opt(argc,argv,"-i");
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1)),1,"read_infile [ms2.c]",
@@ -245,19 +279,32 @@ static void read_infile(int argc,char *argv[])
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [ms2.c]",
                  "Machine has unknown endianness");
 
-      noexp=find_opt(argc,argv,"-noexp");      
-      
+      noexp=find_opt(argc,argv,"-noexp");
+
       fin=freopen(argv[ifile+1],"r",stdin);
       error_root(fin==NULL,1,"read_infile [ms2.c]",
                  "Unable to open input file");
    }
 
-   MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);   
-   
+   MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);
+
    read_dirs();
    setup_files();
    read_lat_parms();
+   read_bc_parms();
+
+   if (my_rank==0)
+   {
+      find_section("Power method");
+      read_line("np_ra","%d",&np_ra);
+      read_line("np_rb","%d",&np_rb);
+      error_root((np_ra<1)||(np_rb<1),1,"read_infile [ms2.c]",
+                 "Power method iteration numbers must be at least 1");
+   }
+
+   MPI_Bcast(&np_ra,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&np_rb,1,MPI_INT,0,MPI_COMM_WORLD);
    read_solver();
 
    if (my_rank==0)
@@ -278,10 +325,9 @@ static void check_files(void)
 
 static void print_info(void)
 {
-   int isap,idfl,n;
-   long ip;   
-   lat_parms_t lat;
-   
+   int isap,idfl,n[3];
+   long ip;
+
    if (my_rank==0)
    {
       ip=ftell(flog);
@@ -289,15 +335,15 @@ static void print_info(void)
 
       if (ip==0L)
          remove("STARTUP_ERROR");
-      
+
       flog=freopen(log_file,"w",stdout);
       error_root(flog==NULL,1,"print_info [ms2.c]","Unable to open log file");
       printf("\n");
 
-      printf("Spectral range of the hermitian Dirac operator\n");         
+      printf("Spectral range of the hermitian Dirac operator\n");
       printf("----------------------------------------------\n\n");
 
-      printf("Program version %s\n",openQCD_RELEASE);         
+      printf("Program version %s\n",openQCD_RELEASE);
 
       if (endian==LITTLE_ENDIAN)
          printf("The machine is little endian\n");
@@ -309,25 +355,66 @@ static void print_info(void)
          printf("Configurations are read in exported file format\n\n");
 
       printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
-      printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+      printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d process block size\n",
              NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
-      printf("SF boundary conditions on the quark fields\n\n");      
-
-      lat=lat_parms();
+      printf("SF boundary conditions on the quark fields\n\n");
 
       printf("Dirac operator:\n");
-      n=fdigits(lat.kappa_u);
-      printf("kappa = %.*f\n",IMAX(n,6),lat.kappa_u);      
-      n=fdigits(lat.csw);
-      printf("csw = %.*f\n",IMAX(n,1),lat.csw);
-      n=fdigits(lat.cF);      
-      printf("cF = %.*f\n\n",IMAX(n,1),lat.cF);
+      n[0]=fdigits(lat.kappa[0]);
+      printf("kappa = %.*f\n",IMAX(n[0],6),lat.kappa[0]);
+      n[0]=fdigits(lat.csw);
+      printf("csw = %.*f\n\n",IMAX(n[0],1),lat.csw);
+
+      if (bcp.type==0)
+      {
+         printf("Open boundary conditions\n");
+
+         n[0]=fdigits(bcp.cF[0]);
+         printf("cF = %.*f\n\n",IMAX(n[0],1),bcp.cF[0]);
+      }
+      else if (bcp.type==1)
+      {
+         printf("SF boundary conditions\n");
+
+         n[0]=fdigits(bcp.cF[0]);
+         printf("cF = %.*f\n",IMAX(n[0],1),bcp.cF[0]);
+
+         n[0]=fdigits(bcp.phi[0][0]);
+         n[1]=fdigits(bcp.phi[0][1]);
+         n[2]=fdigits(bcp.phi[0][2]);
+         printf("phi = %.*f,%.*f,%.*f\n",IMAX(n[0],1),bcp.phi[0][0],
+                IMAX(n[1],1),bcp.phi[0][1],IMAX(n[2],1),bcp.phi[0][2]);
+
+         n[0]=fdigits(bcp.phi[1][0]);
+         n[1]=fdigits(bcp.phi[1][1]);
+         n[2]=fdigits(bcp.phi[1][2]);
+         printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
+                IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
+      }
+      else if (bcp.type==2)
+      {
+         printf("Open-SF boundary conditions\n");
+
+         n[0]=fdigits(bcp.cF[0]);
+         printf("cF = %.*f\n",IMAX(n[0],1),bcp.cF[0]);
+         n[1]=fdigits(bcp.cF[1]);
+         printf("cF' = %.*f\n",IMAX(n[1],1),bcp.cF[1]);
+
+         n[0]=fdigits(bcp.phi[1][0]);
+         n[1]=fdigits(bcp.phi[1][1]);
+         n[2]=fdigits(bcp.phi[1][2]);
+         printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
+                IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
+      }
+      else
+         printf("Periodic boundary conditions\n\n");
 
       printf("Power method:\n");
-      printf("pmx = %d\n\n",pmx);
-      
+      printf("np_ra = %d\n",np_ra);
+      printf("np_rb = %d\n\n",np_rb);
+
       print_solver_parms(&isap,&idfl);
 
       if (isap)
@@ -337,7 +424,7 @@ static void print_info(void)
          print_dfl_parms(0);
 
       printf("Configurations no %d -> %d in steps of %d\n\n",
-             first,last,step);      
+             first,last,step);
       fflush(flog);
    }
 }
@@ -384,13 +471,13 @@ static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
    else if (sp.solver==DFL_SAP_GCR)
    {
       nsd=2;
-      MAX(*nws,2*sp.nkv+2);      
+      MAX(*nws,2*sp.nkv+2);
       MAX(*nwsd,nsd+4);
       dfl_wsize(nws,nwv,nwvd);
    }
    else
       error_root(1,1,"wsize [ms2.c]",
-                 "Unknown or unsupported solver");   
+                 "Unknown or unsupported solver");
 }
 
 
@@ -402,6 +489,7 @@ static double power1(int *status)
    solver_parms_t sp;
    sap_parms_t sap;
 
+   set_sw_parms(sea_quark_mass(0));
    sp=solver_parms(0);
 
    if (sp.solver==CGNE)
@@ -413,7 +501,7 @@ static double power1(int *status)
    {
       nsd=2;
       sap=sap_parms();
-      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);   
+      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
       status[0]=0;
    }
    else if (sp.solver==DFL_SAP_GCR)
@@ -421,7 +509,7 @@ static double power1(int *status)
       nsd=2;
       sap=sap_parms();
       set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
-      
+
       for (l=0;l<3;l++)
          status[l]=0;
    }
@@ -429,22 +517,22 @@ static double power1(int *status)
    {
       nsd=1;
       error_root(1,1,"power1 [ms2.c]",
-                 "Unknown or unsupported solver");        
+                 "Unknown or unsupported solver");
    }
-   
+
    wsd=reserve_wsd(nsd);
    random_sd(VOLUME/2,wsd[0],1.0);
    bnd_sd2zero(EVEN_PTS,wsd[0]);
-   r=normalize_dble(VOLUME/2,1,wsd[0]);   
-   
-   for (k=0;k<pmx;k++)
+   r=normalize_dble(VOLUME/2,1,wsd[0]);
+
+   for (k=0;k<np_ra;k++)
    {
       if (sp.solver==CGNE)
       {
          tmcgeo(sp.nmx,sp.res,0.0,wsd[0],wsd[0],stat);
 
          error_root(stat[0]<0,1,"power1 [ms2.c]",
-                    "CGNE solver failed (status = %d)",stat[0]);         
+                    "CGNE solver failed (status = %d)",stat[0]);
 
          if (status[0]<stat[0])
             status[0]=stat[0];
@@ -452,7 +540,7 @@ static double power1(int *status)
       else if (sp.solver==SAP_GCR)
       {
          mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));         
+         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
          sap_gcr(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
          mulg5_dble(VOLUME/2,wsd[1]);
          set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));
@@ -471,24 +559,24 @@ static double power1(int *status)
       else if (sp.solver==DFL_SAP_GCR)
       {
          mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));                  
+         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
          mulg5_dble(VOLUME/2,wsd[1]);
-         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));                  
+         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+3);
 
          error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
                     "power1 [ms2.c]","DFL_SAP_GCR solver failed "
                     "(status = %d,%d,%d;%d,%d,%d)",
                     stat[0],stat[1],stat[2],stat[3],stat[4],stat[5]);
-      
+
          for (l=0;l<2;l++)
          {
             if (status[l]<stat[l])
                status[l]=stat[l];
 
             if (status[l]<stat[l+3])
-               status[l]=stat[l+3];            
+               status[l]=stat[l+3];
          }
 
          status[2]+=(stat[2]!=0);
@@ -497,9 +585,9 @@ static double power1(int *status)
 
       r=normalize_dble(VOLUME/2,1,wsd[0]);
    }
-   
+
    release_wsd();
-   
+
    return 1.0/sqrt(r);
 }
 
@@ -510,14 +598,15 @@ static double power2(void)
    double r;
    spinor_dble **wsd;
 
+   set_sw_parms(sea_quark_mass(0));
    sw_term(ODD_PTS);
-   
+
    wsd=reserve_wsd(2);
    random_sd(VOLUME/2,wsd[0],1.0);
-   bnd_sd2zero(EVEN_PTS,wsd[0]);   
-   r=normalize_dble(VOLUME/2,1,wsd[0]);   
+   bnd_sd2zero(EVEN_PTS,wsd[0]);
+   r=normalize_dble(VOLUME/2,1,wsd[0]);
 
-   for (k=0;k<pmx;k++)
+   for (k=0;k<np_rb;k++)
    {
       Dwhat_dble(0.0,wsd[0],wsd[1]);
       mulg5_dble(VOLUME/2,wsd[1]);
@@ -528,7 +617,7 @@ static double power2(void)
    }
 
    release_wsd();
-   
+
    return sqrt(r);
 }
 
@@ -589,7 +678,7 @@ int main(int argc,char *argv[])
    double ra,ramin,ramax,raavg;
    double rb,rbmin,rbmax,rbavg;
    double A,eps,delta,Ne,d1,d2;
-   double wt1,wt2,wtavg;   
+   double wt1,wt2,wtavg;
    dfl_parms_t dfl;
 
    MPI_Init(&argc,&argv);
@@ -607,24 +696,24 @@ int main(int argc,char *argv[])
    alloc_ws(nws);
    alloc_wsd(nwsd);
    alloc_wv(nwv);
-   alloc_wvd(nwvd);   
-   
+   alloc_wvd(nwvd);
+
    ramin=0.0;
    ramax=0.0;
    raavg=0.0;
-   
+
    rbmin=0.0;
    rbmax=0.0;
    rbavg=0.0;
 
-   iend=0;   
+   iend=0;
    wtavg=0.0;
-   
+
    for (nc=first;(iend==0)&&(nc<=last);nc+=step)
    {
       MPI_Barrier(MPI_COMM_WORLD);
       wt1=MPI_Wtime();
-      
+
       if (my_rank==0)
          printf("Configuration no %d\n",nc);
 
@@ -640,7 +729,9 @@ int main(int argc,char *argv[])
          sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,nc);
          import_cnfg(cnfg_file);
       }
-      
+
+      chs_ubnd(-1);
+
       if (dfl.Ns)
       {
          dfl_modes(status);
@@ -681,7 +772,7 @@ int main(int argc,char *argv[])
       wt2=MPI_Wtime();
       wtavg+=(wt2-wt1);
       error_chk();
-      
+
       if (my_rank==0)
       {
          printf("ra = %.2e, rb = %.2e, ",ra,rb);
@@ -691,13 +782,13 @@ int main(int argc,char *argv[])
                    status[0],status[1],status[2]);
          else
             printf("status = %d\n",status[0]);
-         
+
          printf("Configuration no %d fully processed in %.2e sec ",
                 nc,wt2-wt1);
          printf("(average = %.2e sec)\n\n",
                 wtavg/(double)((nc-first)/step+1));
 
-         fflush(flog);         
+         fflush(flog);
          copy_file(log_file,log_save);
       }
 
@@ -708,7 +799,7 @@ int main(int argc,char *argv[])
    {
       last=nc-step;
       nc=(last-first)/step+1;
-      
+
       printf("Summary\n");
       printf("-------\n\n");
 
@@ -735,7 +826,7 @@ int main(int argc,char *argv[])
       printf("delta: approximation error\n");
       printf("Ne: number of even lattice points\n");
       printf("Suggested spectral range = [%.2e,%.2e]\n\n",ra,rb);
-      
+
       printf("     n      delta    12*Ne*delta     12*Ne*delta^2\n");
 
       for (n=6;n<=128;n++)
@@ -745,7 +836,7 @@ int main(int argc,char *argv[])
          d2=d1*delta;
 
          printf("   %3d     %.1e      %.1e         %.1e\n",n,delta,d1,d2);
-         
+
          if ((d1<1.0e-2)&&(d2<1.0e-4))
             break;
       }
@@ -754,14 +845,14 @@ int main(int argc,char *argv[])
    }
 
    error_chk();
-   
+
    if (my_rank==0)
    {
       fflush(flog);
       copy_file(log_file,log_save);
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

@@ -3,12 +3,12 @@
 *
 * File map_u2blk.c
 *
-* Copyright (C) 2006, 2011 Martin Luescher
+* Copyright (C) 2006, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Copying of the gauge fields to the blocks in a block grid
+* Copying of the gauge fields to the blocks in a block grid.
 *
 * The externally accessible functions are
 *
@@ -25,7 +25,10 @@
 *
 * The program assign_ud2ubgr() copies the gauge field to all blocks and their
 * exterior boundaries (if the field is allocated there). An error occurs if
-* the single-precision gauge field on the blocks is shared. 
+* the single-precision gauge field on the blocks is shared. On the exterior
+* block boundaries at time 0 (boundary conditions type 0,1 and 2) and time
+* NPROC0*L0-1 (boundary condition type 0), the link variables are not copied
+* and are instead set to zero.
 *
 * The program assign_ud2udblk() does *not* copy the link variables to the
 * boundaries of the block. The double-precision gauge field on the blocks
@@ -37,7 +40,7 @@
 * purposes only, the programs in this module copy these too.
 *
 * Both programs in this module may involve communications and must be called
-* on all processes simultaneously. 
+* on all MPI processes simultaneously.
 *
 *******************************************************************************/
 
@@ -55,44 +58,63 @@
 #include "block.h"
 #include "global.h"
 
-static int init=0,np,nbf[8],nmu[8],ofs[8],tags[8];
+static int bc,np,nmu[8],nbf[8],ofs[8];
+static int sflg[8],rflg[8],tags[8],init=0;
+static const su3 u0={{0.0f}};
 static su3 *ubuf;
 
 
 static void alloc_ubuf(void)
 {
-   int ifc;
+   int ifc,ib;
 
-   if (NPROC>1)
+   error(iup[0][0]==0,1,"alloc_ubuf [map_u2blk.c]",
+         "Geometry arrays are not set");
+
+   bc=bc_type();
+   np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
+
+   nbf[0]=FACE0/2;
+   nbf[1]=FACE0/2;
+   nbf[2]=FACE1/2;
+   nbf[3]=FACE1/2;
+   nbf[4]=FACE2/2;
+   nbf[5]=FACE2/2;
+   nbf[6]=FACE3/2;
+   nbf[7]=FACE3/2;
+
+   ofs[0]=0;
+
+   for (ifc=0;ifc<8;ifc++)
    {
-      np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
-   
-      nbf[0]=FACE0/2;
-      nbf[1]=FACE0/2;
-      nbf[2]=FACE1/2;
-      nbf[3]=FACE1/2;
-      nbf[4]=FACE2/2;
-      nbf[5]=FACE2/2;   
-      nbf[6]=FACE3/2;
-      nbf[7]=FACE3/2;
+      nmu[ifc]=cpr[ifc/2]&0x1;
 
-      ofs[0]=0;
+      if (ifc>0)
+         ofs[ifc]=ofs[ifc-1]+nbf[ifc-1];
 
-      for (ifc=0;ifc<8;ifc++)
-      {
-         nmu[ifc]=cpr[ifc/2]&0x1;
+      sflg[ifc]=((ifc>1)||
+                 ((ifc==0)&&((cpr[0]!=0)||(bc!=0)))||
+                 ((ifc==1)&&((cpr[0]!=(NPROC0-1))||(bc==3))));
 
-         if (ifc>0)
-            ofs[ifc]=ofs[ifc-1]+nbf[ifc-1];
-      
-         tags[ifc]=mpi_permanent_tag();
-      }
+      rflg[ifc]=((ifc>1)||
+                 ((ifc==0)&&((cpr[0]!=0)||(bc==3)))||
+                 ((ifc==1)&&((cpr[0]!=(NPROC0-1))||(bc!=0))));
 
+      tags[ifc]=mpi_permanent_tag();
+   }
+
+   if (BNDRY>0)
+   {
       ubuf=amalloc(BNDRY*sizeof(*ubuf),ALIGN);
       error(ubuf==NULL,1,"alloc_ubuf [map_u2blk.c]",
             "Unable to allocate communication buffer");
+
+      for (ib=0;ib<BNDRY;ib++)
+         ubuf[ib]=u0;
    }
-   
+   else
+      ubuf=NULL;
+
    init=1;
 }
 
@@ -128,21 +150,26 @@ static void fetch_bnd_u(void)
    su3 *u;
    su3_dble *udb;
 
-   if (init==0)
-      alloc_ubuf();
-   
    udb=udfld();
    u=ubuf;
    pt=map+(BNDRY/2);
 
    for (ifc=0;ifc<8;ifc++)
    {
-      pm=pt+nbf[ifc];
-
-      for (;pt<pm;pt++)
+      if (sflg[ifc^0x1])
       {
-         set_ud2u(udb+8*((*pt)-VOLUME/2)+ifc,u);
-         u+=1;
+         pm=pt+nbf[ifc];
+
+         for (;pt<pm;pt++)
+         {
+            set_ud2u(udb+8*((*pt)-VOLUME/2)+ifc,u);
+            u+=1;
+         }
+      }
+      else
+      {
+         pt+=nbf[ifc];
+         u+=nbf[ifc];
       }
    }
 }
@@ -157,7 +184,7 @@ static void send_bnd_u(void)
 
    sbuf0=ubuf;
    rbuf0=sbuf0+(BNDRY/2);
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       if (nbf[ifc]>0)
@@ -171,20 +198,20 @@ static void send_bnd_u(void)
 
          n=18*nbf[ifc];
          tag=tags[ifc];
-         
+
          if (np==0)
          {
-            MPI_Send((float*)(sbuf),n,MPI_FLOAT,saddr,tag,
-                     MPI_COMM_WORLD);
-            MPI_Recv((float*)(rbuf),n,MPI_FLOAT,raddr,tag,
-                     MPI_COMM_WORLD,&stat);
+            if (sflg[io])
+               MPI_Send(sbuf,n,MPI_FLOAT,saddr,tag,MPI_COMM_WORLD);
+            if (rflg[io])
+               MPI_Recv(rbuf,n,MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&stat);
          }
          else
          {
-            MPI_Recv((float*)(rbuf),n,MPI_FLOAT,raddr,tag,
-                     MPI_COMM_WORLD,&stat);
-            MPI_Send((float*)(sbuf),n,MPI_FLOAT,saddr,tag,
-                     MPI_COMM_WORLD);
+            if (rflg[io])
+               MPI_Recv(rbuf,n,MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&stat);
+            if (sflg[io])
+               MPI_Send(sbuf,n,MPI_FLOAT,saddr,tag,MPI_COMM_WORLD);
          }
       }
    }
@@ -193,9 +220,9 @@ static void send_bnd_u(void)
 
 static void assign_ud2ub(block_t *b)
 {
-   int vol,ifc;
+   int vol,volb,ifc,ibd,ibu;
    int ix,iy,*imb,*ipp,*imbb;
-   su3 *u;
+   su3 *u,*ub;
    su3_dble *udb,*vd;
    bndry_t *bb;
 
@@ -204,7 +231,7 @@ static void assign_ud2ub(block_t *b)
 
    udb=udfld();
    u=(*b).u;
-   
+
    for (ix=(vol/2);ix<vol;ix++)
    {
       iy=imb[ix];
@@ -221,32 +248,48 @@ static void assign_ud2ub(block_t *b)
    bb=(*b).bb;
 
    if ((*bb).u!=NULL)
-   {   
+   {
+      ibd=((cpr[0]==0)&&((*b).bo[0]==0)&&(bc!=3));
+      ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc==0));
+      ub=(*b).u;
+
       for (ifc=0;ifc<8;ifc++)
       {
-         vol=(*bb).vol;
-         ipp=(*bb).ipp;
+         volb=(*bb).vol;
          u=(*bb).u;
 
-         for (ix=0;ix<(vol/2);ix++)
+         if ((ifc>1)||((ifc==0)&&(ibd==0))||((ifc==1)&&(ibu==0)))
          {
-            iy=imb[ipp[ix]];
-            set_ud2u(udb+8*(iy-(VOLUME/2))+(ifc^0x1),u);         
-            u+=1;
+            ipp=(*bb).ipp;
+
+            for (ix=0;ix<(volb/2);ix++)
+            {
+               iy=ipp[ix];
+               (*u)=ub[8*(iy-(vol/2))+(ifc^0x1)];
+               u+=1;
+            }
+
+            imbb=(*bb).imb;
+
+            for (;ix<volb;ix++)
+            {
+               iy=imbb[ix];
+
+               if (iy<VOLUME)
+                  set_ud2u(udb+8*(iy-(VOLUME/2))+ifc,u);
+               else
+                  (*u)=ubuf[iy-VOLUME];
+
+               u+=1;
+            }
          }
-
-         imbb=(*bb).imb;
-      
-         for (;ix<vol;ix++)
+         else
          {
-            iy=imbb[ix];
-
-            if (iy<VOLUME)
-               set_ud2u(udb+8*(iy-(VOLUME/2))+ifc,u);
-            else
-               (*u)=ubuf[iy-VOLUME];
-
-            u+=1;
+            for (ix=0;ix<volb;ix++)
+            {
+               (*u)=u0;
+               u+=1;
+            }
          }
 
          bb+=1;
@@ -263,35 +306,27 @@ void assign_ud2ubgr(blk_grid_t grid)
    if (NPROC>1)
    {
       iprms[0]=(int)(grid);
-      
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);      
+
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
 
       error(iprms[0]!=(int)(grid),1,"assign_u2ubgr [map_u2blk.c]",
             "Parameter is not global");
    }
-   
+
+   if (init==0)
+      alloc_ubuf();
+
    b=blk_list(grid,&nb,&isw);
 
-   if (nb==0)
-   {
-      error_root(1,1,"assign_ud2ubgr [map_u2blk.c]",
-                 "Block grid is not allocated");
-      return;
-   }
+   error((b==NULL)||((*b).u==NULL)||((*b).shf&0x4),1,
+         "assign_u2ubgr [map_u2blk.c]","Unallocated or improper block grid");
 
-   if (((*b).u==NULL)||((*b).shf&0x4))
-   {
-      error_root(1,1,"assign_ud2ubgr [map_u2blk.c]",
-                 "Gauge field on the grid is not allocated or shared");
-      return;
-   }
-   
    if (NPROC>1)
    {
       fetch_bnd_u();
       send_bnd_u();
    }
-   
+
    bm=b+nb;
 
    for (;b<bm;b++)
@@ -318,19 +353,19 @@ void assign_ud2udblk(blk_grid_t grid,int n)
    }
 
    b+=n;
-   ud=(*b).ud;
-   
-   if ((ud==NULL)||(!((*b).shf&0x8)))
+
+   if (((*b).ud==NULL)||(((*b).shf&0x8)==0))
    {
       error_loc(1,1,"assign_ud2udblk [map_u2blk.c]",
                 "Block field is not allocated or not shared");
       return;
-   }      
+   }
 
    vol=(*b).vol;
    imb=(*b).imb;
+   ud=(*b).ud;
    udb=udfld();
-   
+
    for (ix=(vol/2);ix<vol;ix++)
    {
       iy=imb[ix];

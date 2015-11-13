@@ -3,12 +3,12 @@
 *
 * File xtensor.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Spin parts of the quark force
+* Spin parts of the quark force.
 *
 * The externally accessible functions are
 *
@@ -73,14 +73,14 @@
 *  X=tr{[gamma_5*(1-gamma_mu)*s(x+mu) x r^dag(x)]+(s<->r)}
 *
 * In all cases, the trace is taken over the Dirac indices only.
-* 
+*
 * The components of the X tensor field are of type u3_alg_dble. As in the
 * case of symmetric gauge-field tensor, the field array includes additional
 * space for the field components on the boundaries of the local lattice
 * (see tcharge/ftensor.c and lattice/README.ftidx). The type u3_alg_dble
 * is explained in the module su3fcts/su3prod.c.
 *
-* The programs in this module may perform global operations and must be 
+* The programs in this module may perform global operations and must be
 * called simultaneously on all MPI processes.
 *
 *******************************************************************************/
@@ -145,14 +145,14 @@ static void alloc_xts(void)
 
    idx=ftidx();
    nt=0;
-   
+
    for (n=0;n<6;n++)
    {
       nxt[n]=VOLUME+idx[n].nft[0]+idx[n].nft[1];
       nt+=nxt[n];
    }
 
-   pp=amalloc(12*sizeof(*pp),3);
+   pp=malloc(12*sizeof(*pp));
    p=amalloc(nt*sizeof(*p),ALIGN);
    error((pp==NULL)||(p==NULL),1,"alloc_xts [xtensor.c]",
          "Unable to allocate field arrays");
@@ -210,7 +210,7 @@ int add_det2xt(double c,ptset_t set)
 
    if (ifail!=0)
       return ifail;
-   
+
    if (xts==NULL)
       alloc_xts();
 
@@ -218,14 +218,14 @@ int add_det2xt(double c,ptset_t set)
    {
       for (n=0;n<6;n++)
          xt[n]=xts[n]+(VOLUME/2);
-      
+
       m=swdfld()+VOLUME;
    }
    else
    {
       for (n=0;n<6;n++)
          xt[n]=xts[n];
-      
+
       m=swdfld();
    }
 
@@ -258,8 +258,8 @@ void add_prod2xt(double c,spinor_dble *r,spinor_dble *s)
       alloc_xts();
 
    for (n=0;n<6;n++)
-      xt[n]=xts[n];   
-   
+      xt[n]=xts[n];
+
    rm=r+VOLUME;
 
    for (;r<rm;r++)
@@ -271,7 +271,7 @@ void add_prod2xt(double c,spinor_dble *r,spinor_dble *s)
          _u3_alg_mul_add_assign(xt[n][0],c,X[n]);
          xt[n]+=1;
       }
-      
+
       s+=1;
    }
 }
@@ -295,9 +295,7 @@ su3_dble *xvector(void)
    if (xvs==NULL)
       alloc_xvs();
 
-   xv=xvs;
-
-   return xv;
+   return xvs;
 }
 
 
@@ -310,7 +308,7 @@ void set_xv2zero(void)
    else
    {
       for (ix=0;ix<(4*VOLUME);ix++)
-         xvs[ix]=ud0;      
+         xvs[ix]=ud0;
    }
 }
 
@@ -324,15 +322,15 @@ void add_prod2xv(double c,spinor_dble *r,spinor_dble *s)
    if (xvs==NULL)
       alloc_xvs();
 
-   cpsd_int_bnd(0x1,r);   
-   cpsd_int_bnd(0x1,s);   
+   cpsd_int_bnd(0x1,r);
+   cpsd_int_bnd(0x1,s);
 
    piup=iup[VOLUME/2];
    pidn=idn[VOLUME/2];
 
-   ro=r+(VOLUME/2);   
+   ro=r+(VOLUME/2);
    so=s+(VOLUME/2);
-   
+
    xv=xvs;
    xvm=xv+4*VOLUME;
 

@@ -23,7 +23,7 @@ rwrat.c        Rational function reweighting factor
 
 rwtm.c         Twisted-mass reweighting factors
 
-rwtmeo.c       Twisted-mass reweighting factors (even-odd preconditioned 
+rwtmeo.c       Twisted-mass reweighting factors (even-odd preconditioned
                version)
 
 
@@ -42,15 +42,15 @@ void setup_chrono(void)
   solutions to be used in the course of the molecular-dynamics
   trajectories. The number and size of the stacks is inferred from
   the parameter data base.
-  
+
 void add_chrono(int icr,double t,spinor_dble *psi)
   Adds the solution psi obtained at molecular-dynamics time t to
   the stack number icr of previously calculated solutions. If the
   stack contains previous solutions, psi is added only when t is
-  larger than the time at which the last solution was added. 
+  larger than the time at which the last solution was added.
 
 int get_chrono(int icr,double t,spinor_dble *psi)
-  Extrapolates the solutions stored in the stack number icr to   
+  Extrapolates the solutions stored in the stack number icr to
   molecular-dynamics time t. The program returns 0 and leaves psi
   unchanged if the stack does not contain any previous solutions.
   Otherwise the program assigns the extrapolated solution to psi
@@ -70,10 +70,10 @@ void clear_counters(void)
   Sets all counters to zero.
 
 void add2counter(char *type,int idx,int *status)
-  Adds the status numbers "status" to the counter characterized by 
+  Adds the status numbers "status" to the counter characterized by
   "type" and index "idx". The possible values of type are "action"
   and "force", while the index idx is the one of the action or force
-  in the parameter data base (see action_parms.c and force_parms.c 
+  in the parameter data base (see action_parms.c and force_parms.c
   in the flags directory). The length of the status array passed to
   this program must coincide with the one of the status argument of
   the corresponding action or force program.
@@ -82,7 +82,7 @@ int get_count(char *type,int idx,int *status)
   Returns the number of times add2counter(type,idx,status) has been
   called since the counter was last cleared. On exit the program
   assigns the sum of the accumulated status values to the argument
-  status [the meaning of the arguments is otherwise the same is in 
+  status [the meaning of the arguments is otherwise the same is in
   the case of add2counter()].
 
 void print_avgstat(char *type,int idx)
@@ -149,44 +149,44 @@ double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status)
   Generates a random pseudo-fermion field with normal distribution,
   assigns its square norm to sqn and returns -ln(r) (see the notes).
 
-double rwtm1(double mu,int isp,double *sqn,int *status)
+double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
   Generates a random pseudo-fermion field with normal distribution,
   assigns its square norm to sqn and returns -ln(r1) (see the notes).
   The twisted-mass Dirac equation is solved using the solver specified
   by the parameter set number isp.
    The argument status must be pointing to an array of at least 1,1
   and 3 elements, respectively, in the case of the CGNE, SAP_GCR and
-  DFL_SAP_GCR solver. On exit the array elements return the status
-  values reported by the solver program.
+  DFL_SAP_GCR solver. On exit the array elements contain the status
+  values returned by the solver program.
 
-double rwtm2(double mu,int isp,double *sqn,int *status)
+double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
   Generates a random pseudo-fermion field with normal distribution,
   assigns its square norm to sqn and returns -ln(r2) (see the notes).
   The twisted-mass Dirac equation is solved using the solver specified
   by the parameter set number isp.
-   The argument status must be pointing to an array of at least 2,2
-  and 6 elements, respectively, in the case of the CGNE, SAP_GCR and
-  DFL_SAP_GCR solver. On exit the array elements return the status
-  values reported by the solver program for twisted mass 0 (first
-  half of the array) and twisted mass sqrt(2)*mu (second half).
+   The argument status must be pointing to an array of at least 1,1
+  and 3 elements, respectively, in the case of the CGNE, SAP_GCR and
+  DFL_SAP_GCR solver. On exit the array elements status[0],status[1]
+  and status[2] contain the averages and sum, respectively, of the
+  status values returned by the solver program.
 
-double rwtm1eo(double mu,int isp,double *sqn,int *status)
+double rwtm1eo(double mu1,double mu2,int isp,double *sqn,int *status)
   Generates a random pseudo-fermion field with normal distribution,
   assigns its square norm to sqn and returns -ln(r1) (see the notes).
   The twisted-mass Dirac equation is solved using the solver specified
   by the parameter set number isp.
    The argument status must be pointing to an array of at least 1,1
   and 3 elements, respectively, in the case of the CGNE, SAP_GCR and
-  DFL_SAP_GCR solver. On exit the array elements return the status
-  values reported by the solver program.
+  DFL_SAP_GCR solver. On exit the array elements contain the status
+  values returned by the solver program.
 
-double rwtm2eo(double mu,int isp,double *sqn,int *status)
+double rwtm2eo(double mu1,double mu2,int isp,double *sqn,int *status)
   Generates a random pseudo-fermion field with normal distribution,
   assigns its square norm to sqn and returns -ln(r2) (see the notes).
   The twisted-mass Dirac equation is solved using the solver specified
   by the parameter set number isp.
-   The argument status must be pointing to an array of at least 2,2
-  and 6 elements, respectively, in the case of the CGNE, SAP_GCR and
-  DFL_SAP_GCR solver. On exit the array elements return the status
-  values reported by the solver program for twisted mass 0 (first
-  half of the array) and twisted mass sqrt(2)*mu (second half).
+   The argument status must be pointing to an array of at least 1,1
+  and 3 elements, respectively, in the case of the CGNE, SAP_GCR and
+  DFL_SAP_GCR solver. On exit the array elements status[0],status[1]
+  and status[2] contain the averages and sum, respectively, of the
+  status values returned by the solver program.

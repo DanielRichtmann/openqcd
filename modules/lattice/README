@@ -9,16 +9,16 @@
 Files
 -----
 
-bcnds.c        Programs related to the boundary conditions in the time 
-               direction
+bcnds.c        Programs related to the boundary conditions in the time
+               direction.
 
-ftidx.c        Labeling of the field tensor components on the faces of 
-               the local lattice
-     
-geometry.c     Programs related to the lattice and block geometry
+ftidx.c        Labeling of the field tensor components on the faces of
+               the local lattice.
 
-uidx.c         Labeling of the link variables on the faces of the local 
-               lattice
+geometry.c     Programs related to the lattice and block geometry.
+
+uidx.c         Labeling of the link variables on the faces of the local
+               lattice.
 
 
 Include file
@@ -31,65 +31,44 @@ functions that are defined in the *.c files listed above.
 List of functions
 -----------------
 
-void openbc(void)
-  Sets the time-like single-precision link variables at time
-  NPROC0*L0-1 to zero.
-  
-void openbcd(void)
-  Sets the time-like double-precision link variables at time
-  NPROC0*L0-1 to zero.
-
-void sfbc(void)
-  Sets the time-like single-precision link variables at time
-  NPROC0*L0-1 to zero and the spatial link variables there and
-  at time 0 to the values specified in the parameter data base
-  (see flags/sw_parms.c).
-
-void sfbcd(void)
-  Sets the time-like double-precision link variables at time
-  NPROC0*L0-1 to zero and the spatial link variables there and
-  at time 0 to the values specified in the parameter data base
-  (see flags/sw_parms.c).
-
-int check_bc(void)
-  Returns 1 if the time-like single-precision link variables at time
-  NPROC0*L0-1 are all equal to zero and 0 otherwise. An error occurs
-  if only some of these link variables vanish.
-
-int check_bcd(void)
-  Returns 1 if the time-like double-precision link variables at time
-  NPROC0*L0-1 are all equal to zero and 0 otherwise. An error occurs
-  if only some of these link variables vanish.
-
-int check_sfbc(void)
-  Returns 1 if checkbc() returns 1 and if the single-precision gauge
-  field has the Schroedinger functional boundary values specified in
-  the parameter data base. In all other cases the program returns 0.
-  An error occurs if the boundary values are not set.
-
-int check_sfbcd(void)
-  Returns 1 if checkbcd() returns 1 and if the double-precision gauge
-  field has the Schroedinger functional boundary values specified in
-  the parameter data base. In all other cases the program returns 0.
-  An error occurs if the boundary values are not set.
-
 int *bnd_lks(int *n)
-  Returns the starting address of an array of length n containing the
-  integer offsets of the time-like link variables at time NPROC0*L0-1 
-  on the local lattice.
+  Returns the starting address of an array of length n whose elements
+  are the integer offsets of the time-like link variables on the local
+  lattice at global time NPROC0*L0-1.
 
 int *bnd_pts(int *n)
   Returns the starting address of an array of length n whose elements
   are the indices of the points on the local lattice at global time 0
-  and NPROC0*L0-1.
+  and T (in the case of open boundary conditions). The ordering of the
+  indices is such that the n/2 even points come first.
 
-void bnd_s2zero(spinor *s)
-  Sets the components of the single-precision spinor field s at global
-  time 0 and NPROC0*L0-1 to zero.
+void set_bc(void)
+  Sets the double-precision link variables at time 0 and T to the
+  values required by the chosen boundary conditions (see the notes).
 
-void bnd_sd2zero(spinor_dble *sd)
-  Sets the components of the double-precision spinor field sd at global
-  time 0 and NPROC0*L0-1 to zero.
+int check_bc(double tol)
+  Returns 1 if the double-precision gauge field has the proper boundary
+  values and if no active link variables are equal to zero. Otherwise
+  the program returns 0. The parameter tol>=0.0 sets an upper bound on
+  the tolerated difference of the boundary values of the gauge field from
+  the expected ones in the case of SF and open-SF boundary conditions.
+
+int chs_ubnd(int ibc)
+  Multiplies the double-precision link variables on the time-like links
+  at time NPROC0*L0-1 by -1 if the following conditions are met: (1) ibc
+  and the determinants of the link variables have opposite sign, (2) the
+  boundary conditions are of type 3 (periodic for the gauge field). The
+  program returns 1 if the link variables are changed and 0 otherwise.
+
+void bnd_s2zero(ptset_t set,spinor *s)
+  Sets the components of the single-precision spinor field s on the
+  specified set of points at global time 0 and T (in the case of
+  open boundary conditions) to zero.
+
+void bnd_sd2zero(ptset_t set,spinor_dble *sd)
+  Sets the components of the double-precision spinor field sd on the
+  specified set of points at global time 0 and T (in the case of
+  open boundary conditions) to zero.
 
 ftidx_t *ftidx(void)
   Returns an array idx[6] of ftidx_t structures containing the offsets

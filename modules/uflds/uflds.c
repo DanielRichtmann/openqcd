@@ -3,51 +3,45 @@
 *
 * File uflds.c
 *
-* Copyright (C) 2006, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2006, 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Allocation and initialization of the global gauge fields
+* Allocation and initialization of the global gauge fields.
 *
 * The externally accessible functions are
 *
 *   su3 *ufld(void)
 *     Returns the base address of the single-precision gauge field. If it
 *     is not already allocated, the field is allocated and initialized to
-*     unity except for the time-like link variables at time NPROC0*L0-1,
-*     which are set to zero.
+*     unity.
 *
 *   su3_dble *udfld(void)
 *     Returns the base address of the double-precision gauge field. If it
 *     is not already allocated, the field is allocated and initialized to
-*     unity except for the time-like link variables at time NPROC0*L0-1,
-*     which are set to zero.
-*
-*   void random_u(void)
-*     Initializes the single-precision gauge field to uniformly distributed
-*     random SU(3) matrices. Open or Schroedinger functional boundary
-*     conditions are then imposed depending on what is specified in the
-*     parameter data base.
+*     unity. Then the boundary conditions are set according to the data
+*     base by calling set_bc() [bcnds.c].
 *
 *   void random_ud(void)
-*     Initializes the double-precision gauge field to uniformly distributed
-*     random SU(3) matrices. Open or Schroedinger functional boundary
-*     conditions are then imposed depending on what is specified in the
-*     parameter data base.
+*     Initializes the active double-precision link variables to uniformly
+*     distributed random SU(3) matrices. The static link variables are
+*     left untouched.
 *
 *   void renormalize_ud(void)
-*     Projects the double-precision gauge field back to SU(3). Only the
-*     active link variables are projected.
+*     Projects the active double-precision link variables back to SU(3). 
+*     The static link variables are left untouched.
 *
 *   void assign_ud2u(void)
 *     Assigns the double-precision gauge field to the single-precision
-*     gauge field.
+*     gauge field. All link variables in the local field, including the
+*     static ones, are copied.
 *
 * Notes:
 *
-* All these programs act globally and must be called from all processes
-* simultaneously. 
+* The double-precision field can only be allocated after the geometry arrays
+* are set up. All programs in this module act globally and must be called on
+* all MPI processes simultaneously.
 *
 *******************************************************************************/
 
@@ -70,7 +64,6 @@
 
 static const su3 u0={{0.0f}};
 static const su3_dble ud0={{0.0}};
-
 static su3 *ub=NULL;
 static su3_dble *udb=NULL;
 
@@ -86,7 +79,7 @@ static void alloc_u(void)
    n=4*VOLUME;
    ub=amalloc(n*sizeof(*ub),ALIGN);
    error(ub==NULL,1,"alloc_u [uflds.c]",
-         "Could not allocate memory space for the gauge field");
+         "Unable to allocate memory space for the gauge field");
 
    unity=u0;
    unity.c11.re=1.0f;
@@ -98,7 +91,7 @@ static void alloc_u(void)
    for (;u<um;u++)
       (*u)=unity;
 
-   openbc();
+   set_flags(UPDATED_U);
 }
 
 
@@ -113,16 +106,24 @@ su3 *ufld(void)
 
 static void alloc_ud(void)
 {
+   int bc;
    size_t n;
    su3_dble unity,*u,*um;
 
    error_root(sizeof(su3_dble)!=(18*sizeof(double)),1,"alloc_ud [uflds.c]",
               "The su3_dble structures are not properly packed");
 
+   error(iup[0][0]==0,1,"alloc_ud [uflds.c]","Geometry arrays are not set");
+
+   bc=bc_type();
    n=4*VOLUME+7*(BNDRY/4);
+
+   if ((cpr[0]==(NPROC0-1))&&((bc==1)||(bc==2)))
+      n+=3;
+   
    udb=amalloc(n*sizeof(*udb),ALIGN);
    error(udb==NULL,1,"alloc_ud [uflds.c]",
-         "Could not allocate memory space for the gauge field");
+         "Unable to allocate memory space for the gauge field");
 
    unity=ud0;
    unity.c11.re=1.0;
@@ -134,7 +135,8 @@ static void alloc_ud(void)
    for (;u<um;u++)
       (*u)=unity;
 
-   openbcd();
+   set_flags(UPDATED_UD);
+   set_bc();
 }
 
 
@@ -147,49 +149,12 @@ su3_dble *udfld(void)
 }
 
 
-void random_u(void)
-{
-   su3 *u,*um;
-
-   u=ufld();
-   um=u+4*VOLUME;
-
-   for (;u<um;u++)
-      random_su3(u);
-
-   if (sf_flg()==0)
-      openbc();
-   else
-      sfbc();
-}
-
-
 void random_ud(void)
 {
-   su3_dble *u,*um;
-   
-   u=udfld();
-   um=u+4*VOLUME;
-
-   for (;u<um;u++)
-      random_su3_dble(u);
-
-   if (sf_flg()==0)
-      openbcd();
-   else
-      sfbcd();   
-}
-
-
-void renormalize_ud(void)
-{
-   int sf,ix,t,k;
+   int bc,ix,t,ifc;
    su3_dble *u;
 
-   error(udb==NULL,1,"renormalize_ud [uflds.c]",
-         "Attempt to access unallocated memory space");
-
-   sf=sf_flg();
+   bc=bc_type();
    u=udfld();
 
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
@@ -198,31 +163,97 @@ void renormalize_ud(void)
 
       if (t==0)
       {
-         project_to_su3_dble(u);
+         random_su3_dble(u);
+         u+=1;
 
-         if (sf==0)
+         if (bc!=0)
+            random_su3_dble(u);
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               project_to_su3_dble(u+k);
+            if (bc!=1)
+               random_su3_dble(u);
+            u+=1;
          }
       }
       else if (t==(N0-1))
       {
-         project_to_su3_dble(u+1);
+         if (bc!=0)
+            random_su3_dble(u);
+         u+=1;
 
-         if (sf==0)
+         for (ifc=1;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               project_to_su3_dble(u+k);
-         }
+            random_su3_dble(u);
+            u+=1;
+         }         
       }
       else
       {
-         for (k=0;k<8;k++)
-            project_to_su3_dble(u+k);
+         for (ifc=0;ifc<8;ifc++)
+         {
+            random_su3_dble(u);
+            u+=1;
+         }
       }
+   }
 
-      u+=8;
+   set_flags(UPDATED_UD);
+}
+
+
+void renormalize_ud(void)
+{
+   int bc,ix,t,ifc,ie;
+   su3_dble *u;
+
+   bc=bc_type();
+   u=udfld();
+   ie=chs_ubnd(1);
+   error_root(ie==1,1,"renormalize_ud [udflds.c]",
+              "Attempt to renormalize sign-flipped link variables");
+
+   for (ix=(VOLUME/2);ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if (t==0)
+      {
+         project_to_su3_dble(u);
+         u+=1;
+
+         if (bc!=0)
+            project_to_su3_dble(u);
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
+         {
+            if (bc!=1)
+               project_to_su3_dble(u);
+            u+=1;
+         }
+      }
+      else if (t==(N0-1))
+      {
+         if (bc!=0)
+            project_to_su3_dble(u);
+         u+=1;
+
+         for (ifc=1;ifc<8;ifc++)
+         {
+            project_to_su3_dble(u);
+            u+=1;
+         }         
+      }
+      else
+      {
+         for (ifc=0;ifc<8;ifc++)
+         {
+            project_to_su3_dble(u);
+            u+=1;
+         }
+      }
    }
 
    set_flags(UPDATED_UD);
@@ -234,9 +265,6 @@ void assign_ud2u(void)
    su3 *u,*um;
    su3_dble *ud;
    
-   error(udb==NULL,1,"assign_ud2u [uflds.c]",
-         "Attempt to access unallocated memory space");
-
    u=ufld();
    um=u+4*VOLUME;
    ud=udfld();

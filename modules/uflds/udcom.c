@@ -3,19 +3,21 @@
 *
 * File udcom.c
 *
-* Copyright (C) 2005, 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2009, 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Communication of the double-precision link variables residing at the
-* boundaries of the local lattices
+* exterior boundaries of the local lattices.
 *
 * The externally accessible function is
 *
 *   void copy_bnd_ud(void)
-*     Copies the double-precision link variables on the boundaries of the
-*     local lattice from the neighbouring processes.
+*     Copies the double-precision link variables from the neighbouring MPI
+*     processes to the exterior boundaries of the local lattice. The field
+*     variables on the spatial links at time NPROC0*L0 are fetched only in
+*     the case of periodic boundary conditions.
 *
 * Notes:
 *
@@ -42,7 +44,7 @@
 #include "uflds.h"
 #include "global.h"
 
-static int np;
+static int bc,np;
 static su3_dble *sbuf=NULL,*rbuf;
 static uidx_t *idx;
 
@@ -51,6 +53,7 @@ static void alloc_sbuf(void)
 {
    int mu,nuk,n;
 
+   bc=bc_type();
    np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;   
    idx=uidx();
    n=0;
@@ -100,7 +103,7 @@ static void pack_udk(int mu)
    udb=udfld();
    nuk=idx[mu].nuk;
 
-   if (nuk>0)
+   if ((nuk>0)&&((mu>0)||(cpr[0]>0)||(bc==3)))
    {
       u=sbuf;
       iu=idx[mu].iuk;
@@ -163,13 +166,17 @@ static void send_udk(int mu)
 
       if (np==0)
       {
-         MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
-         MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
+         if ((mu>0)||(cpr[0]>0)||(bc==3))
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+         if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
       }
       else
       {
-         MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
-         MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+         if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))         
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
+         if ((mu>0)||(cpr[0]>0)||(bc==3))         
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
       }
 
       rbuf+=nuk;

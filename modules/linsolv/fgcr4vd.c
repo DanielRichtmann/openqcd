@@ -3,12 +3,12 @@
 *
 * File fgcr4vd.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic flexible GCR solver program for the little Dirac equation
+* Generic flexible GCR solver program for the little Dirac equation.
 *
 * The externally accessible function is
 *
@@ -30,7 +30,7 @@
 * are assumed to have the following properties:
 *
 *   void Dop(complex_dble *v,complex_dble *w)
-*     Application of the operator D to the complex field v and assignment 
+*     Application of the operator D to the complex field v and assignment
 *     of the result to w. On exit v may be changed but must satisfy D*v=w.
 *
 *   void Mop(int k,complex *rho,complex *phi,complex *chi)
@@ -114,12 +114,13 @@ static int alloc_arrays(int nkv)
    {
       afree(a);
       afree(b);
+      afree(cs1);
    }
 
-   a=amalloc(nkv*(nkv+1)*sizeof(*a),3);
-   b=amalloc(nkv*sizeof(*b),3);
-   cs1=amalloc(2*(nkv+2)*sizeof(*cs1),3);
-   
+   a=amalloc(nkv*(nkv+1)*sizeof(*a),ALIGN);
+   b=amalloc(nkv*sizeof(*b),ALIGN);
+   cs1=amalloc(2*(nkv+2)*sizeof(*cs1),ALIGN);
+
    if ((a==NULL)||(b==NULL)||(cs1==NULL))
       return 1;
 
@@ -150,7 +151,7 @@ static void gcr_init(int vol,int icom,int nkv,complex **wv,complex_dble **wvd,
 static void sum_vprod(int icom,int n)
 {
    int i;
-   
+
    if ((icom==1)&&(NPROC>1))
    {
       MPI_Reduce((double*)(cs1),(double*)(cs2),2*n,MPI_DOUBLE,
@@ -185,8 +186,8 @@ static void gcr_step(int vol,int icom,int k,int nkv,
    }
 
    sum_vprod(icom,k);
-   
-   for (l=0;l<k;l++)   
+
+   for (l=0;l<k;l++)
    {
       a[nkv*l+k].re=(float)(cs2[l].re);
       a[nkv*l+k].im=(float)(cs2[l].im);
@@ -201,7 +202,7 @@ static void gcr_step(int vol,int icom,int k,int nkv,
    z=vprod(vol,0,chi[k],rho);
    cs1[1].re=(double)(z.re);
    cs1[1].im=(double)(z.im);
-   sum_vprod(icom,2);   
+   sum_vprod(icom,2);
 
    b[k]=(float)(sqrt(cs2[0].re));
 
@@ -249,13 +250,13 @@ static void update_psi(int vol,int icom,int k,int nkv,
 
    for (l=k;l>=0;l--)
       mulc_vadd(vol,rho,phi[l],c[l]);
-   
+
    add_v2vd(vol,rho,psi);
    (*Dop)(psi,wrk);
    diff_vd2v(vol,eta,wrk,rho);
 
    rn=(double)(vnorm_square(vol,icom,rho));
-   rn=sqrt(rn);   
+   rn=sqrt(rn);
 }
 
 
@@ -285,7 +286,7 @@ double fgcr4vd(int vol,int icom,
       error_root((vol<=0)||(nkv<1)||(nmx<1)||(res<=DBL_EPSILON),1,
                  "fgcr4vd [fgcr4vd.c]",
                  "Improper choice of vol,nkv,nmx or res");
-      
+
       if (nkv>nkm)
       {
          ie=alloc_arrays(nkv);
@@ -293,7 +294,7 @@ double fgcr4vd(int vol,int icom,
                "Unable to allocate auxiliary arrays");
       }
    }
-   else 
+   else
    {
       if ((vol<=0)||(nkv<1)||(nmx<1)||(res<=DBL_EPSILON))
       {
@@ -334,12 +335,12 @@ double fgcr4vd(int vol,int icom,
          (*status)+=1;
 #ifdef FGCR4VD_DBG
          message("[fgcr4vd]: k = %d, rn = %.2e\n",k,rn);
-#endif         
+#endif
          if ((rn<=tol)||(rn<(PRECISION_LIMIT*rn_old))||
              ((k+1)==nkv)||((*status)==nmx))
             break;
       }
-      
+
       update_psi(vol,icom,k,nkv,eta,psi,Dop);
 
       if (((*status)==nmx)&&(rn>tol))

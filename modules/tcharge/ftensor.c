@@ -3,12 +3,12 @@
 *
 * File ftensor.c
 *
-* Copyright (C) 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2010-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the symmetric field tensor
+* Computation of the symmetric field tensor.
 *
 * The externally accessible function is
 *
@@ -16,22 +16,31 @@
 *     Computes the symmetric field tensor of the global double-precision
 *     gauge field and returns the pointers ft[0],..,ft[5] to the field
 *     components with the Lorentz indices (0,1),(0,2),(0,3),(2,3),(3,1),
-*     (1,2). The arrays are automatically allocated if needed.
+*     (1,2). The arrays are automatically allocated if needed. Along the
+*     boundaries of the lattice (if any), the program sets the field to
+*     zero.
 *
 * Notes:
 *
-* The (mu,nu)-component of the field tensor is defined by
+* At all points x in the interior of the lattice, the (mu,nu)-component of
+* the field tensor is defined by
 *
 *  F_{mu,nu}(x) = (1/8)*[Q_{mu,nu}(x)-Q_{nu,mu}(x)]
 *
-* where 
+* where
 *
 *  Q_{mu,nu}(x) = U(x,mu)*U(x+mu,nu)*U(x+nu,mu)^dag*U(x,nu)^dag + (3 more)
 *
-* denotes the sum of the four plaquette loops at x in the (mu,nu) plane
-* (the same as in the case of the SW term). At time 0 and  NPROC0*L0-1,
-* the electric components of the field tensor include the contributions
-* of the inward plaquettes only.
+* denotes the sum of the four plaquette loops at x in the (mu,nu)-plane (the
+* same as in the case of the SW term). Elsewhere the elements of the field
+* arrays are set to zero. The interior points are those at global time x0
+* in the range
+*
+*  0<x0<NPROC0*L0-1        (open bc),
+*
+*  0<x0<NPROC0*L0          (SF and open-SF bc),
+*
+*  0<=x0<NPROC0*L0         (periodic bc).
 *
 * Note that the field tensor calculated here is in the Lie algebra of U(3)
 * not SU(3). The type u3_alg_dble is explained in the notes in the module
@@ -76,11 +85,11 @@ static void alloc_fts(void)
 
    idx=ftidx();
    nbf=0;
-   
+
    for (n=0;n<6;n++)
       nbf+=idx[n].nft[0]+idx[n].nft[1];
 
-   pp=amalloc(12*sizeof(*pp),3);
+   pp=malloc(12*sizeof(*pp));
    p=amalloc((6*VOLUME+nbf)*sizeof(*p),ALIGN);
    error((pp==NULL)||(p==NULL),1,"alloc_fts [ftensor.c]",
          "Unable to allocate field tensor arrays");
@@ -110,46 +119,38 @@ static void add_X2ft(u3_alg_dble *f)
    (*f).c6+=r*X.c6;
    (*f).c7+=r*X.c7;
    (*f).c8+=r*X.c8;
-   (*f).c9+=r*X.c9;      
-}
-
-
-static void dub_u3(u3_alg_dble *f)
-{
-   (*f).c1+=(*f).c1;
-   (*f).c2+=(*f).c2;
-   (*f).c3+=(*f).c3;
-   (*f).c4+=(*f).c4;
-   (*f).c5+=(*f).c5;
-   (*f).c6+=(*f).c6;
-   (*f).c7+=(*f).c7;
-   (*f).c8+=(*f).c8;
-   (*f).c9+=(*f).c9;   
+   (*f).c9+=r*X.c9;
 }
 
 
 static void build_fts(void)
 {
-   int n,ix,t,ip[4],ipf[4];
+   int bc,n,ix,t,ip[4],ipf[4];
+   int tmx;
    su3_dble *ub;
    u3_alg_dble *ftn;
 
+   bc=bc_type();
    ub=udfld();
 
    for (n=0;n<6;n++)
    {
       ftn=fts[n];
       set_ualg2zero(VOLUME+idx[n].nft[0]+idx[n].nft[1],ftn);
+      tmx=N0;
+      if (bc==0)
+         tmx-=1;
+      if (n<3)
+         tmx-=1;
 
       for (ix=0;ix<VOLUME;ix++)
       {
          t=global_time(ix);
+         plaq_uidx(n,ix,ip);
+         plaq_ftidx(n,ix,ipf);
 
-         if ((t<(N0-1))||(n>=3))
+         if (((t>0)&&(t<tmx))||(bc==3))
          {
-            plaq_uidx(n,ix,ip);
-            plaq_ftidx(n,ix,ipf);
-      
             su3xsu3(ub+ip[0],ub+ip[1],&w1);
             su3dagxsu3dag(ub+ip[3],ub+ip[2],&w2);
             prod2u3alg(&w1,&w2,&X);
@@ -160,9 +161,33 @@ static void build_fts(void)
             su3dagxsu3(ub+ip[2],ub+ip[0],&w1);
             su3xsu3dag(ub+ip[1],ub+ip[3],&w2);
             prod2u3alg(&w1,&w2,&X);
-            add_X2ft(ftn+ipf[2]);         
+            add_X2ft(ftn+ipf[2]);
             prod2u3alg(&w2,&w1,&X);
             add_X2ft(ftn+ipf[1]);
+         }
+         else if ((t==0)&&(n<3))
+         {
+            su3xsu3(ub+ip[0],ub+ip[1],&w1);
+            su3dagxsu3dag(ub+ip[3],ub+ip[2],&w2);
+            prod2u3alg(&w2,&w1,&X);
+            add_X2ft(ftn+ipf[3]);
+
+            su3dagxsu3(ub+ip[2],ub+ip[0],&w1);
+            su3xsu3dag(ub+ip[1],ub+ip[3],&w2);
+            prod2u3alg(&w2,&w1,&X);
+            add_X2ft(ftn+ipf[1]);
+         }
+         else if ((t==tmx)&&(n<3))
+         {
+            su3xsu3(ub+ip[0],ub+ip[1],&w1);
+            su3dagxsu3dag(ub+ip[3],ub+ip[2],&w2);
+            prod2u3alg(&w1,&w2,&X);
+            add_X2ft(ftn+ipf[0]);
+
+            su3dagxsu3(ub+ip[2],ub+ip[0],&w1);
+            su3xsu3dag(ub+ip[1],ub+ip[3],&w2);
+            prod2u3alg(&w1,&w2,&X);
+            add_X2ft(ftn+ipf[2]);
          }
       }
 
@@ -173,7 +198,7 @@ static void build_fts(void)
 
 u3_alg_dble **ftensor(void)
 {
-   int n,npt,*pt,*pm,ix;
+   int n;
 
    if (query_flags(FTS_UP2DATE)!=1)
    {
@@ -184,20 +209,9 @@ u3_alg_dble **ftensor(void)
          copy_bnd_ud();
 
       build_fts();
-      pt=bnd_pts(&npt);
-      pm=pt+npt;
-
-      for (;pt<pm;pt++)
-      {
-         ix=(*pt);
-         dub_u3(fts[0]+ix);
-         dub_u3(fts[1]+ix);
-         dub_u3(fts[2]+ix);
-      }
-
       set_flags(COMPUTED_FTS);
    }
-   
+
    for (n=0;n<6;n++)
       ft[n]=fts[n];
 

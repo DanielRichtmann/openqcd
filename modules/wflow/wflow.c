@@ -3,12 +3,12 @@
 *
 * File wflow.c
 *
-* Copyright (C) 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2009-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Integration of the Wilson flow
+* Integration of the Wilson flow.
 *
 * The externally accessible functions are
 *
@@ -26,24 +26,28 @@
 *
 * Notes:
 *
-* The Wilson flow is defined through equations (1.3) and (1.4) in
+* On lattices with periodic boundary conditions, the Wilson flow is defined
+* through equations (1.3) and (1.4) in
 *
-*   M. Luescher: "Properties and uses of the Wilson flow in lattice QCD"
-*   JHEP 1008 (2010) 071
+*   M. Luescher: "Properties and uses of the Wilson flow in lattice QCD",
+*   JHEP 1008 (2010) 071.
 *
-* The numerical integration of the flow proceeds globally (not link by link)
-* and thus amounts to applying a sequence of steps, where the force deriving
-* from the Wilson plaquette action is computed on all links before the gauge
-* field is updated. See appendix C of the cited paper for the definition of
-* the 3rd order Runge-Kutta integrator.
+* The Runge-Kutta integrators used here are described in appendix C of this
+* paper.
 *
-* The programs in this module are sensitive to the boundary conditions. In
-* the case of open boundary conditions, the O(a) improved flow equation is
-* integrated. With Schroedinger functional boundary conditions, the standard
-* flow equation with fixed boundary values is used. O(a) improvement is
-* guaranteed here too.
+* In the case of open, SF and open-SF boundary conditions, the flow evolves
+* the active link variables only, where the action on the right of the flow
+* equation is taken to be the tree-level O(a)-improved plaquette action.
+* O(a)-improvement moreover requires the derivative of the action on the
+* space-like links at the boundaries with open boundary conditions to be
+* multiplied by 2. See appendix B in
 *
-* All programs in this module make use of the force field in the structure
+*   M. Luescher, S. Schaefer: "Lattice QCD with open boundary conditions
+*   and twisted-mass reweighting", Comput.Phys.Commun. 184 (2013) 519,
+*
+* for the exact form of the flow equation in this case.
+*
+* The integration programs make use of the force field in the structure
 * returned by mdflds [mdflds.c]. On exit the force field must therefore be
 * expected to be changed.
 *
@@ -57,7 +61,6 @@
 
 #include <stdio.h>
 #include <math.h>
-#include <float.h>
 #include "mpi.h"
 #include "flags.h"
 #include "su3fcts.h"
@@ -75,10 +78,10 @@
 
 static void update_ud(double eps,su3_alg_dble *frc)
 {
-   int sf,ix,t,k;
+   int bc,ix,t,ifc;
    su3_dble *u;
 
-   sf=sf_flg();
+   bc=bc_type();
    u=udfld();
 
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
@@ -88,32 +91,55 @@ static void update_ud(double eps,su3_alg_dble *frc)
       if (t==0)
       {
          expXsu3(eps,frc,u);
-         
-         if (sf==0)
+         frc+=1;
+         u+=1;
+
+         if (bc!=0)
+            expXsu3(eps,frc,u);
+         frc+=1;
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               expXsu3(2.0*eps,frc+k,u+k);
+            if ((bc==0)||(bc==2))
+               expXsu3(2.0*eps,frc,u);
+            else if (bc==3)
+               expXsu3(eps,frc,u);
+            frc+=1;
+            u+=1;
          }
       }
       else if (t==(N0-1))
       {
-         expXsu3(eps,frc+1,u+1);
-         
-         if (sf==0)
+         if (bc!=0)
+            expXsu3(eps,frc,u);
+         frc+=1;
+         u+=1;
+
+         expXsu3(eps,frc,u);
+         frc+=1;
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
          {
-            for (k=2;k<8;k++)
-               expXsu3(2.0*eps,frc+k,u+k);
+            if (bc==0)
+               expXsu3(2.0*eps,frc,u);
+            else
+               expXsu3(eps,frc,u);
+            frc+=1;
+            u+=1;
          }
       }
       else
       {
-         for (k=0;k<8;k++)
-            expXsu3(eps,frc+k,u+k);
+         for (ifc=0;ifc<8;ifc++)
+         {
+            expXsu3(eps,frc,u);
+            frc+=1;
+            u+=1;
+         }
       }
-
-      frc+=8;
-      u+=8;
-   }   
+   }
 
    set_flags(UPDATED_UD);
 }
@@ -134,7 +160,7 @@ static void update_fro1(double c,su3_alg_dble *frc,su3_alg_dble *fro)
       (*fro).c5-=c*(*frc).c5;
       (*fro).c6-=c*(*frc).c6;
       (*fro).c7-=c*(*frc).c7;
-      (*fro).c8-=c*(*frc).c8; 
+      (*fro).c8-=c*(*frc).c8;
 
       fro+=1;
    }
@@ -177,7 +203,7 @@ void fwd_euler(int n,double eps)
 
       MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+
       error((iprms[0]!=n)||(dprms[0]!=eps),1,
             "fwd_euler [wflow.c]","Parameters are not global");
    }
@@ -186,7 +212,7 @@ void fwd_euler(int n,double eps)
    {
       mdfs=mdflds();
       frc=(*mdfs).frc;
-         
+
       for (k=0;k<n;k++)
       {
          plaq_frc();
@@ -210,7 +236,7 @@ void fwd_rk2(int n,double eps)
 
       MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+
       error((iprms[0]!=n)||(dprms[0]!=eps),1,
             "fwd_rk2 [wflow.c]","Parameters are not global");
    }
@@ -221,7 +247,7 @@ void fwd_rk2(int n,double eps)
       frc=(*mdfs).frc;
       fsv=reserve_wfd(1);
       fro=fsv[0];
-   
+
       for (k=0;k<n;k++)
       {
          plaq_frc();
@@ -252,7 +278,7 @@ void fwd_rk3(int n,double eps)
 
       MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+
       error((iprms[0]!=n)||(dprms[0]!=eps),1,
             "fwd_rk3 [wflow.c]","Parameters are not global");
    }
@@ -260,20 +286,20 @@ void fwd_rk3(int n,double eps)
    if (n>0)
    {
       mdfs=mdflds();
-      frc=(*mdfs).frc;      
+      frc=(*mdfs).frc;
       fsv=reserve_wfd(1);
       fro=fsv[0];
-         
+
       for (k=0;k<n;k++)
       {
          plaq_frc();
          assign_alg2alg(4*VOLUME,frc,fro);
          update_ud(-0.25*eps,frc);
-      
+
          plaq_frc();
          update_fro1(32.0/17.0,frc,fro);
          update_ud((17.0/36.0)*eps,fro);
-         
+
          plaq_frc();
          update_fro2(17.0/27.0,frc,fro);
          update_ud(-0.75*eps,fro);

@@ -3,13 +3,13 @@
 *
 * File Aw_com.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Communication functions needed for the computation of the little Dirac
-* operator
+* operator.
 *
 *   b2b_flds_t *b2b_flds(int n,int mu)
 *     Extracts the spinor fields on the interior boundaries of the n'th
@@ -23,14 +23,14 @@
 *
 *   void cpAoe_ext_bnd(void)
 *     Copies the hopping terms Aoe and Aeo of the double-precision little
-*     Dirac operator on the odd exterior boundary points of the local block 
-*     lattice to the neighbouring processes and *adds* them to the hopping
-*     terms on the matching blocks on the target lattices.
+*     Dirac operator on the odd exterior boundary points of the local block
+*     lattice to the neighbouring MPI processes and *adds* them to the hop-
+*     ping terms on the matching blocks on the target lattices.
 *
 *   void cpAee_int_bnd(void)
 *     Copies the even-even terms Aee of the double-precision little Dirac
 *     operator on the (even) interior boundary points of the local block
-*     lattice to the neighbouring processes.
+*     lattice to the neighbouring MPI processes.
 *
 * Notes:
 *
@@ -105,9 +105,9 @@ static void set_constants(void)
       nbbe[ifc]=grd.nbbe[ifc];
       nbbo[ifc]=grd.nbbo[ifc];
       obbe[ifc]=grd.obbe[ifc];
-      obbo[ifc]=grd.obbo[ifc];   
+      obbo[ifc]=grd.obbo[ifc];
    }
-   
+
    inn=grd.inn;
    idx=grd.idx;
    ipp=grd.ipp;
@@ -115,7 +115,7 @@ static void set_constants(void)
 
    np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
    nsnd=0;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       nmu[ifc]=cpr[ifc/2]&0x1;
@@ -133,7 +133,7 @@ static int fnd_nn(int n,int ifc)
 {
    n=idx[n];
    n=inn[n][ifc];
-   
+
    if (n>=nb)
       n=mp[n-nb];
 
@@ -158,10 +158,10 @@ static void set_snd_req_bsd(void)
       saddr=npr[ifc];
       raddr=npr[ifc^0x1];
       tag=mpi_permanent_tag();
-      
-      MPI_Send_init((double*)((*brd).snd_buf[(ifc&0x1)^0x1][0]),nbf,
+
+      MPI_Send_init((*brd).snd_buf[(ifc&0x1)^0x1][0],nbf,
                     MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_bsd[ifc]);
-      MPI_Recv_init((double*)((*b2b).sde[(ifc&0x1)^0x1][0]),nbf,
+      MPI_Recv_init((*b2b).sde[(ifc&0x1)^0x1][0],nbf,
                     MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_bsd[ifc]);
    }
 }
@@ -188,38 +188,38 @@ static void alloc_bsd(void)
    bb=(*b).bb;
    vbb=0;
    vbm=0;
-   
+
    for (mu=0;mu<4;mu++)
    {
       vol=bb[2*mu].vol;
       vbb+=vol;
-      
+
       if (vol>vbm)
          vbm=vol;
    }
 
-   bsd=amalloc(nb*sizeof(*bsd),3);
-   iud=amalloc(nb*vbb*sizeof(*iud),3);
+   bsd=malloc(nb*sizeof(*bsd));
+   iud=malloc(nb*vbb*sizeof(*iud));
    ud=amalloc(vbm*sizeof(*ud),ALIGN);
-   psd=amalloc(24*Ns*sizeof(*psd),3);
+   psd=malloc(24*Ns*sizeof(*psd));
    sd=amalloc(3*Ns*vbm*sizeof(*sd),ALIGN);
 
    error((bsd==NULL)||(iud==NULL)||(ud==NULL)||(psd==NULL)||(sd==NULL),1,
          "alloc_bsd [Aw_com.c]","Unable to allocate buffers");
 
-   set_sd2zero(3*Ns*vbm,sd);   
-   
+   set_sd2zero(3*Ns*vbm,sd);
+
    for (n=0;n<nb;n++)
    {
       brd=bsd[n];
-      
+
       for (mu=0;mu<4;mu++)
       {
          ifc=2*mu+1;
          m=fnd_nn(n,ifc);
          bb=b[n].bb;
          vol=bb[ifc].vol/2;
-         
+
          (*brd).iud[0]=iud;
 
          for (ix=0;ix<vol;ix++)
@@ -238,7 +238,7 @@ static void alloc_bsd(void)
             iud+=1;
          }
 
-         (*brd).sd[0]=b[n].sd+1;         
+         (*brd).sd[0]=b[n].sd+1;
          (*brd).sd[1]=b[m].sd+1;
          (*brd).ise[0]=bb[ifc].ipp+vol;
          (*brd).iso[0]=bb[ifc].ipp;
@@ -247,10 +247,10 @@ static void alloc_bsd(void)
 
          (*brd).ud[0]=ud;
          (*brd).ud[1]=ud+vol;
-         
+
          if (n==0)
          {
-            (*brd).b2b.vol=vol;            
+            (*brd).b2b.vol=vol;
             (*brd).b2b.sde[0]=psd;
             (*brd).b2b.sdo[1]=psd+Ns;
             (*brd).b2b.sdo[0]=psd+2*Ns;
@@ -270,11 +270,11 @@ static void alloc_bsd(void)
             (*brd).snd_buf[0]=bsd[0][mu].snd_buf[0];
             (*brd).snd_buf[1]=bsd[0][mu].snd_buf[1];
          }
-            
+
          (*brd).b2b.n[0]=n;
-         (*brd).b2b.n[1]=m;         
+         (*brd).b2b.n[1]=m;
          (*brd).b2b.ibn=bb[ifc].ibn;
-         
+
          brd+=1;
       }
    }
@@ -288,7 +288,7 @@ static void send_bufs_bsd(int ifc,int eo)
 {
    int io;
 
-   io=(ifc^nmu[ifc]);   
+   io=(ifc^nmu[ifc]);
 
    if (np==eo)
       MPI_Start(&snd_req_bsd[io]);
@@ -319,7 +319,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
    spinor_dble **sd,**rd;
    bsd_t *brd;
    b2b_flds_t *b2b;
-   
+
    if (init_bsd==0)
       alloc_bsd();
 
@@ -331,7 +331,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
 
    imb=(*brd).ise[0];
    sd=(*brd).sd[0];
-   
+
    if (ibn)
       rd=(*brd).snd_buf[0];
    else
@@ -342,14 +342,14 @@ b2b_flds_t *b2b_flds(int n,int mu)
 
    imb=(*brd).ise[1];
    sd=(*brd).sd[1];
-   
+
    if (ibn)
       rd=(*brd).snd_buf[1];
    else
       rd=(*b2b).sde[1];
 
    for (k=0;k<Ns;k++)
-      gather_sd(vol,imb,sd[k],rd[k]);   
+      gather_sd(vol,imb,sd[k],rd[k]);
 
    if (ibn)
       send_bufs_bsd(ifc,0);
@@ -358,7 +358,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
 
    if (ibn)
    {
-      wait_bufs_bsd(ifc,0);   
+      wait_bufs_bsd(ifc,0);
       send_bufs_bsd(ifc,1);
    }
 
@@ -366,7 +366,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
    ud=(*brd).ud[0];
    sd=(*brd).sd[0];
    rd=(*b2b).sdo[0];
-   
+
    for (k=0;k<Ns;k++)
       apply_udag2sd(vol,imb,ud,sd[k],rd[k]);
 
@@ -375,26 +375,26 @@ b2b_flds_t *b2b_flds(int n,int mu)
       wait_bufs_bsd(ifc,1);
       send_bufs_bsd(ifc^0x1,0);
    }
-   
-   gather_ud(vol,(*brd).iud[1],udfld(),(*brd).ud[1]);   
+
+   gather_ud(vol,(*brd).iud[1],udfld(),(*brd).ud[1]);
 
    if (ibn)
    {
       wait_bufs_bsd(ifc^0x1,0);
       send_bufs_bsd(ifc^0x1,1);
    }
-   
+
    imb=(*brd).iso[1];
    ud=(*brd).ud[1];
    sd=(*brd).sd[1];
    rd=(*b2b).sdo[1];
 
    for (k=0;k<Ns;k++)
-      apply_u2sd(vol,imb,ud,sd[k],rd[k]);   
+      apply_u2sd(vol,imb,ud,sd[k],rd[k]);
 
    if (ibn)
-      wait_bufs_bsd(ifc^0x1,1);   
-   
+      wait_bufs_bsd(ifc^0x1,1);
+
    return b2b;
 }
 
@@ -406,25 +406,25 @@ static void set_snd_req_Aoe(void)
    Aw_dble_t Aw;
 
    Aw=Awop_dble();
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       nbf=2*Ns*Ns*nbbo[ifc];
       saddr=npr[ifc];
       raddr=npr[ifc^0x1];
-      tag=mpi_permanent_tag();      
+      tag=mpi_permanent_tag();
 
-      MPI_Send_init((double*)(Aw.Aoe[8*nbh+obbo[ifc]-nbbh]),nbf,
+      MPI_Send_init(Aw.Aoe[8*nbh+obbo[ifc]-nbbh],nbf,
                     MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aoe[ifc]);
-      MPI_Recv_init((double*)(rcv_buf_Aoe[ifc][0]),nbf,
+      MPI_Recv_init(rcv_buf_Aoe[ifc][0],nbf,
                     MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aoe[ifc]);
 
       tag=mpi_permanent_tag();
 
-      MPI_Send_init((double*)(Aw.Aeo[8*nbh+obbo[ifc]-nbbh]),nbf,
+      MPI_Send_init(Aw.Aeo[8*nbh+obbo[ifc]-nbbh],nbf,
                     MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aeo[ifc]);
-      MPI_Recv_init((double*)(rcv_buf_Aeo[ifc][0]),nbf,
-                    MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aeo[ifc]);      
+      MPI_Recv_init(rcv_buf_Aeo[ifc][0],nbf,
+                    MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aeo[ifc]);
    }
 }
 
@@ -433,19 +433,19 @@ static void alloc_Aoe(void)
 {
    int n,k,ifc,nmat;
    complex_dble **pzd,*zd;
-   
+
    if (Ns==0)
       set_constants();
 
    n=nbb;
    nmat=Ns*Ns;
-   pzd=amalloc(n*sizeof(*pzd),3);
+   pzd=malloc(n*sizeof(*pzd));
    zd=amalloc(n*nmat*sizeof(*zd),ALIGN);
 
    error((pzd==NULL)||(zd==NULL),1,
          "alloc_Aoe [Aw_com.c]","Unable to allocate buffers");
 
-   set_vd2zero(n*nmat,zd);     
+   set_vd2zero(n*nmat,zd);
 
    for (k=0;k<n;k++)
       pzd[k]=zd+k*nmat;
@@ -455,7 +455,7 @@ static void alloc_Aoe(void)
       rcv_buf_Aoe[ifc]=pzd;
       pzd+=nbbe[ifc^0x1];
       rcv_buf_Aeo[ifc]=pzd;
-      pzd+=nbbe[ifc^0x1];      
+      pzd+=nbbe[ifc^0x1];
    }
 
    set_snd_req_Aoe();
@@ -486,7 +486,7 @@ static void add_mat(int ifc,int vol,int *imb,complex_dble **v,complex_dble **w)
          wi[2].re+=rv[2].re;
          wi[2].im+=rv[2].im;
          wi[3].re+=rv[3].re;
-         wi[3].im+=rv[3].im;         
+         wi[3].im+=rv[3].im;
 
          rv+=4;
       }
@@ -500,7 +500,7 @@ static void send_bufs_Aoe(int ifc,int eo)
 {
    int io;
 
-   io=(ifc^nmu[ifc]);   
+   io=(ifc^nmu[ifc]);
 
    if (np==eo)
    {
@@ -539,7 +539,7 @@ static void send_bufs_Aeo(int ifc,int eo)
 {
    int io;
 
-   io=(ifc^nmu[ifc]);   
+   io=(ifc^nmu[ifc]);
 
    if (np==eo)
    {
@@ -579,14 +579,14 @@ void cpAoe_ext_bnd(void)
    int ifc,io;
    int n,m,eo;
    Aw_dble_t Aw;
-   
+
    if (NPROC==1)
       return;
-   
+
    if (init_Aoe==0)
       alloc_Aoe();
 
-   Aw=Awop_dble();   
+   Aw=Awop_dble();
    m=0;
    eo=0;
 
@@ -595,7 +595,7 @@ void cpAoe_ext_bnd(void)
       send_bufs_Aoe(sfc[m],eo);
       wait_bufs_Aoe(sfc[m],eo);
       send_bufs_Aeo(sfc[m],eo);
-      wait_bufs_Aeo(sfc[m],eo);      
+      wait_bufs_Aeo(sfc[m],eo);
       m+=eo;
       eo^=0x1;
    }
@@ -607,17 +607,17 @@ void cpAoe_ext_bnd(void)
 
       ifc=sfc[n];
       io=(ifc^nmu[ifc])^0x1;
-      
+
       add_mat(io^0x1,nbbe[io^0x1],ipp+obbe[io^0x1],rcv_buf_Aoe[io],Aw.Aoe);
 
       if (m<nsnd)
       {
-         wait_bufs_Aoe(sfc[m],eo);         
+         wait_bufs_Aoe(sfc[m],eo);
          send_bufs_Aeo(sfc[m],eo);
       }
 
       add_mat(io^0x1,nbbe[io^0x1],ipp+obbe[io^0x1],rcv_buf_Aeo[io],Aw.Aeo);
-      
+
       if (m<nsnd)
       {
          wait_bufs_Aeo(sfc[m],eo);
@@ -635,17 +635,17 @@ static void set_snd_req_Aee(void)
    Aw_dble_t Aw;
 
    Aw=Awophat_dble();
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       nbf=2*Ns*Ns*nbbo[ifc];
       saddr=npr[ifc];
       raddr=npr[ifc^0x1];
-      tag=mpi_permanent_tag();      
+      tag=mpi_permanent_tag();
 
-      MPI_Send_init((double*)(snd_buf_Aee[ifc][0]),nbf,
+      MPI_Send_init(snd_buf_Aee[ifc][0],nbf,
                     MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aee[ifc]);
-      MPI_Recv_init((double*)(Aw.Aee[nbh+obbe[ifc^0x1]]),nbf,
+      MPI_Recv_init(Aw.Aee[nbh+obbe[ifc^0x1]],nbf,
                     MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aee[ifc]);
    }
 }
@@ -655,19 +655,19 @@ static void alloc_Aee(void)
 {
    int n,k,ifc,nmat;
    complex_dble **pzd,*zd;
-   
+
    if (Ns==0)
       set_constants();
 
    n=nbbh;
    nmat=Ns*Ns;
-   pzd=amalloc(n*sizeof(*pzd),3);
+   pzd=malloc(n*sizeof(*pzd));
    zd=amalloc(n*nmat*sizeof(*zd),ALIGN);
 
    error((pzd==NULL)||(zd==NULL),1,
          "alloc_Aee [Aw_com.c]","Unable to allocate buffers");
 
-   set_vd2zero(n*nmat,zd);     
+   set_vd2zero(n*nmat,zd);
 
    for (k=0;k<n;k++)
       pzd[k]=zd+k*nmat;
@@ -706,7 +706,7 @@ static void get_mat(int vol,int *imb,complex_dble **v,complex_dble **w)
          rw[2].re=vi[2].re;
          rw[2].im=vi[2].im;
          rw[3].re=vi[3].re;
-         rw[3].im=vi[3].im;         
+         rw[3].im=vi[3].im;
 
          rw+=4;
       }
@@ -720,7 +720,7 @@ static void send_bufs_Aee(int ifc,int eo)
 {
    int io;
 
-   io=(ifc^nmu[ifc]);   
+   io=(ifc^nmu[ifc]);
 
    if (np==eo)
    {
@@ -760,14 +760,14 @@ void cpAee_int_bnd(void)
    int ifc,io;
    int n,m,eo;
    Aw_dble_t Aw;
-   
+
    if (NPROC==1)
       return;
-   
+
    if (init_Aee==0)
       alloc_Aee();
 
-   Aw=Awophat_dble(); 
+   Aw=Awophat_dble();
    m=0;
    eo=0;
 
@@ -778,6 +778,7 @@ void cpAee_int_bnd(void)
 
       ifc=sfc[n];
       io=ifc^nmu[ifc];
+
       get_mat(nbbo[io],ipp+obbo[io],Aw.Aee,snd_buf_Aee[io]);
 
       if (n>0)

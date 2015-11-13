@@ -3,12 +3,12 @@
 *
 * File blk_grid.c
 *
-* Copyright (C) 2005, 2007, 2011 Martin Luescher
+* Copyright (C) 2005, 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Block grid allocation
+* Block grid allocation.
 *
 * The externally accessible functions are
 *
@@ -26,14 +26,13 @@
 *
 * Notes:
 *
-* The program alloc_bgr() involves communications and must be called on all
-* processes simultaneously with the same parameters. The block sizes bs[4]
-* and other parameters of the specified block grid are obtained from the
-* parameter data base (see flags/parms.c). These and the the lattice sizes
+* The block sizes bs[4] and other parameters of the specified block grid
+* are obtained from the parameter data base. These and the lattice sizes
 * must be such that the lattice can be covered by non-overlapping blocks.
-* Moreover, the number of blocks in each direction must be even and the local
-* lattices must contain an even number of blocks. The block grid can thus be
-* chessboard-coloured.
+* Moreover, the number of blocks in each direction must be even and the
+* local lattices must contain an even number of blocks. This ensures that
+* the block grid can be chessboard-coloured and that the number of blocks
+* in the local lattice is the same for both colours.
 *
 * On all processes, the blocks at a given position in the array of blocks
 * returned by blk_list() have the same position in the local lattice. The
@@ -43,13 +42,12 @@
 *   n[3]+nbl[3]*n[2]+nbl[2]*nbl[3]*n[1]+nbl[1]*nbl[2]*nbl[3]*n[0],
 *
 * where n[mu]=bo[mu]/bs[mu] are the Cartesian coordinates of the block in
-* the block grid and nbl[mu] denotes the numbers of blocks in direction mu. 
+* the block grid and nbl[mu] denotes the numbers of blocks in direction mu.
 * All blocks have allocated boundaries and the protection flag set.
 *
-* An already allocated block grid can be reallocated with a different block
-* size simply by calling alloc_bgr() again. The old arrays and structures
-* are freed in this case and the new fields are initialized to their default
-* values (see block.c).
+* The program alloc_bgr() involves communications and must be called on all
+* processes simultaneously with the same parameters. A given block grid can
+* be allocated only once.
 *
 *******************************************************************************/
 
@@ -88,9 +86,9 @@ static block_t *blks(int *bs,int iu,int iud,int ns,int nsd,
    n3=L3/bs[3];
 
    (*nb)=n0*n1*n2*n3;
-   (*isw)=(cpr[0]*n0+cpr[1]*n1+cpr[2]*n2+cpr[3]*n3)%2;
+   (*isw)=(cpr[0]*n0+cpr[1]*n1+cpr[2]*n2+cpr[3]*n3)&0x1;
 
-   b=amalloc((*nb)*sizeof(*b),3);
+   b=malloc((*nb)*sizeof(*b));
    error(b==NULL,1,"blks [blk_grid.c]","Unable to allocate block grid");
 
    rbe=b;
@@ -131,7 +129,7 @@ static block_t *blks(int *bs,int iu,int iud,int ns,int nsd,
          }
       }
    }
-   
+
    return b;
 }
 
@@ -142,9 +140,9 @@ void alloc_bgr(blk_grid_t grid)
    int iu,iud,ns,nsd,iub,iudb,nw,nwd,shf;
    sap_parms_t sap;
    dfl_parms_t dfl;
-   
+
    igr=(int)(grid);
-   
+
    if (NPROC>1)
    {
       iprms[0]=igr;
@@ -154,6 +152,9 @@ void alloc_bgr(blk_grid_t grid)
       error(iprms[0]!=igr,1,"alloc_bgr [blk_grid.c]",
             "Parameter is not global");
    }
+
+   error(bgr[igr].b!=NULL,1,"alloc_bgr [blk_grid.c]",
+            "Block grid is already allocated");
 
    bs=NULL;
    iu=0;
@@ -165,7 +166,7 @@ void alloc_bgr(blk_grid_t grid)
    nw=0;
    nwd=0;
    shf=0x0;
-   
+
    if (grid==SAP_BLOCKS)
    {
       sap=sap_parms();
@@ -192,10 +193,7 @@ void alloc_bgr(blk_grid_t grid)
    }
    else
       error_root(1,1,"alloc_bgr [blk_grid.c]","Unknown block grid");
-   
-   error_root(bgr[igr].b!=NULL,1,"alloc_bgr [blk_grid.c]",
-              "Block grid is already allocated");
-   
+
    bgr[igr].b=blks(bs,iu,iud,ns,nsd,iub,iudb,nw,nwd,shf,
                    &(bgr[igr].nb),&(bgr[grid].isw));
 

@@ -3,7 +3,7 @@
 *
 * File lattice.h
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -30,16 +30,11 @@ typedef struct
 } ftidx_t;
 
 /* BCNDS_C */
-extern void openbc(void);
-extern void openbcd(void);
-extern void sfbc(void);
-extern void sfbcd(void);
-extern int check_bc(void);
-extern int check_bcd(void);
-extern int check_sfbc(void);
-extern int check_sfbcd(void);
 extern int *bnd_lks(int *n);
 extern int *bnd_pts(int *n);
+extern void set_bc(void);
+extern int check_bc(double tol);
+extern int chs_ubnd(int ibc);
 extern void bnd_s2zero(ptset_t set,spinor *s);
 extern void bnd_sd2zero(ptset_t set,spinor_dble *sd);
 

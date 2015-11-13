@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2009, 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2009-2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Topological charge of constant abelian background fields
+* Topological charge of constant abelian background fields.
 *
 *******************************************************************************/
 
@@ -28,24 +28,211 @@
 #include "tcharge.h"
 #include "global.h"
 
-static double mt[4][4];
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
+
+static int bc,np[4],bo[4];
+static double mt[4][4],inp[4],twopi;
 static su3_dble ud0={{0.0}};
+
+
+static double afld(int *x,int mu)
+{
+   int nu;
+   double xt[4],phi;
+
+   xt[0]=(double)(safe_mod(x[0],N0));
+   xt[1]=(double)(safe_mod(x[1],N1));
+   xt[2]=(double)(safe_mod(x[2],N2));
+   xt[3]=(double)(safe_mod(x[3],N3));
+   
+   phi=0.0;
+
+   for (nu=0;nu<mu;nu++)
+      phi-=inp[nu]*mt[mu][nu]*xt[nu];
+
+   phi*=inp[mu];
+
+   if (safe_mod(x[mu],np[mu])==(np[mu]-1))
+   {
+      for (nu=(mu+1);nu<4;nu++)
+         phi-=inp[nu]*mt[mu][nu]*xt[nu];      
+   }
+
+   return twopi*phi;
+}
+
+
+static void ftplaq(int *x,int mu,int nu,double *ftp)
+{
+   double sm,om[3],*phi;
+   bc_parms_t bcp;
+
+   bcp=bc_parms();
+   
+   if ((x[0]==0)&&(mu==0)&&(bc==1))
+   {
+      sm=afld(x,mu);
+      x[mu]+=1;
+      sm+=afld(x,nu);
+      x[mu]-=1;
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      phi=bcp.phi[0];
+      om[0]=sm-phi[0]*inp[nu];
+      om[1]=sm-phi[1]*inp[nu];
+      om[2]=-2.0*sm-phi[2]*inp[nu];
+   }
+   else if ((x[0]==(N0-1))&&(mu==0)&&((bc==1)||(bc==2)))
+   {
+      sm=afld(x,mu)-afld(x,nu);
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      phi=bcp.phi[1];
+      om[0]=sm+phi[0]*inp[nu];
+      om[1]=sm+phi[1]*inp[nu];
+      om[2]=-2.0*sm+phi[2]*inp[nu];
+   }
+   else
+   {
+      sm=afld(x,mu)-afld(x,nu);
+      x[mu]+=1;
+      sm+=afld(x,nu);
+      x[mu]-=1;
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      om[0]=sm;
+      om[1]=sm;
+      om[2]=-2.0*sm;
+   }
+
+   ftp[0]=sin(om[0]);
+   ftp[1]=sin(om[1]);
+   ftp[2]=sin(om[2]);   
+}
+
+
+static double Qtbnd(void)
+{
+   int ib,x1,x2,x3,x[4];
+   int k,l,j;
+   double ft1,ft2,ft3,fs1,fs2,fs3,tr;
+   double r0[3],r1[3],r2[3],r3[3];
+   double qloc,qall;
+
+   qloc=0.0;
+
+   for (ib=0;ib<2;ib++)
+   {
+      if (ib==0)
+         x[0]=1;
+      else
+         x[0]=N0-1;
+      
+      if (((ib==0)&&(bc==1)&&(cpr[0]==0))||
+          ((ib==1)&&((bc==1)||(bc==2))&&(cpr[0]==(NPROC0-1))))
+      {
+         for (x1=0;x1<L1;x1++)
+         {
+            for (x2=0;x2<L2;x2++)
+            {
+               for (x3=0;x3<L3;x3++)
+               {
+                  x[1]=bo[1]+x1;
+                  x[2]=bo[2]+x2;
+                  x[3]=bo[3]+x3;
+
+                  for (k=1;k<4;k++)
+                  {
+                     ftplaq(x,0,k,r0);
+                     x[k]-=1;
+                     ftplaq(x,0,k,r1);
+                     x[0]-=1;
+                     ftplaq(x,0,k,r2);
+                     x[k]+=1;
+                     ftplaq(x,0,k,r3);
+                     x[0]+=1;
+
+                     ft1=0.25*(r0[0]+r1[0]+r2[0]+r3[0]);
+                     ft2=0.25*(r0[1]+r1[1]+r2[1]+r3[1]);
+                     ft3=0.25*(r0[2]+r1[2]+r2[2]+r3[2]);                  
+
+                     tr=(ft1+ft2+ft3)/3.0;
+                     ft1-=tr;
+                     ft2-=tr;
+                     ft3-=tr;
+
+                     if (k==1)
+                     {
+                        l=2;
+                        j=3;
+                     }
+                     else if (k==2)
+                     {
+                        l=3;
+                        j=1;
+
+                     }
+                     else
+                     {
+                        l=1;
+                        j=2;
+                     }
+
+                     ftplaq(x,l,j,r0);
+                     x[l]-=1;
+                     ftplaq(x,l,j,r1);
+                     x[j]-=1;
+                     ftplaq(x,l,j,r2);
+                     x[l]+=1;
+                     ftplaq(x,l,j,r3);
+                     x[j]+=1;
+
+                     fs1=0.25*(r0[0]+r1[0]+r2[0]+r3[0]);
+                     fs2=0.25*(r0[1]+r1[1]+r2[1]+r3[1]);
+                     fs3=0.25*(r0[2]+r1[2]+r2[2]+r3[2]);                  
+
+                     tr=(fs1+fs2+fs3)/3.0;
+                     fs1-=tr;
+                     fs2-=tr;
+                     fs3-=tr;
+
+                     qloc+=(ft1*fs1+ft2*fs2+ft3*fs3);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   qloc/=(twopi*twopi);
+   
+   if (NPROC>1)
+   {
+      MPI_Reduce(&qloc,&qall,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(&qall,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      return qall;
+   }
+   else
+      return qloc;
+}
 
 
 static double Qmt(void)
 {
    int i,mu,nu,ro,si;
-   double xl[4],pi,sm,phi,tr;
+   double sm,phi,tr;
    double ft1,ft2,ft3,fs1,fs2,fs3;
 
-   xl[0]=(double)(NPROC0*L0);
-   xl[1]=(double)(NPROC1*L1);
-   xl[2]=(double)(NPROC2*L2);
-   xl[3]=(double)(NPROC3*L3);
-
-   pi=4.0*atan(1.0);
    sm=0.0;
-   
    mu=0;
    nu=1;
    ro=2;
@@ -53,7 +240,7 @@ static double Qmt(void)
    
    for (i=0;i<3;i++)
    {
-      phi=2.0*pi*mt[mu][nu]/(xl[mu]*xl[nu]);
+      phi=twopi*mt[mu][nu]*inp[mu]*inp[nu];
          
       ft1=sin(phi);
       ft2=ft1;
@@ -65,7 +252,7 @@ static double Qmt(void)
       ft2-=tr;
       ft3-=tr;
       
-      phi=2.0*pi*mt[ro][si]/(xl[ro]*xl[si]);
+      phi=twopi*mt[ro][si]*inp[ro]*inp[si];
          
       fs1=sin(phi);
       fs2=fs1;
@@ -84,7 +271,24 @@ static double Qmt(void)
       si=(si+1)%4+(si==3);      
    }
 
-   return sm*(xl[0]-1.0)*xl[1]*xl[2]*xl[3]/(4.0*pi*pi);
+   sm/=(twopi*twopi);   
+
+   if (bc==0)
+      sm*=(double)((N0-2)*N1)*(double)(N2*N3);
+   else if (bc==1)
+   {
+      sm*=(double)((N0-3)*N1)*(double)(N2*N3);
+      sm+=Qtbnd();
+   }
+   else if (bc==2)
+   {
+      sm*=(double)((N0-2)*N1)*(double)(N2*N3);
+      sm+=Qtbnd();
+   }
+   else
+      sm*=(double)(N0*N1)*(double)(N2*N3);
+
+   return sm; 
 }
 
 
@@ -115,29 +319,11 @@ static void choose_mt(void)
 
 static void set_ud(void)
 {
-   int np[4],bo[4];
+   int x[4];
    int x0,x1,x2,x3;
-   int ix,mu,nu;
-   double pi,inp[4],xt[4];
-   double phi,sml,smh;
+   int ix,ifc;
+   double phi;
    su3_dble *udb,*u;
-
-   np[0]=NPROC0*L0;
-   np[1]=NPROC1*L1;
-   np[2]=NPROC2*L2;
-   np[3]=NPROC3*L3;   
-   
-   bo[0]=cpr[0]*L0;
-   bo[1]=cpr[1]*L1;
-   bo[2]=cpr[2]*L2;
-   bo[3]=cpr[3]*L3;
-
-   pi=4.0*atan(1.0);
-
-   inp[0]=1.0/(double)(np[0]);
-   inp[1]=1.0/(double)(np[1]);
-   inp[2]=1.0/(double)(np[2]);
-   inp[3]=1.0/(double)(np[3]);
 
    udb=udfld();
    
@@ -153,42 +339,24 @@ static void set_ud(void)
 
                if (ix>=(VOLUME/2))
                {
-                  xt[0]=(double)(bo[0]+x0);
-                  xt[1]=(double)(bo[1]+x1);
-                  xt[2]=(double)(bo[2]+x2);
-                  xt[3]=(double)(bo[3]+x3);                  
+                  x[0]=bo[0]+x0;
+                  x[1]=bo[1]+x1;
+                  x[2]=bo[2]+x2;
+                  x[3]=bo[3]+x3;                  
                   
                   u=udb+8*(ix-(VOLUME/2));
 
-                  for (mu=0;mu<4;mu++)
+                  for (ifc=0;ifc<8;ifc++)
                   {
-                     smh=0.0;
-                     sml=0.0;
+                     if (ifc&0x1)
+                        x[ifc/2]-=1;
 
-                     for (nu=(mu+1);nu<4;nu++)
-                        smh+=inp[nu]*mt[mu][nu]*xt[nu];
+                     phi=afld(x,ifc/2);
 
-                     for (nu=0;nu<mu;nu++)
-                        sml+=inp[nu]*mt[mu][nu]*xt[nu];
-
-                     (*u)=ud0;
-                     phi=inp[mu]*sml;
-                     if (xt[mu]==(double)(np[mu]-1))
-                        phi+=smh;
-                     phi*=(-2.0*pi);
-                     (*u).c11.re=cos(phi);
-                     (*u).c11.im=sin(phi);
-                     (*u).c22.re=(*u).c11.re;
-                     (*u).c22.im=(*u).c11.im;
-                     (*u).c33.re=cos(-2.0*phi);
-                     (*u).c33.im=sin(-2.0*phi); 
-                     u+=1;
-
-                     (*u)=ud0;
-                     phi=inp[mu]*sml;
-                     if (xt[mu]==0.0)
-                        phi+=smh;
-                     phi*=(-2.0*pi);
+                     if (ifc&0x1)
+                        x[ifc/2]+=1;
+                     
+                     (*u)=ud0;                     
                      (*u).c11.re=cos(phi);
                      (*u).c11.im=sin(phi);
                      (*u).c22.re=(*u).c11.re;
@@ -203,13 +371,15 @@ static void set_ud(void)
       }
    }
 
-   openbcd();
+   set_bc();
+   set_flags(UPDATED_UD);
 }
 
 
 int main(int argc,char *argv[])
 {
    int my_rank,i;
+   double phi[2],phi_prime[2];
    double Q1,Q2,d,dmax;
    FILE *flog=NULL;
 
@@ -226,19 +396,51 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime);
+   print_bc_parms(); 
 
    start_ranlux(0,123);
    geometry();
+
+   twopi=8.0*atan(1.0);
+   
+   np[0]=N0;
+   np[1]=N1;
+   np[2]=N2;
+   np[3]=N3;
+
+   bo[0]=cpr[0]*L0;
+   bo[1]=cpr[1]*L1;
+   bo[2]=cpr[2]*L2;
+   bo[3]=cpr[3]*L3;
+   
+   inp[0]=1.0/(double)(np[0]);
+   inp[1]=1.0/(double)(np[1]);
+   inp[2]=1.0/(double)(np[2]);
+   inp[3]=1.0/(double)(np[3]);     
+
    dmax=0.0;
 
    for (i=0;i<10;i++)
    {
       choose_mt();
       set_ud();
-      Q1=Qmt();      
+      Q1=Qmt();
       Q2=tcharge();
-
+      
       if (my_rank==0)
          printf("Field no = %2d, Q1 = % 8.4e, Q2 = % 8.4e\n",i+1,Q1,Q2);
 

@@ -3,12 +3,12 @@
 *
 * File dfl_geometry.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Geometry of the DFL_BLOCKS block grid
+* Geometry of the DFL_BLOCKS block grid.
 *
 * The externally accessible functions are
 *
@@ -19,7 +19,7 @@
 * Notes:
 *
 * The blocks in the DFL_BLOCKS grid form a hypercubic lattice whose geometry
-* is described by a structure of type dfl_grid_t. The elements of this 
+* is described by a structure of type dfl_grid_t. The elements of this
 * structure are:
 *
 *  nb              Number of blocks in the local lattice.
@@ -36,7 +36,7 @@
 *                  if ib=idx[ix].
 *
 *  ipp[ix]         Index of the nearest neighbour (partner block) in the
-*                  local lattice of the block on the exterior boundary 
+*                  local lattice of the block on the exterior boundary
 *                  with index nb+ix (ix=0,..,nbb-1).
 *
 *  map[ix]         Index of the partner block on the opposite face of the
@@ -46,7 +46,7 @@
 *  nbbe[ifc]       Number of even (odd) blocks on the exterior boundary
 *  nbbo[ifc]       in direction ifc.
 *
-*  obbe[ifc]       Offset of the index of the first even (odd) block on 
+*  obbe[ifc]       Offset of the index of the first even (odd) block on
 *  obbo[ifc]       the exterior boundary in direction ifc. The offsets
 *                  are given relative to the first block on the boundary.
 *
@@ -54,22 +54,23 @@
 * coordinates (n0,n1,n2,n3) in the total block lattice. First come all even
 * blocks (those with (n0+n1+n2+n3)=0 mod 2) and then the odd ones. Within
 * each of these two groups of blocks, the ordering is lexicographic, i.e.
-* the block with coordinates n comes before the block with coordinates m
-* if
+* the block with coordinates n comes before the block with coordinates m if
 *
 *   (n0<m0) or ((n0=m0)&&(n1<m1)) or ...
 *
-* Note that this ordering coincides with the ordering of the blocks in the
-* array returned by blk_list(DFL_BLOCKS,&nb,&isw) if isw=0, while if isw=1
-* the even and odd blocks are swapped.
+* This ordering coincides with the one of the blocks in the array returned
+* by blk_list(DFL_BLOCKS,&nb,&isw) if isw=0, while if isw=1 the even and odd
+* blocks are swapped. The blocks on the exterior boundaries of the local
+* block lattice are ordered in the same way.
 *
-* On the exterior boundaries of the local block lattice, the same ordering
-* is used as in the bulk, i.e. first come all even blocks then all odd ones 
-* and both in lexicographic order.
+* The grid geometry and the calculated index arrays are independent of the
+* chosen boundary conditions for the global fields.
 *
 * The program dfl_geometry() obtains the block size from the parameter data
-* base (see flags/parms.c), but DFL_BLOCKS block grid need not be allocated
-* when the program is called for the first time.
+* base (see flags/dfl_parms.c), but the DFL_BLOCKS block grid does not need
+* to be allocated when the program is called for the first time. Since some
+* communication may be involved, the program must be called on MPI processes
+* simultaneously.
 *
 *******************************************************************************/
 
@@ -112,7 +113,7 @@ static void set_grid_sizes(void)
 
    isw=(nbl[0]*cpr[0]+nbl[1]*cpr[1]+
         nbl[2]*cpr[2]+nbl[3]*cpr[3])&0x1;
-   
+
    dfl_grid.nb=nbl[0]*nbl[1]*nbl[2]*nbl[3];
    dfl_grid.nbb=2*(nbb[0]+nbb[1]+nbb[2]+nbb[3]);
 
@@ -120,7 +121,7 @@ static void set_grid_sizes(void)
    nbbo=dfl_grid.nbbo;
    obbe=dfl_grid.obbe;
    obbo=dfl_grid.obbo;
-   
+
    for (mu=0;mu<4;mu++)
    {
       if (isw)
@@ -133,7 +134,7 @@ static void set_grid_sizes(void)
          nbbo[2*mu]=(nbb[mu]+1)/2;
          nbbe[2*mu]=nbb[mu]-nbbo[2*mu];
       }
-      
+
       if (nbl[mu]&0x1)
       {
          nbbe[2*mu+1]=nbbe[2*mu];
@@ -147,14 +148,14 @@ static void set_grid_sizes(void)
    }
 
    obbe[0]=0;
-   
+
    for (ifc=1;ifc<8;ifc++)
       obbe[ifc]=obbe[ifc-1]+nbbe[ifc-1];
 
    obbo[0]=obbe[7]+nbbe[7];
 
    for (ifc=1;ifc<8;ifc++)
-      obbo[ifc]=obbo[ifc-1]+nbbo[ifc-1];   
+      obbo[ifc]=obbo[ifc-1]+nbbo[ifc-1];
 }
 
 
@@ -165,9 +166,9 @@ static void alloc_arrays(void)
 
    nb=dfl_grid.nb;
    nbb=dfl_grid.nbb;
-   inn=amalloc(nb*sizeof(*inn),3);
-   idx=amalloc((nb+2*nbb)*sizeof(*idx),3);   
-   
+   inn=malloc(nb*sizeof(*inn));
+   idx=malloc((nb+2*nbb)*sizeof(*idx));
+
    error((inn==NULL)||(idx==NULL),1,"alloc_arrays [dfl_geometry.c]",
          "Unable to allocate index arrays");
 
@@ -189,7 +190,7 @@ static void set_index(void)
    ic[0]=0;
    ic[1]=dfl_grid.nb/2;
    idx=dfl_grid.idx;
-      
+
    for (n0=0;n0<nbl[0];n0++)
    {
       for (n1=0;n1<nbl[1];n1++)
@@ -220,18 +221,18 @@ static void set_index(void)
 static int index(int n0,int n1,int n2,int n3)
 {
    int ib;
-   
+
    n0=safe_mod(n0,nbl[0]);
    n1=safe_mod(n1,nbl[1]);
    n2=safe_mod(n2,nbl[2]);
-   n3=safe_mod(n3,nbl[3]);   
+   n3=safe_mod(n3,nbl[3]);
 
    ib=n3+nbl[3]*n2+nbl[2]*nbl[3]*n1+nbl[1]*nbl[2]*nbl[3]*n0;
-   
+
    return dfl_grid.idx[ib];
 }
 
-   
+
 static void set_inn(void)
 {
    int n0,n1,n2,n3,nb,nbh;
@@ -241,7 +242,7 @@ static void set_inn(void)
    nb=dfl_grid.nb;
    nbh=nb/2;
    inn=dfl_grid.inn;
-   
+
    for (n0=0;n0<nbl[0];n0++)
    {
       for (n1=0;n1<nbl[1];n1++)
@@ -256,7 +257,7 @@ static void set_inn(void)
                inn[in][2]=index(n0,n1-1,n2,n3);
                inn[in][3]=index(n0,n1+1,n2,n3);
                inn[in][4]=index(n0,n1,n2-1,n3);
-               inn[in][5]=index(n0,n1,n2+1,n3);                 
+               inn[in][5]=index(n0,n1,n2+1,n3);
                inn[in][6]=index(n0,n1,n2,n3-1);
                inn[in][7]=index(n0,n1,n2,n3+1);
 
@@ -268,21 +269,21 @@ static void set_inn(void)
                      inn[in][1]=nb;
                }
                if (NPROC1>1)
-               {               
+               {
                   if (n1==0)
                      inn[in][2]=nb;
                   if (n1==(nbl[1]-1))
                      inn[in][3]=nb;
                }
                if (NPROC2>1)
-               {               
+               {
                   if (n2==0)
                      inn[in][4]=nb;
                   if (n2==(nbl[2]-1))
                      inn[in][5]=nb;
                }
                if (NPROC3>1)
-               {               
+               {
                   if (n3==0)
                      inn[in][6]=nb;
                   if (n3==(nbl[3]-1))
@@ -294,8 +295,8 @@ static void set_inn(void)
    }
 
    obbe=dfl_grid.obbe;
-   obbo=dfl_grid.obbo;   
-   
+   obbo=dfl_grid.obbo;
+
    for (ifc=0;ifc<8;ifc++)
       ic[ifc]=0;
 
@@ -324,7 +325,7 @@ static void set_inn(void)
             ic[ifc]+=1;
          }
       }
-   }   
+   }
 }
 
 
@@ -337,7 +338,7 @@ static void set_ipp(void)
    inn=dfl_grid.inn;
    ipp=dfl_grid.ipp;
    map=dfl_grid.map;
-   
+
    for (in=0;in<nb;in++)
    {
       for (ifc=0;ifc<8;ifc++)
@@ -371,7 +372,7 @@ static void set_idx(void)
    idx=dfl_grid.idx;
    nb=dfl_grid.nb;
    nbh=nb/2;
-      
+
    for (ix=0;ix<nb;ix++)
    {
       if (ix<nbh)

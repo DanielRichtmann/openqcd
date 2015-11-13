@@ -3,12 +3,12 @@
 *
 * File tcharge.c
 *
-* Copyright (C) 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2010, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the topological charge
+* Computation of the topological charge using the symmetric field tensor.
 *
 * The externally accessible functions are
 *
@@ -18,25 +18,32 @@
 *     gauge-field tensor.
 *
 *   double tcharge_slices(double *qsl)
-*     Computes the sum qsl[t] of the "field-theoretic" topological charge 
-*     density of the double-precision gauge field at time t=0,1,...,N0-1
+*     Computes the sum qsl[x0] of the "field-theoretic" topological charge
+*     density of the double-precision gauge field at time x0=0,1,...,N0-1
 *     (where N0=NPROC0*L0). The program returns the total charge.
 *
 * Notes:
 *
 * The topological charge density q(x) is defined by
 *
-*  q(x)=w(x0)*(8*Pi^2)^(-1)*{F_{01}^a(x)*F_{23}^a(x)+
-*                            F_{02}^a(x)*F_{31}^a(x)+
-*                            F_{03}^a(x)*F_{12}^a(x)}
+*  q(x)=(8*Pi^2)^(-1)*{F_{01}^a(x)*F_{23}^a(x)+
+*                      F_{02}^a(x)*F_{31}^a(x)+
+*                      F_{03}^a(x)*F_{12}^a(x)},
 *
 * where
 *
 *  F_{mu,nu}^a(x)=-2*tr{F_{mu,nu}(x)*T^a}, a=1,..,8,
 *
 * are the SU(3) components of the symmetric field tensor returned by the
-* program ftensor() [ftensor.c]. The weight w(x_0) is equal to 1/2 at time
-* 0 and N0-1 and equal to 1 elsewhere.
+* program ftensor() [ftensor.c]. At the boundaries of the lattice (if any),
+* the charge density is set to zero. The total charge Q is the sum of q(x)
+* over all points x with time component in the range
+*
+*  0<x0<NPROC0*L0-1        (open bc),
+*
+*  0<x0<NPROC0*L0          (SF and open-SF bc),
+*
+*  0<=x0<NPROC0*L0         (periodic bc).
 *
 * The programs in this module perform global communications and must be
 * called simultaneously on all processes.
@@ -50,6 +57,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "lattice.h"
 #include "tcharge.h"
@@ -67,7 +75,7 @@ static u3_alg_dble **ft;
 static double prodXY(u3_alg_dble *X,u3_alg_dble *Y)
 {
    double sm;
-   
+
    sm=(-2.0/3.0)*((*X).c1+(*X).c2+(*X).c3)*((*Y).c1+(*Y).c2+(*Y).c3)+
       2.0*((*X).c1*(*Y).c1+(*X).c2*(*Y).c2+(*X).c3*(*Y).c3)+
       4.0*((*X).c4*(*Y).c4+(*X).c5*(*Y).c5+(*X).c6*(*Y).c6+
@@ -79,57 +87,68 @@ static double prodXY(u3_alg_dble *X,u3_alg_dble *Y)
 
 static double density(int ix)
 {
-   int t;
    double sm;
-   
+
    sm=prodXY(ft[0]+ix,ft[3]+ix)+
       prodXY(ft[1]+ix,ft[4]+ix)+
       prodXY(ft[2]+ix,ft[5]+ix);
 
-   t=global_time(ix);
-
-   if ((t==0)||(t==(N0-1)))
-      sm*=0.5;
-   
    return sm;
 }
 
 
 double tcharge(void)
 {
-   int n,ix,*cnt0;
+   int bc,tmx;
+   int n,ix,t,*cnt0;
    double pi,Q,*smx0;
-   
+
    ft=ftensor();
    cnt0=cnt[0];
    smx0=smx[0];
-   
+
    for (n=0;n<MAX_LEVELS;n++)
    {
       cnt0[n]=0;
       smx0[n]=0.0;
    }
-   
+
+   bc=bc_type();
+   if (bc==0)
+      tmx=N0-1;
+   else
+      tmx=N0;
+
    for (ix=0;ix<VOLUME;ix++)
    {
-      cnt0[0]+=1;
-      smx0[0]+=density(ix);
+      t=global_time(ix);
 
-      for (n=1;(cnt0[n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
+      if (((t>0)&&(t<tmx))||(bc==3))
       {
-         cnt0[n]+=1;
-         smx0[n]+=smx0[n-1];
+         cnt0[0]+=1;
+         smx0[0]+=density(ix);
 
-         cnt0[n-1]=0;
-         smx0[n-1]=0.0;
+         for (n=1;(cnt0[n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
+         {
+            cnt0[n]+=1;
+            smx0[n]+=smx0[n-1];
+
+            cnt0[n-1]=0;
+            smx0[n-1]=0.0;
+         }
       }
    }
-   
+
    for (n=1;n<MAX_LEVELS;n++)
       smx0[0]+=smx0[n];
 
-   MPI_Reduce(smx0,&Q,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Q,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   if (NPROC>1)
+   {
+      MPI_Reduce(smx0,&Q,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(&Q,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   }
+   else
+      Q=smx0[0];
 
    pi=4.0*atan(1.0);
 
@@ -139,11 +158,17 @@ double tcharge(void)
 
 double tcharge_slices(double *qsl)
 {
-   int n,t,t0,ix;
+   int bc,tmx;
+   int n,ix,t,t0;
    double pi,fact,Q;
-   
+
    ft=ftensor();
-   
+   bc=bc_type();
+   if (bc==0)
+      tmx=N0-1;
+   else
+      tmx=N0;
+
    for (t=0;t<L0;t++)
    {
       for (n=0;n<MAX_LEVELS;n++)
@@ -157,19 +182,23 @@ double tcharge_slices(double *qsl)
 
    for (ix=0;ix<VOLUME;ix++)
    {
-      t=global_time(ix)-t0;
+      t=global_time(ix);
 
-      smx[t][0]+=density(ix);
-      cnt[t][0]+=1;
-
-      for (n=1;(cnt[t][n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
+      if (((t>0)&&(t<tmx))||(bc==3))
       {
-         cnt[t][n]+=1;
-         smx[t][n]+=smx[t][n-1];
+         t-=t0;
+         smx[t][0]+=density(ix);
+         cnt[t][0]+=1;
 
-         cnt[t][n-1]=0;
-         smx[t][n-1]=0.0;
-      }      
+         for (n=1;(cnt[t][n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
+         {
+            cnt[t][n]+=1;
+            smx[t][n]+=smx[t][n-1];
+
+            cnt[t][n-1]=0;
+            smx[t][n-1]=0.0;
+         }
+      }
    }
 
    for (t=0;t<N0;t++)
@@ -185,9 +214,17 @@ double tcharge_slices(double *qsl)
 
       qsl0[t+t0]=fact*smx[t][0];
    }
-   
-   MPI_Reduce(qsl0,qsl,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-   MPI_Bcast(qsl,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   if (NPROC>1)
+   {
+      MPI_Reduce(qsl0,qsl,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(qsl,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   }
+   else
+   {
+      for (t=0;t<N0;t++)
+         qsl[t]=qsl0[t];
+   }
 
    Q=0.0;
 

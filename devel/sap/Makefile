@@ -21,7 +21,7 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 time1 time2
 
-FLAGS = flags lat_parms sap_parms dfl_parms sf_parms
+FLAGS = flags lat_parms sap_parms dfl_parms
 
 LATTICE = bcnds ftidx uidx geometry
 
@@ -29,11 +29,11 @@ LINALG = salg salg_dble liealg cmatrix_dble
 
 LINSOLV = fgcr
 
-RANDOM = ranlux ranlxs ranlxd gauss random_su3
+RANDOM = ranlux ranlxs ranlxd gauss
 
 UFLDS = plaq_sum shift uflds udcom
 
-SU3FCTS = chexp su3prod su3ren cm3x3
+SU3FCTS = chexp su3prod su3ren cm3x3 random_su3
 
 UTILS = endian mutils utils wspace
 
@@ -87,7 +87,7 @@ LIBPATH = $(MPI_HOME)/lib
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM 
+         -O -mno-avx -Dx64 -DPM
 
 # -DFGCR_DBG
 

@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2009, 2010, 2011 Martin Luescher
+* Copyright (C) 2009-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Gauge covariance of the Wilson flow
+* Gauge covariance of the Wilson flow.
 *
 *******************************************************************************/
 
@@ -29,25 +29,20 @@
 #include "wflow.h"
 #include "global.h"
 
-static int nfc[8],ofs[8];
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
+
+static int bc,nfc[8],ofs[8];
+static const su3_dble ud0={{0.0}};
 static su3_dble *g,*gbuf;
-
-
-static void alloc_g(void)
-{
-   g=amalloc((VOLUME+(BNDRY/2))*sizeof(*g),ALIGN);
-
-   if (BNDRY>0)
-      gbuf=amalloc((BNDRY/2)*sizeof(*gbuf),ALIGN);
-
-   error((g==NULL)||((BNDRY>0)&&(gbuf==NULL)),1,"alloc_g [check2.c]",
-         "Unable to allocate auxiliary arrays");
-}
+static su3_dble wd ALIGNED16;
 
 
 static void pack_gbuf(void)
 {
-   int n,ix,iy,io;
+   int ifc,ib,ix;
 
    nfc[0]=FACE0/2;
    nfc[1]=FACE0/2;
@@ -67,14 +62,12 @@ static void pack_gbuf(void)
    ofs[6]=ofs[5]+nfc[5];
    ofs[7]=ofs[6]+nfc[6];
 
-   for (n=0;n<8;n++)
+   for (ifc=0;ifc<8;ifc++)
    {
-      io=ofs[n];
-
-      for (ix=0;ix<nfc[n];ix++)
+      for (ib=0;ib<nfc[ifc];ib++)
       {
-         iy=map[io+ix];
-         gbuf[io+ix]=g[iy];
+         ix=map[ofs[ifc]+ib];
+         gbuf[ofs[ifc]+ib]=g[ix];
       }
    }
 }
@@ -82,36 +75,26 @@ static void pack_gbuf(void)
 
 static void send_gbuf(void)
 {
-   int n,mu,np,saddr,raddr;
+   int ifc,np,saddr,raddr;
    int nbf,tag;
    su3_dble *sbuf,*rbuf;
    MPI_Status stat;
 
-   for (n=0;n<8;n++)
+   np=cpr[0]+cpr[1]+cpr[2]+cpr[3];
+   
+   for (ifc=0;ifc<8;ifc++)
    {
-      nbf=18*nfc[n];
+      nbf=18*nfc[ifc];
 
       if (nbf>0)
       {
          tag=mpi_tag();
-         mu=n/2;
-         np=cpr[mu];
+         saddr=npr[ifc^0x1];
+         raddr=npr[ifc];
+         sbuf=gbuf+ofs[ifc];
+         rbuf=g+VOLUME+ofs[ifc];
 
-         if (n==(2*mu))
-         {
-            saddr=npr[n+1];
-            raddr=npr[n];
-         }
-         else
-         {
-            saddr=npr[n-1];
-            raddr=npr[n];
-         }
-
-         sbuf=gbuf+ofs[n];
-         rbuf=g+ofs[n]+VOLUME;
-
-         if ((np|0x1)!=np)
+         if (np&0x1)
          {
             MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
             MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
@@ -128,13 +111,26 @@ static void send_gbuf(void)
 
 static void random_g(void)
 {
-   su3_dble *gx,*gm;
+   int ix,t;
+   su3_dble unity,*gx;
 
+   unity=ud0;
+   unity.c11.re=1.0;
+   unity.c22.re=1.0;
+   unity.c33.re=1.0;
    gx=g;
-   gm=gx+VOLUME;
+   
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+      
+      if ((t>0)||(bc!=1))
+         random_su3_dble(gx);
+      else
+         (*gx)=unity;
 
-   for (;gx<gm;gx++)
-      random_su3_dble(gx);
+      gx+=1;
+   }
 
    if (BNDRY>0)
    {
@@ -146,35 +142,112 @@ static void random_g(void)
 
 static void transform_ud(void)
 {
-   int ix,iy,mu;
-   su3_dble *ub,u,v,w,gx,gxi,gy,gyi;
+   int ix,iy,t,ifc;
+   su3_dble *u;
 
-   ub=udfld();
-   
+   u=udfld();
+
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
    {
-      gx=g[ix];
+      t=global_time(ix);
 
-      for (mu=0;mu<4;mu++)
+      if (t==0)
       {
-         iy=iup[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu];
-         _su3_dagger(gyi,gy);
-         _su3_times_su3(v,u,gyi);
-         _su3_times_su3(w,gx,v);
-         ub[2*mu]=w;
+         iy=iup[ix][0];
+         su3xsu3dag(u,g+iy,&wd);
+         su3xsu3(g+ix,&wd,u);
+         u+=1;
 
-         iy=idn[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu+1];
-         _su3_dagger(gxi,gx);
-         _su3_times_su3(v,u,gxi);
-         _su3_times_su3(w,gy,v);
-         ub[2*mu+1]=w;
+         if (bc==3)
+         {
+            iy=idn[ix][0];
+            su3xsu3dag(u,g+ix,&wd);
+            su3xsu3(g+iy,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            iy=idn[ix][0];
+            su3xsu3(g+iy,u,&wd);
+            (*u)=wd;
+         }
+
+         u+=1;
+         
+         for (ifc=2;ifc<8;ifc++)
+         {
+            if (bc!=1)
+            {
+               if (ifc&0x1)
+               {
+                  iy=idn[ix][ifc/2];
+                  su3xsu3dag(u,g+ix,&wd);
+                  su3xsu3(g+iy,&wd,u);
+               }
+               else
+               {
+                  iy=iup[ix][ifc/2];
+                  su3xsu3dag(u,g+iy,&wd);
+                  su3xsu3(g+ix,&wd,u);
+               }
+            }
+               
+            u+=1;
+         }
       }
+      else if (t==(N0-1))
+      {
+         if (bc==3)
+         {
+            iy=iup[ix][0];
+            su3xsu3dag(u,g+iy,&wd);
+            su3xsu3(g+ix,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            su3xsu3(g+ix,u,&wd);
+            (*u)=wd;
+         }
+            
+         u+=1;
 
-      ub+=8;
+         for (ifc=1;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+            
+            u+=1;
+         }         
+      }
+      else
+      {
+         for (ifc=0;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+            
+            u+=1;
+         }
+      }
    }
 
    set_flags(UPDATED_UD);
@@ -253,7 +326,7 @@ static double max_dev_ud(su3_dble *v)
 int main(int argc,char *argv[])
 {
    int my_rank,n;
-   double eps,dev;
+   double phi[2],phi_prime[2],eps,dev;
    su3_dble *udb,**usv;
    FILE *flog=NULL,*fin=NULL;
 
@@ -278,20 +351,41 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("n = %d\n",n);
-      printf("eps = %.3e\n\n",eps);      
+      printf("eps = %.3e\n\n",eps);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
 
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.973,1.127,1.0,1.0,phi,phi_prime);
+   print_bc_parms(); 
    
    start_ranlux(0,1234);
    geometry();
-   alloc_g();
    alloc_wud(2);
    alloc_wfd(1);
    usv=reserve_wud(2);
    udb=udfld();
 
+   g=amalloc(NSPIN*sizeof(*g),4);
+
+   if (BNDRY>0)
+      gbuf=amalloc((BNDRY/2)*sizeof(*gbuf),4);
+
+   error((g==NULL)||((BNDRY>0)&&(gbuf==NULL)),1,"main [check2.c]",
+         "Unable to allocate auxiliary arrays");
+   
    random_ud();
    random_g();
    cm3x3_assign(4*VOLUME,udb,usv[0]);

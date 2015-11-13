@@ -9,9 +9,15 @@ step         1
 [Lattice parameters]
 kappa        0.1280
 csw          1.2
-cF           1.0
 mu           0.0123
 eoflg        1
+
+[Boundary conditions]
+type         0
+#phi          0.12 -0.56
+#phi'         0.92 0.76
+cF           0.95
+#cF'          0.90
 
 [SAP]
 bs           4 4 4 4
@@ -28,17 +34,13 @@ mu           0.01
 ninv         5
 nmr          4
 ncy          5
-nkv          16
-nmx          96
-res          1.0e-3
 
-[Deflation projectors]
+[Deflation projection]
 nkv          16
 nmx          64
-resd         1.0e-13
-res          1.0e-6
+res          1.0e-2
 
 [GCR]
 nkv          16
 nmx          48
-res          1.0e-12
+res          1.0e-10

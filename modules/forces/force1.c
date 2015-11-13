@@ -3,12 +3,12 @@
 *
 * File force1.c
 *
-* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2011-2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Twisted mass pseudo-fermion action and force
+* Twisted mass pseudo-fermion action and force.
 *
 * The externally accessible functions are
 *
@@ -62,8 +62,8 @@
 * Note that, in force1(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
-* [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/solver_parms.c].
+* [flags/lat_parms.c] and it is taken for granted that the parameters of
+* the solver have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The program force1() attempts to propagate the solutions of the Dirac
 * equation along the molecular-dynamics trajectories, using the field
@@ -75,7 +75,7 @@
 *
 *                  CGNE         SAP_GCR       DFL_SAP_GCR
 *   setpf1()         1             1               1
-*   force1()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)       
+*   force1()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)
 *   action1()        1             1               1
 *
 * (these figures do not include the workspace required by the solvers).
@@ -149,13 +149,13 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
    tm=tm_parms();
    if (tm.eoflg==1)
       set_tm_parms(0);
-   
+
    mdfs=mdflds();
    sp=solver_parms(isp);
    sw_term(NO_PTS);
 
    wsd=reserve_wsd(2);
-   phi=(*mdfs).pf[ipf];   
+   phi=(*mdfs).pf[ipf];
    psi=wsd[0];
    chi=wsd[1];
 
@@ -187,8 +187,8 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
                status[0]=0;
          }
          else
-            tmcg(sp.nmx,sp.res,mu,phi,chi,status);   
-         
+            tmcg(sp.nmx,sp.res,mu,phi,chi,status);
+
          release_wsd();
       }
       else
@@ -280,10 +280,10 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
          sap_gcr(sp.nkv,sp.nmx,sp.res,-mu,psi,chi,status+1);
          mulg5_dble(VOLUME,psi);
       }
-      
+
       error_root((status[0]<0)||(status[1]<0),1,"force1 [force1.c]",
                  "SAP_GCR solver failed (mu = %.4e, parameter set no %d, "
-                 "status = %d;%d)",mu,isp,status[0],status[1]);      
+                 "status = %d;%d)",mu,isp,status[0],status[1]);
       if (icr)
          add_chrono(icr,chi);
    }
@@ -318,7 +318,7 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
 
                res0=norm_square_dble(VOLUME,1,psi);
                res1=norm_square_dble(VOLUME,1,eta);
-               res1=sqrt(res1/res0);         
+               res1=sqrt(res1/res0);
 
                if (res1<1.0)
                {
@@ -357,7 +357,7 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
             dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,psi,chi,status+3);
             mulg5_dble(VOLUME,psi);
          }
-         
+
          release_wsd();
       }
       else
@@ -369,13 +369,13 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
          dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu,psi,chi,status+3);
          mulg5_dble(VOLUME,psi);
       }
-      
+
       error_root((status[0]<0)||(status[1]<0)||(status[3]<0)||(status[4]<0),1,
                  "force1 [force1.c]","DFL_SAP_GCR solver failed "
                  "(mu = %.4e, parameter set no %d, status = %d,%d,%d;%d,%d,%d)",
                  mu,isp,status[0],status[1],status[2],
                  status[3],status[4],status[5]);
-      
+
       if (icr)
          add_chrono(icr,chi);
    }
@@ -387,7 +387,7 @@ void force1(double mu,int ipf,int isp,int icr,double c,int *status)
    sw_frc(c);
 
    set_xv2zero();
-   add_prod2xv(1.0,chi,psi);   
+   add_prod2xv(1.0,chi,psi);
    hop_frc(c);
 
    release_wsd();
@@ -406,11 +406,11 @@ double action1(double mu,int ipf,int isp,int icom,int *status)
    tm=tm_parms();
    if (tm.eoflg==1)
       set_tm_parms(0);
-   
+
    mdfs=mdflds();
    sp=solver_parms(isp);
 
-   wsd=reserve_wsd(1);   
+   wsd=reserve_wsd(1);
    psi=wsd[0];
    phi=(*mdfs).pf[ipf];
 

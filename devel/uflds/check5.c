@@ -3,12 +3,12 @@
 *
 * File check5.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program set_bstap()
+* Check of the program set_bstap().
 *
 *******************************************************************************/
 
@@ -29,7 +29,7 @@
 #include "global.h"
 
 static const int plns[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
-static int nfc[8],ofs[8],hofs[8];
+static int bc,nfc[8],ofs[8],hofs[8];
 static double psum0[8],psum1[8];
 static su3_dble *udb,*hdb;
 static su3_dble wd1,wd2 ALIGNED16;
@@ -116,9 +116,6 @@ static void set_psum0(void)
             psum0[2*nu]+=plaq0(n,ix);
       }
    }
-
-   if (cpr[0]==0)
-      psum0[0]=0.0;
 }
 
 
@@ -243,7 +240,11 @@ static void check_psums(void)
             MPI_Send(&sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
          }
 
-         psum1[ifc^0x1]-=rbuf;
+         if ((bc!=3)&&
+             (((cpr[0]==0)&&(ifc==1))||((cpr[0]==(NPROC0-1))&&(ifc==0))))
+            psum1[ifc^0x1]=0.0;
+         else
+            psum1[ifc^0x1]-=rbuf;
       }
    }
 
@@ -263,7 +264,8 @@ static void check_psums(void)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,ifc;
+   int my_rank,ifc,ie;
+   double phi[2],phi_prime[2];
    FILE *flog=NULL;
    
    MPI_Init(&argc,&argv);
@@ -280,9 +282,22 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check5.c]",
+                    "Syntax: check5 [-bc <type>]");
    }
-   
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms(); 
+
    start_ranlux(0,89103);
    geometry();
 
@@ -300,12 +315,18 @@ int main(int argc,char *argv[])
    set_psum1();
    check_psums();
 
+   ie=check_bc(0.0);
+   error_root(ie==0,1,"main [check5.c]","Boundary conditions changed");
+   
    if (my_rank==0)
    {
       for (ifc=0;ifc<8;ifc++)
       {
-         printf("ifc = %d, max|sum| = %.4e, maximal deviation = %.1e\n",
-                ifc,psum0[ifc],psum1[ifc]);
+         if (nfc[ifc]>0)
+         {
+            printf("ifc = %d, max|sum| = %.4e, maximal deviation = %.1e\n",
+                   ifc,psum0[ifc],psum1[ifc]);
+         }
       }
       
       printf("\n");

@@ -21,13 +21,15 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1
 
+FLAGS = flags lat_parms
+
 LATTICE = geometry
 
 RANDOM = ranlux ranlxs ranlxd
 
 UTILS = endian mutils utils
 
-MODULES = $(LATTICE) $(RANDOM) $(UTILS)
+MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(UTILS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -39,7 +41,7 @@ LOGOPTION =
 
 MDIR = ../../modules
 
-VPATH = .:$(MDIR)/lattice:$(MDIR)/random:$(MDIR)/utils
+VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/random:$(MDIR)/utils
 
 
 # additional include directories
@@ -58,7 +60,7 @@ LIBPATH = $(MPI_HOME)/lib
 
 CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
          -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM 
+         -O -mno-avx -Dx64 -DPM
 
 
 ############################## do not change ###################################

@@ -9,17 +9,18 @@
 Files
 -----
 
-vcom.c         Communication functions for the global single-precision 
-               vector fields
+vcom.c         Communication functions for the global single-precision
+               vector fields.
 
 vdcom.c        Communication functions for the global double-precision
-               vector fields
+               vector fields.
 
 vflds.c        Allocation and initialization of the global vector fields
-               related to the deflation subspace
+               related to the deflation subspace.
 
 vinit.c        Generic initialization and assignment programs for complex
-               single- and double-precision fields
+               single- and double-precision fields.
+
 
 Include file
 ------------
@@ -35,33 +36,25 @@ void cpv_int_bnd(complex *v)
   Copies the components of the field v on the interior boundary of
   the local block lattice to the corresponding field components at
   the exterior boundaries of the block lattices on the neighbouring
-  processes. No copying is performed in the time direction across
-  the boundaries of the lattice at global time 0 and NPROC0*L0-1.
-  The program instead sets the field on the exterior boundaries at
-  these times to zero.
+  MPI processes.
 
 void cpv_ext_bnd(complex *v)
   *Adds* the components of the field v on the exterior boundary of
   the local block lattice to the corresponding field components on
   the interior boundaries of the block lattices on the neighbouring
-  processes. No copying is performed in the time direction across
-  the boundaries of the lattice at global time 0 and NPROC0*L0-1.
+  MPI processes.
 
 void cpvd_int_bnd(complex_dble *vd)
   Copies the components of the field vd on the interior boundary of
   the local block lattice to the corresponding field components at
   the exterior boundaries of the block lattices on the neighbouring
-  processes. No copying is performed in the time direction across
-  the boundaries of the lattice at global time 0 and NPROC0*L0-1.
-  The program instead sets the field on the exterior boundaries at
-  these times to zero.
+  MPI processes.
 
 void cpvd_ext_bnd(complex_dble *vd)
   *Adds* the components of the field v on the exterior boundary of
   the local block lattice to the corresponding field components on
   the interior boundaries of the block lattices on the neighbouring
-  processes. No copying is performed in the time direction across
-  the boundaries of the lattice at global time 0 and NPROC0*L0-1.
+  MPI processes.
 
 complex **vflds(void)
   Returns the base address of the global single-precision vector fields
@@ -110,5 +103,5 @@ void add_v2vd(int n,complex *v,complex_dble *wd)
   wd.
 
 void diff_vd2v(int n,complex_dble *vd,complex_dble *wd,complex *w)
-  Assigns the difference vd-wd of the double-precision fields vd 
+  Assigns the difference vd-wd of the double-precision fields vd
   and wd to the single-precision field w.

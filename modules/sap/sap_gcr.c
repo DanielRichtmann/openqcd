@@ -3,12 +3,12 @@
 *
 * File sap_gcr.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* SAP+GCR solver for the Wilson-Dirac equation
+* SAP+GCR solver for the Wilson-Dirac equation.
 *
 * The externally accessible function is
 *
@@ -46,7 +46,7 @@
 *
 *   mu      Value of the twisted mass in the Dirac equation.
 *
-*   eta     Source field. Note that source fields must vanish at global 
+*   eta     Source field. Note that source fields must vanish at global
 *           time 0 and NPR0C0*L0-1, as has to be the case for physical
 *           quark fields. eta is unchanged on exit unless psi=eta (which
 *           is permissible).
@@ -61,13 +61,12 @@
 *           converge, -2: the inversion of the SW term on the odd points
 *           was not safe).
 *
-* The program returns the norm of the calculated approximate solution if
-* status[0]>=-1. Otherwise the field psi is set to zero and the program
-* returns the norm of the source eta.
+* The program returns the norm of the residue of the calculated approximate
+* solution if status[0]>=-1. Otherwise the field psi is set to zero and the
+* program returns the norm of the source eta.
 *
-* The SAP_BLOCKS blocks grid is automatically allocated or reallocated if
-* it is not already allocated with the correct block size. The SW term is
-* recalculated when needed and the gauge and SW fields are copied to the
+* The SAP_BLOCKS blocks grid is automatically allocated and the SW term is
+* recalculated when needed. The gauge and SW fields are then copied to the
 * block grid if they are not in the proper condition.
 *
 * Evidently the SAP+GCR solver is a global program that must be called on
@@ -111,9 +110,9 @@ static void Dop(spinor_dble *s,spinor_dble *r)
 static void Mop(int k,spinor *rho,spinor *phi,spinor *chi)
 {
    int n;
-   
+
    set_s2zero(VOLUME,phi);
-   assign_s2s(VOLUME,rho,chi);   
+   assign_s2s(VOLUME,rho,chi);
 
    for (n=0;n<spr.ncy;n++)
       sap((float)(mud),spr.isolv,spr.nmr,phi,chi);
@@ -147,7 +146,7 @@ double sap_gcr(int nkv,int nmx,double res,double mu,
 
    swde=query_flags(SWD_E_INVERTED);
    swdo=query_flags(SWD_O_INVERTED);
-   
+
    swu=query_grid_flags(SAP_BLOCKS,SW_UP2DATE);
    swe=query_grid_flags(SAP_BLOCKS,SW_E_INVERTED);
    swo=query_grid_flags(SAP_BLOCKS,SW_O_INVERTED);
@@ -181,11 +180,11 @@ double sap_gcr(int nkv,int nmx,double res,double mu,
    }
    else
       error_root(1,1,"sap_gcr [sap_gcr.c]","Unknown block solver");
-   
+
    rho0=sqrt(norm_square_dble(VOLUME,1,eta));
    rho=rho0;
    status[0]=0;
-   
+
    if (ifail)
       status[0]=-2;
    else
@@ -193,16 +192,16 @@ double sap_gcr(int nkv,int nmx,double res,double mu,
       ws=reserve_ws(2*nkv+1);
       wsd=reserve_wsd(1);
       rsd=reserve_wsd(1);
-      
+
       mud=mu;
       fact=rho0/sqrt((double)(VOLUME)*(double)(24*NPROC));
 
       if (fact!=0.0)
-      {      
-         assign_sd2sd(VOLUME,eta,rsd[0]);            
-         scale_dble(VOLUME,1.0/fact,rsd[0]);         
-      
-         rho=fgcr(VOLUME,1,Dop,Mop,ws,wsd,nkv,nmx,res,rsd[0],psi,status);   
+      {
+         assign_sd2sd(VOLUME,eta,rsd[0]);
+         scale_dble(VOLUME,1.0/fact,rsd[0]);
+
+         rho=fgcr(VOLUME,1,Dop,Mop,ws,wsd,nkv,nmx,res,rsd[0],psi,status);
 
          scale_dble(VOLUME,fact,psi);
          rho*=fact;
@@ -212,7 +211,7 @@ double sap_gcr(int nkv,int nmx,double res,double mu,
          rho=0.0;
          set_sd2zero(VOLUME,psi);
       }
-         
+
       release_wsd();
       release_wsd();
       release_ws();
@@ -223,6 +222,6 @@ double sap_gcr(int nkv,int nmx,double res,double mu,
       rho=rho0;
       set_sd2zero(VOLUME,psi);
    }
-   
+
    return rho;
 }

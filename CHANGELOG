@@ -1,4 +1,73 @@
 
+22. April 2014
+
+Version 1.4: 3rd public release.
+
+- Changed the way SF boundary conditions are implemented so that the time
+  extent of the lattice is now NPROC0*L0 rather than NPROC0*L0-1.
+
+- Adapted all modules and main programs so as to support four types of
+  boundary conditions (open, SF, open-SF and periodic). For detailed
+  explanations see main/README.global, doc/gauge_action.pdf, doc/dirac.pdf,
+  and doc/parms.pdf.
+
+- The form of the gauge action near the boundaries of the lattice with SF
+  boundary conditions has been slightly modified with respect to the choice
+  made in version 1.2 (see doc/gauge_action.pdf; the modification only
+  concerns actions with double-plaquette terms).
+
+- The programs for the light-quark reweighting factors now support
+  twisted-mass Hasenbusch decompositions into products of factors. In the
+  program main/ms1.c, the factorization (if any) can be specified through the
+  input parameter file. NOTE: the layout of the data on the output data file
+  produced by ms1.c had to be changed with respect to openQCD-1.2.
+
+- Slightly modified the program main/ms2.c so as to allow for different
+  power-method iteration numbers when estimating the lower and upper
+  end of the spectrum of the Dirac operator (see main/README.ms2).
+
+- Removed flags/sf_parms.c since the functionality of this module is now
+  included in lat_parms.c.
+
+- Updated documentation files gauge_action.pdf, dirac.pdf, parms.pdf and
+  rhmc.pdf.
+
+- In main/ms4.in and main/qcd1.in replaced "[Deflation projectors]" by
+  "[Deflation projection]".
+
+- Removed main/qcd2.c since main/qcd1.c now includes the case of SF boundary
+  conditions.
+
+- Corrected all check programs in ./devel/* so as to take into account the
+  different choices of boundary conditions. Many check programs now have a
+  command line option -bc <type> that allows the type of boundary condition to
+  be specified at run time.
+
+- Corrected a bug in Dwee_dble() [modules/dirac/Dw_dbl.c] that shows up in
+  some check programs if none of the local lattice sizes L1,L2,L3 is divisible
+  by 4. The functionality of the other modules and the main programs in ./main
+  was not affected by this bug, because Dwee_dble() is not called in any of
+  these programs.
+
+- Corrected modules/flags/rw_parms.c so as to allow for Hasenbusch factorized
+  reweighting factors.
+
+- Corrected and improved the descriptions at the top of many module files.
+
+- Corrected devel/ratfcts/INDEX.
+
+- Added forgotten "plots" directory in devel/nompi/main.
+
+- Replaced &irat in MPI_Bcast(&irat,3,MPI_INT,0,MPI_COMM_WORLD) by irat in
+  flags/force_parms.c [read_forc_parms() and read_force_parms2()]. This is not
+  a mistake but an unnatural and unintended use of the C language. Corrected
+  analogous cases in a number of check programs (thanks to Hubert Simma and
+  Georg Engel for noting these misprints).
+
+- Corrected check program block/check1.c (the point labeling does not need to
+  respect any time ordering).
+
+
 12. May 2013
 
 Version 1.2: 2nd public release.
@@ -8,14 +77,14 @@ Version 1.2: 2nd public release.
   the top directory of the distribution.
 
 - Added support for blocked MPI process ranking, as is likely to be profitable
-  on parallel computers with mult-core nodes (see main/README.global). 
+  on parallel computers with mult-core nodes (see main/README.global).
 
 - Made the field import/export functions more efficient by avoiding the
   previously excessive use of MPI_Barrier().
 
 - Added import/export functions for the state of the random number generators.
   Modified the initialization of the generators so as to be independent of the
-  ranking of the MPI processes. See the notes in modules/random/ranlux.c. Added 
+  ranking of the MPI processes. See the notes in modules/random/ranlux.c. Added
   a check program in devel/random.
 
 - Continuation runs of qcd1,qcd2,ym1 and ms1 now normally reset the random
@@ -61,7 +130,7 @@ Version 1.2: 2nd public release.
   incorrect.
 
 
-14. June 2012    
+14. June 2012
 
 Version 1.0: Initial public release.
 

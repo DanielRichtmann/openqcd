@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2009-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program tcharge_slices()
+* Check of the program tcharge_slices().
 *
 *******************************************************************************/
 
@@ -31,15 +31,19 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
 
-static int n,dn;
+static int bc,n,dn;
 static double eps,Q1,Q2,Q[N0],Q0[N0];
 
 
 int main(int argc,char *argv[])
 {
    int my_rank,i,imax,t;
-   double act,dev;
+   double phi[2],phi_prime[2];
+   double nplaq,act,dev;
    FILE *fin=NULL,*flog=NULL;   
 
    MPI_Init(&argc,&argv);
@@ -66,18 +70,37 @@ int main(int argc,char *argv[])
       printf("n = %d\n",n);
       printf("dn = %d\n",dn);      
       printf("eps = %.2e\n\n",eps);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check3.c]",
+                    "Syntax: check3 [-bc <type>]");
    }
 
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);      
    MPI_Bcast(&dn,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   set_lat_parms(6.0,1.0,0.0,0.0,0.0,1.0,1.0,1.0);
+
+   set_lat_parms(6.0,1.0,0,NULL,1.0);
+
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime);
+   print_bc_parms(); 
    
    start_ranlux(0,123456);   
    geometry();
    alloc_wfd(2);
 
+   if (bc==0)
+      nplaq=(double)(6*N0-6)*(double)(N1*N2*N3);
+   else
+      nplaq=(double)(6*N0)*(double)(N1*N2*N3);
+   
    random_ud();
    imax=n/dn;
    
@@ -85,11 +108,9 @@ int main(int argc,char *argv[])
    {
       fwd_euler(dn,eps);
       
-      act=action0(1)/((double)(NPROC0*L0-1)*
-                      (double)(NPROC1*NPROC2*NPROC3)*(double)(L1*L2*L2));
+      act=action0(1)/nplaq;
       Q1=tcharge();
       Q2=tcharge_slices(Q);
-
       dev=fabs(Q1-Q2);
       
       for (t=0;t<N0;t++)

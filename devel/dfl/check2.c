@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2007, 2008, 2011 Martin Luescher
+* Copyright (C) 2007, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the programs in the module dfl_subspace.c
+* Check of the programs in the module dfl_subspace.c.
 *
 *******************************************************************************/
 
@@ -61,14 +61,12 @@ static void check_basis(int Ns,double *dev0,double *dev1)
          }
 
          assign_s2sd((*b).vol,(*b).s[i],(*b).sd[0]);
-         z.re=-1.0;
-         z.im=0.0;
-         mulc_spinor_add_dble((*b).vol,(*b).sd[0],(*b).sd[i],z);         
+         mulr_spinor_add_dble((*b).vol,(*b).sd[0],(*b).sd[i],-1.0);
          dev=norm_square_dble((*b).vol,0,(*b).sd[0]);
          dev=sqrt(dev);
 
          if (dev>x[1])
-            x[1]=dev;         
+            x[1]=dev;
       }
    }
 
@@ -90,14 +88,15 @@ static void check_basis(int Ns,double *dev0,double *dev1)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,i;
+   int my_rank,bc,i;
    int bs[4],Ns,nv;
+   double phi[2],phi_prime[2];
    double dev,dev0,dev1;
    complex **vm,**wv,z;
    complex_dble **wvd;
    spinor **ws;
    spinor_dble **wsd;
-   FILE *fin=NULL,*flog=NULL;   
+   FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -106,7 +105,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check2.log","w",stdout);
       fin=freopen("check2.in","r",stdin);
-      
+
       printf("\n");
       printf("Check of the programs in the module dfl_subspace.c\n");
       printf("--------------------------------------------------\n\n");
@@ -122,16 +121,27 @@ int main(int argc,char *argv[])
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
       printf("Ns = %d\n\n",Ns);
 
-      fflush(flog);
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
-   
-   start_ranlux(0,123456);   
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.0;
+   phi[1]=0.0;
+   phi_prime[0]=0.0;
+   phi_prime[1]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
+
+   start_ranlux(0,123456);
    geometry();
    set_dfl_parms(bs,Ns);
-   
+
    alloc_ws(Ns+1);
    alloc_wsd(1);
    alloc_wv(2);
@@ -145,7 +155,10 @@ int main(int argc,char *argv[])
    nv=Ns*VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
 
    for (i=0;i<Ns;i++)
+   {
       random_s(VOLUME,ws[i],1.0f);
+      bnd_s2zero(ALL_PTS,ws[i]);
+   }
 
    dfl_subspace(ws);
    check_basis(Ns,&dev0,&dev1);
@@ -159,9 +172,7 @@ int main(int argc,char *argv[])
    for (i=0;i<Ns;i++)
    {
       dfl_v2s(vm[i],ws[Ns]);
-      z.re=-1.0f;
-      z.im=0.0f;
-      mulc_spinor_add(VOLUME,ws[Ns],ws[i],z);
+      mulr_spinor_add(VOLUME,ws[Ns],ws[i],-1.0f);
       dev=(double)(norm_square(VOLUME,1,ws[Ns])/
                    norm_square(VOLUME,1,ws[i]));
       if (dev>dev0)
@@ -178,8 +189,8 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("Check of the single-precision vector modes:\n");
-      printf("Using dfl_v2s:     %.1e\n",sqrt(dev0));   
-      printf("Using dfl_sub_v2s: %.1e\n\n",sqrt(dev1));   
+      printf("Using dfl_v2s:     %.1e\n",sqrt(dev0));
+      printf("Using dfl_sub_v2s: %.1e\n\n",sqrt(dev1));
    }
 
    random_v(nv,wv[0],1.0f);
@@ -192,9 +203,9 @@ int main(int argc,char *argv[])
    mulc_vadd(nv,wv[0],wv[1],z);
    dev0=(double)(vnorm_square(nv,1,wv[0])/
                  vnorm_square(nv,1,wv[1]));
-      
+
    dfl_vd2sd(wvd[0],wsd[0]);
-   dfl_sd2vd(wsd[0],wvd[1]);   
+   dfl_sd2vd(wsd[0],wvd[1]);
    diff_vd2v(nv,wvd[0],wvd[1],wv[0]);
    assign_vd2v(nv,wvd[1],wv[1]);
    dev1=(double)(vnorm_square(nv,1,wv[0])/
@@ -204,18 +215,18 @@ int main(int argc,char *argv[])
    dev=norm_square_dble(VOLUME,1,wsd[0])/vnorm_square_dble(nv,1,wvd[1]);
    if (dev>dev1)
       dev1=dev;
-   
+
    if (my_rank==0)
    {
       printf("Check of\n");
-      printf("dfl_s2v,..:   %.1e\n",sqrt(dev0));   
-      printf("dfl_sd2vd,..: %.1e\n\n",sqrt(dev1));   
+      printf("dfl_s2v,..:   %.1e\n",sqrt(dev0));
+      printf("dfl_sd2vd,..: %.1e\n\n",sqrt(dev1));
    }
-   
-   error_chk();   
+
+   error_chk();
    if (my_rank==0)
       fclose(flog);
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

@@ -3,29 +3,25 @@
 *
 * File shift.c
 *
-* Copyright (C) 2006, 2009, 2011, 2012 Martin Luescher
+* Copyright (C) 2006, 2009, 2011, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Translation of the global double-precision gauge field
+* Translation of the global double-precision gauge field.
 *
 * The externally accessible function is
 *
 *   int shift_ud(int *s)
-*     Replaces the double-precision gauge field U(x,mu) by U(x-s,mu) where
-*     s[4] is any given shift vector. On exit the program returns the
-*     number of elementary shifts that were performed.
+*     Replaces the double-precision gauge field U(x,mu) by U(x-s,mu), where
+*     s[4] is any given shift vector. The program returns the number of
+*     elementary steps (translations by 1 lattice unit) that were performed.
 *
 * Notes:
 *
-* This function is only used in check programs, where the invariance of
-* certain operations under translations are verified. 
-* 
-* Shifts in the time direction are not permitted if the field satisfies open
-* boundary conditions (the program terminates with an error message in this
-* case). The required communication buffers are allocated when shift_ud() is
-* called and if the buffers are not already allocated.
+* Shifts in the time direction are only permitted in the case of periodic
+* boundary conditions. The required communication buffers are allocated
+* automatically.
 *
 * The program shift_ud() acts globally and must be called simultaneously on
 * all MPI processes with the same translation vector.
@@ -78,7 +74,7 @@ static void set_const(void)
    np[1]=NPROC1;
    np[2]=NPROC2;
    np[3]=NPROC3;
-   
+
    nlk[0]=FACE0/2;
    nlk[1]=FACE1/2;
    nlk[2]=FACE2/2;
@@ -93,10 +89,10 @@ static void set_const(void)
    npt[1]=VOLUME/L1;
    npt[2]=VOLUME/L2;
    npt[3]=VOLUME/L3;
-   
+
    cl=comlink;
    iu=4*VOLUME;
-   
+
    for (mu=0;mu<4;mu++)
    {
       (*cl).saddr=npr[2*mu];
@@ -121,19 +117,19 @@ static void alloc_idx(void)
 {
    int mu,ifc,t,**id,*ib;
    comlink_t *cl;
-   comstar_t *cs;   
+   comstar_t *cs;
 
    cl=comlink;
 
    if (NPROC>1)
    {
-      ib=amalloc((BNDRY/4)*sizeof(int),3);
+      ib=malloc((BNDRY/4)*sizeof(*ib));
       error(ib==NULL,1,"alloc_idx [shift.c]",
             "Unable to allocate index arrays");
    }
    else
       ib=NULL;
-   
+
    for (mu=0;mu<4;mu++)
    {
       if (np[mu]>1)
@@ -143,22 +139,22 @@ static void alloc_idx(void)
       }
       else
          (*cl).idx=NULL;
-      
+
       cl+=1;
    }
 
    cs=comstar;
-   id=amalloc(2*(L0+L1+L2+L3)*sizeof(int*),3);   
-   ib=amalloc(16*VOLUME*sizeof(int),3);
+   id=malloc(2*(L0+L1+L2+L3)*sizeof(*id));
+   ib=malloc(16*VOLUME*sizeof(*ib));
    error((id==NULL)||(ib==NULL),1,"alloc_idx [shift.c]",
          "Unable to allocate index arrays");
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       mu=ifc/2;
-      (*cs).idx=id;      
+      (*cs).idx=id;
       id+=bs[mu];
-      
+
       if ((ifc&0x1)==0)
       {
          for (t=0;t<bs[mu];t++)
@@ -186,7 +182,7 @@ static void fce_pts(void)
 
    for (mu=0;mu<4;mu++)
       idx[mu]=(comstar[2*mu]).idx[1];
-   
+
    ix=0;
 
    for (x0=0;x0<L0;x0++)
@@ -219,7 +215,7 @@ static void fce_pts(void)
    for (mu=0;mu<4;mu++)
    {
       fce0=(comstar[2*mu]).idx[0];
-      
+
       for (ix=0;ix<VOLUME;ix++)
       {
          if (idx[mu][ix]==1)
@@ -245,7 +241,7 @@ static void fce_pts(void)
 static int uofs(int ix,int mu)
 {
    int iy,iz;
-   
+
    if (ix>=(VOLUME/2))
       return 8*(ix-(VOLUME/2))+2*mu;
 
@@ -255,7 +251,7 @@ static int uofs(int ix,int mu)
       return 8*(iy-(VOLUME/2))+2*mu+1;
 
    iz=iy-(VOLUME+(BNDRY/2)+ofs[mu]);
-   
+
    return comlink[mu].iu+iz;
 }
 
@@ -270,7 +266,7 @@ static void set_idx(void)
       if (np[mu]>1)
       {
          idx=(comlink[mu]).idx;
-         
+
          for (ix=0;ix<nlk[mu];ix++)
          {
             iy=(BNDRY/2)+ofs[mu]+ix;
@@ -306,7 +302,7 @@ static void set_idx(void)
 static void alloc_udbufs(void)
 {
    int mu,n;
-   
+
    if (init==0)
    {
       set_const();
@@ -322,7 +318,7 @@ static void alloc_udbufs(void)
       if (npt[mu]>n)
          n=npt[mu];
    }
-   
+
    sdbuf=amalloc(8*n*sizeof(su3_dble),ALIGN);
    error(sdbuf==NULL,1,"alloc_udbufs [shift.c]",
          "Unable to allocate communication buffers");
@@ -337,12 +333,12 @@ static void get_udlinks(void)
    int tag,ip,saddr,raddr,nbf;
    su3_dble *ub,*u,*sb,*rb;
    comlink_t *cl;
-   MPI_Status stat;   
+   MPI_Status stat;
 
    ub=udfld();
    ip=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
    cl=comlink;
-   
+
    for (mu=0;mu<4;mu++)
    {
       if (np[mu]>1)
@@ -370,7 +366,7 @@ static void get_udlinks(void)
          {
             MPI_Recv(rb,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
             MPI_Send(sb,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
-         }      
+         }
       }
 
       cl+=1;
@@ -384,12 +380,12 @@ static void put_udlinks(void)
    int tag,ip,saddr,raddr,nbf;
    su3_dble *ub,*u,*sb,*rb;
    comlink_t *cl;
-   MPI_Status stat;   
+   MPI_Status stat;
 
    ub=udfld();
    ip=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
    cl=comlink;
-   
+
    for (mu=0;mu<4;mu++)
    {
       if (np[mu]>1)
@@ -431,18 +427,18 @@ static void get_udstars(int ifc)
    int tag,ip,saddr,raddr,nbf;
    su3_dble *ub,*u,*sb,*rb;
    comstar_t *cs;
-   MPI_Status stat;   
+   MPI_Status stat;
 
    ub=udfld();
    ip=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
    cs=comstar+ifc;
    mu=ifc/2;
-   
+
    if (np[mu]>1)
       u=sdbuf;
    else
       u=rdbuf;
-      
+
    idx=(*cs).idx[0];
    idm=idx+4*npt[mu];
 
@@ -480,7 +476,7 @@ static void shift_udstars(int ifc)
    comstar_t *cs;
 
    get_udstars(ifc);
-   
+
    ub=udfld();
    cs=comstar+ifc;
    mu=ifc/2;
@@ -500,14 +496,14 @@ static void shift_udstars(int ifc)
    u=rdbuf;
 
    for (;id0<idm;id0++,u++)
-      ub[*id0]=*u;   
+      ub[*id0]=*u;
 }
 
 
 int shift_ud(int *s)
 {
    int iprms[4],sr[4];
-   int mu,ifc,t,n;
+   int mu,ifc,t,n,ie;
 
    if (NPROC>1)
    {
@@ -525,7 +521,7 @@ int shift_ud(int *s)
 
    if (sdbuf==NULL)
       alloc_udbufs();
-   
+
    for (mu=0;mu<4;mu++)
    {
       n=np[mu]*bs[mu];
@@ -544,16 +540,19 @@ int shift_ud(int *s)
    if ((sr[0]==0)&&(sr[1]==0)&&(sr[2]==0)&&(sr[3]==0))
       return 0;
 
+   error_root((sr[0]!=0)&&(bc_type()!=3),1,"shift_ud [shift.c]",
+              "Shifts in time are only permitted for periodic bc");
+
    if (sr[0]!=0)
    {
-      n=check_bcd();
-      error_root(n!=0,1,"shift_ud [shift.c]",
-                 "Open bcd do not allow shifts in the time direction");
+      ie=chs_ubnd(1);
+      error_root(ie==1,1,"shift_ud [shift.c]",
+                 "Attempt to move sign-changed link variables in time");
    }
-   
+
    get_udlinks();
    n=0;
-   
+
    for (mu=0;mu<4;mu++)
    {
       if (sr[mu]>=0)
@@ -569,8 +568,8 @@ int shift_ud(int *s)
    }
 
    put_udlinks();
-   
-   set_flags(SHIFTED_UD);   
+
+   set_flags(SHIFTED_UD);
 
    return n;
 }

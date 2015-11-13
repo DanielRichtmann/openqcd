@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Gauge covariance of Dw_dble()
+* Gauge covariance of Dw_dble().
 *
 *******************************************************************************/
 
@@ -31,13 +31,17 @@
 #include "dirac.h"
 #include "global.h"
 
-static int nfc[8],ofs[8];
+#define N0 (NPROC0*L0)
+
+static int bc,nfc[8],ofs[8];
+static const su3_dble ud0={{0.0}};
 static su3_dble *g,*gbuf;
+static su3_dble wd ALIGNED16;
 
 
 static void pack_gbuf(void)
 {
-   int n,ix,iy,io;
+   int ifc,ib,ix;
 
    nfc[0]=FACE0/2;
    nfc[1]=FACE0/2;
@@ -57,14 +61,12 @@ static void pack_gbuf(void)
    ofs[6]=ofs[5]+nfc[5];
    ofs[7]=ofs[6]+nfc[6];
 
-   for (n=0;n<8;n++)
+   for (ifc=0;ifc<8;ifc++)
    {
-      io=ofs[n];
-
-      for (ix=0;ix<nfc[n];ix++)
+      for (ib=0;ib<nfc[ifc];ib++)
       {
-         iy=map[io+ix];
-         gbuf[io+ix]=g[iy];
+         ix=map[ofs[ifc]+ib];
+         gbuf[ofs[ifc]+ib]=g[ix];
       }
    }
 }
@@ -72,46 +74,34 @@ static void pack_gbuf(void)
 
 static void send_gbuf(void)
 {
-   int n,mu,np,saddr,raddr;
+   int ifc,np,saddr,raddr;
    int nbf,tag;
    su3_dble *sbuf,*rbuf;
    MPI_Status stat;
 
-   for (n=0;n<8;n++)
+   np=cpr[0]+cpr[1]+cpr[2]+cpr[3];
+
+   for (ifc=0;ifc<8;ifc++)
    {
-      nbf=18*nfc[n];
+      nbf=18*nfc[ifc];
 
       if (nbf>0)
       {
          tag=mpi_tag();
-         mu=n/2;
-         np=cpr[mu];
+         saddr=npr[ifc^0x1];
+         raddr=npr[ifc];
+         sbuf=gbuf+ofs[ifc];
+         rbuf=g+VOLUME+ofs[ifc];
 
-         if (n==(2*mu))
+         if (np&0x1)
          {
-            saddr=npr[n+1];
-            raddr=npr[n];
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
          }
          else
          {
-            saddr=npr[n-1];
-            raddr=npr[n];
-         }
-
-         sbuf=gbuf+ofs[n];
-         rbuf=g+ofs[n]+VOLUME;
-
-         if ((np|0x1)!=np)
-         {
-            MPI_Send((double*)(sbuf),nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
-            MPI_Recv((double*)(rbuf),nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,
-                     &stat);
-         }
-         else
-         {
-            MPI_Recv((double*)(rbuf),nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,
-                     &stat);
-            MPI_Send((double*)(sbuf),nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
+            MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
+            MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
          }
       }
    }
@@ -120,12 +110,26 @@ static void send_gbuf(void)
 
 static void random_g(void)
 {
-   su3_dble *gx,*gm;
+   int ix,t;
+   su3_dble unity,*gx;
 
-   gm=g+VOLUME;
+   unity=ud0;
+   unity.c11.re=1.0;
+   unity.c22.re=1.0;
+   unity.c33.re=1.0;
+   gx=g;
 
-   for (gx=g;gx<gm;gx++)
-      random_su3_dble(gx);
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if ((t>0)||(bc!=1))
+         random_su3_dble(gx);
+      else
+         (*gx)=unity;
+
+      gx+=1;
+   }
 
    if (BNDRY>0)
    {
@@ -137,36 +141,112 @@ static void random_g(void)
 
 static void transform_ud(void)
 {
-   int ix,iy,mu;
-   su3_dble *ub,u,v,w;
-   su3_dble gx,gxi,gy,gyi;
+   int ix,iy,t,ifc;
+   su3_dble *u;
 
-   ub=udfld();
-   
+   u=udfld();
+
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
    {
-      gx=g[ix];
+      t=global_time(ix);
 
-      for (mu=0;mu<4;mu++)
+      if (t==0)
       {
-         iy=iup[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu];
-         _su3_dagger(gyi,gy);
-         _su3_times_su3(v,u,gyi);
-         _su3_times_su3(w,gx,v);
-         ub[2*mu]=w;
+         iy=iup[ix][0];
+         su3xsu3dag(u,g+iy,&wd);
+         su3xsu3(g+ix,&wd,u);
+         u+=1;
 
-         iy=idn[ix][mu];
-         gy=g[iy];
-         u=ub[2*mu+1];
-         _su3_dagger(gxi,gx);
-         _su3_times_su3(v,u,gxi);
-         _su3_times_su3(w,gy,v);
-         ub[2*mu+1]=w;
+         if (bc==3)
+         {
+            iy=idn[ix][0];
+            su3xsu3dag(u,g+ix,&wd);
+            su3xsu3(g+iy,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            iy=idn[ix][0];
+            su3xsu3(g+iy,u,&wd);
+            (*u)=wd;
+         }
+
+         u+=1;
+
+         for (ifc=2;ifc<8;ifc++)
+         {
+            if (bc!=1)
+            {
+               if (ifc&0x1)
+               {
+                  iy=idn[ix][ifc/2];
+                  su3xsu3dag(u,g+ix,&wd);
+                  su3xsu3(g+iy,&wd,u);
+               }
+               else
+               {
+                  iy=iup[ix][ifc/2];
+                  su3xsu3dag(u,g+iy,&wd);
+                  su3xsu3(g+ix,&wd,u);
+               }
+            }
+
+            u+=1;
+         }
       }
+      else if (t==(N0-1))
+      {
+         if (bc==3)
+         {
+            iy=iup[ix][0];
+            su3xsu3dag(u,g+iy,&wd);
+            su3xsu3(g+ix,&wd,u);
+         }
+         else if (bc!=0)
+         {
+            su3xsu3(g+ix,u,&wd);
+            (*u)=wd;
+         }
 
-      ub+=8;
+         u+=1;
+
+         for (ifc=1;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+
+            u+=1;
+         }
+      }
+      else
+      {
+         for (ifc=0;ifc<8;ifc++)
+         {
+            if (ifc&0x1)
+            {
+               iy=idn[ix][ifc/2];
+               su3xsu3dag(u,g+ix,&wd);
+               su3xsu3(g+iy,&wd,u);
+            }
+            else
+            {
+               iy=iup[ix][ifc/2];
+               su3xsu3dag(u,g+iy,&wd);
+               su3xsu3(g+ix,&wd,u);
+            }
+
+            u+=1;
+         }
+      }
    }
 
    set_flags(UPDATED_UD);
@@ -197,10 +277,10 @@ static void transform_sd(spinor_dble *pk,spinor_dble *pl)
 int main(int argc,char *argv[])
 {
    int my_rank,i;
+   double phi[2],phi_prime[2];
    double mu,d;
-   complex_dble z;
    spinor_dble **psd;
-   sw_parms_t swp;   
+   sw_parms_t swp;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -216,64 +296,79 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check4.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
    alloc_wsd(5);
    psd=reserve_wsd(5);
-   g=amalloc(NSPIN*sizeof(su3_dble),4);
 
-   if (BNDRY>0)
-      gbuf=amalloc((BNDRY/2)*sizeof(su3_dble),4);
+   g=amalloc(NSPIN*sizeof(*g),4);
+   if (BNDRY!=0)
+      gbuf=amalloc((BNDRY/2)*sizeof(*gbuf),4);
 
-   error((g==NULL)||((BNDRY>0)&&(gbuf==NULL)),1,"main [check4.c]",
+   error((g==NULL)||((BNDRY!=0)&&(gbuf==NULL)),1,"main [check4.c]",
          "Unable to allocate auxiliary arrays");
 
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,1.0,1.234);
    swp=set_sw_parms(-0.0123);
    mu=0.0376;
 
    if (my_rank==0)
-      printf("m0 = %.4e, mu= %.4e, csw = %.4e, cF = %.4e\n\n",
-             swp.m0,mu,swp.csw,swp.cF);
+      printf("m0 = %.4e, csw = %.4e, cF = %.4e, cF' = %.4e\n\n",
+             swp.m0,swp.csw,swp.cF[0],swp.cF[1]);
 
    random_g();
    random_ud();
+   chs_ubnd(-1);
    sw_term(NO_PTS);
-   z.re=-1.0;
-   z.im=0.0;
-   
+
    for (i=0;i<4;i++)
       random_sd(NSPIN,psd[i],1.0);
 
    assign_sd2sd(VOLUME,psd[0],psd[4]);
    bnd_sd2zero(ALL_PTS,psd[4]);
    Dw_dble(mu,psd[0],psd[1]);
-   mulc_spinor_add_dble(VOLUME,psd[4],psd[0],z);
+   mulr_spinor_add_dble(VOLUME,psd[4],psd[0],-1.0);
    d=norm_square_dble(VOLUME,1,psd[4]);
    error(d!=0.0,1,"main [check4.c]","Dw_dble() changes the input field");
 
    Dw_dble(mu,psd[0],psd[4]);
-   mulc_spinor_add_dble(VOLUME,psd[4],psd[1],z);
+   mulr_spinor_add_dble(VOLUME,psd[4],psd[1],-1.0);
    d=norm_square_dble(VOLUME,1,psd[4]);
    error(d!=0.0,1,"main [check4.c]","Action of Dw_dble() depends "
-         "on the boundary values of the input field");   
-   
+         "on the boundary values of the input field");
+
    assign_sd2sd(VOLUME,psd[1],psd[4]);
    bnd_sd2zero(ALL_PTS,psd[4]);
-   mulc_spinor_add_dble(VOLUME,psd[4],psd[1],z);
+   mulr_spinor_add_dble(VOLUME,psd[4],psd[1],-1.0);
    d=norm_square_dble(VOLUME,1,psd[4]);
    error(d!=0.0,1,"main [check4.c]",
-         "Dw_dble() does not vanish at global time 0 and NPROC0*L0-1 ");  
-   
-   transform_sd(psd[0],psd[2]);   
+         "Dw_dble() does not vanish at global time 0 and NPROC0*L0-1 ");
+
+   transform_sd(psd[0],psd[2]);
    transform_ud();
    sw_term(NO_PTS);
    Dw_dble(mu,psd[2],psd[3]);
    transform_sd(psd[1],psd[2]);
 
-   mulc_spinor_add_dble(VOLUME,psd[3],psd[2],z);
+   mulr_spinor_add_dble(VOLUME,psd[3],psd[2],-1.0);
    d=norm_square_dble(VOLUME,1,psd[3])/norm_square_dble(VOLUME,1,psd[0]);
    error_chk();
 

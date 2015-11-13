@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the communication programs cpv_int_bnd() and cpv_ext_bnd() 
+* Check of the communication programs cpv_int_bnd() and cpv_ext_bnd().
 *
 *******************************************************************************/
 
@@ -41,7 +41,7 @@ static void set_field(complex *v)
    n[0]=L0/bs[0];
    n[1]=L1/bs[1];
    n[2]=L2/bs[2];
-   n[3]=L3/bs[3];   
+   n[3]=L3/bs[3];
 
    no[0]=cpr[0]*n[0];
    no[1]=cpr[1]*n[1];
@@ -86,43 +86,48 @@ static void set_field(complex *v)
       }
    }
 }
-   
+
 
 static void random_iv(int n,complex *v)
 {
    complex *vm;
-   
+
    random_v(n,v,100.0f);
    vm=v+n;
 
    for (;v<vm;v++)
    {
       (*v).re=(float)(floor((double)((*v).re+0.5f)));
-      (*v).im=(float)(floor((double)((*v).im+0.5f)));   
+      (*v).im=(float)(floor((double)((*v).im+0.5f)));
    }
 }
 
 
 static int chk_ext_bnd(complex *v)
 {
-   int np[4];
+   int bc,np[4];
    int ifc,ib,ibb,mu,i,ie;
    float c[4],n[4];
+
+   bc=bc_type();
 
    np[0]=NPROC0;
    np[1]=NPROC1;
    np[2]=NPROC2;
-   np[3]=NPROC3;   
-   
+   np[3]=NPROC3;
+
    n[0]=(float)((NPROC0*L0)/bs[0]);
    n[1]=(float)((NPROC1*L1)/bs[1]);
    n[2]=(float)((NPROC2*L2)/bs[2]);
-   n[3]=(float)((NPROC3*L3)/bs[3]);   
+   n[3]=(float)((NPROC3*L3)/bs[3]);
    ie=0;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
-      if ((ifc>1)||((ifc==0)&&(cpr[0]!=0))||((ifc==1)&&(cpr[0]!=(NPROC0-1))))
+      if ((ifc>1)||
+          ((ifc==0)&&(cpr[0]!=0))||
+          ((ifc==1)&&(cpr[0]!=(NPROC0-1)))||
+          (bc==3))
       {
          for (ibb=obbe[ifc];ibb<(obbe[ifc]+nbbe[ifc]);ibb++)
          {
@@ -167,20 +172,25 @@ static int chk_ext_bnd(complex *v)
          }
       }
    }
-   
+
    return ie;
 }
 
 
 static int chk_int_bnd(complex *v,complex *w)
 {
-   int ifc,ib,ibb,ie;
+   int bc,ifc,ib,ibb,ie;
    complex *vv,*ww,*vm;
+
+   bc=bc_type();
 
    for (ifc=0;ifc<8;ifc++)
    {
-      if ((ifc>1)||((ifc==0)&&(cpr[0]!=0))||((ifc==1)&&(cpr[0]!=(NPROC0-1))))
-      {      
+      if ((ifc>1)||
+          ((ifc==0)&&(cpr[0]!=0))||
+          ((ifc==1)&&(cpr[0]!=(NPROC0-1)))||
+          (bc==3))
+      {
          for (ibb=obbo[ifc];ibb<(obbo[ifc]+nbbo[ifc]);ibb++)
          {
             ib=ipp[ibb];
@@ -201,26 +211,27 @@ static int chk_int_bnd(complex *v,complex *w)
    vv=v;
    ww=w;
    vm=vv+nv;
-   ie=0;   
+   ie=0;
 
    for (;vv<vm;vv++)
    {
       if (((*vv).re!=(*ww).re)||((*vv).im!=(*ww).im))
          ie=1;
       ww+=1;
-   }   
-   
+   }
+
    return ie;
 }
 
 
 int main(int argc,char *argv[])
 {
-   int my_rank,i,ie;
+   int my_rank,bc,i,ie;
    float d;
+   double phi[2],phi_prime[2];
    complex **wv,z;
    dfl_grid_t dfl_grid;
-   FILE *fin=NULL,*flog=NULL;   
+   FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -229,7 +240,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check3.log","w",stdout);
       fin=freopen("check1.in","r",stdin);
-      
+
       printf("\n");
       printf("Check of the communication programs cpv_int_bnd() "
              "and cpv_ext_bnd()\n");
@@ -244,12 +255,24 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("bs = %d %d %d %d\n\n",bs[0],bs[1],bs[2],bs[3]);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check3.c]",
+                    "Syntax: check3 [-bc <type>]");
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.0;
+   phi[1]=0.0;
+   phi_prime[0]=0.0;
+   phi_prime[1]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
 
-   start_ranlux(0,123456);   
+   start_ranlux(0,123456);
    geometry();
    Ns=6;
    set_dfl_parms(bs,Ns);
@@ -263,7 +286,7 @@ int main(int argc,char *argv[])
    obbo=dfl_grid.obbo;
    inn=dfl_grid.inn;
    ipp=dfl_grid.ipp;
-   
+
    alloc_wv(4);
    wv=reserve_wv(4);
 
@@ -289,7 +312,7 @@ int main(int argc,char *argv[])
             "Boundary values are incorrectly mapped by cpv_int_bnd()");
       error(ie==2,1,"main [check3.c]",
             "Boundary values are not set to zero where they should");
-      
+
       random_iv(nvec,wv[i]);
       cpv_int_bnd(wv[i]);
       assign_v2v(nvec,wv[i],wv[i+1]);
@@ -306,13 +329,13 @@ int main(int argc,char *argv[])
    }
 
    error_chk();
-   
+
    if (my_rank==0)
-   { 
+   {
       printf("No errors detected\n\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

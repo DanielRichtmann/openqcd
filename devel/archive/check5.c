@@ -1,14 +1,14 @@
 
 /*******************************************************************************
 *
-* File check6.c
+* File check5.c
 *
-* Copyright (C) 2007, 2008, 2011 Martin Luescher
+* Copyright (C) 2007, 2008, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Exporting and importing spinor fields
+* Exporting and importing spinor fields.
 *
 *******************************************************************************/
 
@@ -27,8 +27,8 @@
 #include "archive.h"
 #include "global.h"
 
-static spinor_dble **psd;
 static const spinor_dble sd0={{{0.0}}};
+static spinor_dble **psd;
 
 
 static void ptfld(int k)
@@ -68,7 +68,6 @@ int main(int argc,char *argv[])
 {
    int my_rank,nsize,k;
    double d,dmax;
-   complex_dble z;
    char sfld_dir[NAME_SIZE],name[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
 
@@ -77,8 +76,8 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      flog=freopen("check6.log","w",stdout);
-      fin=freopen("check6.in","r",stdin);
+      flog=freopen("check5.log","w",stdout);
+      fin=freopen("check5.in","r",stdin);
       
       printf("\n");
       printf("Exporting and importing spinor fields\n");
@@ -90,8 +89,6 @@ int main(int argc,char *argv[])
 
       read_line("sfld_dir","%s\n",sfld_dir);
       fclose(fin);
-      
-      fflush(flog);
    }
 
    MPI_Bcast(sfld_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
@@ -103,8 +100,7 @@ int main(int argc,char *argv[])
 
    check_dir_root(sfld_dir);   
    nsize=name_size("%s/testsfld%d",sfld_dir,6);
-   error_root(nsize>=NAME_SIZE,1,"main [check6.c]","sfld_dir name is too long");
-
+   error_root(nsize>=NAME_SIZE,1,"main [check5.c]","sfld_dir name is too long");
 
    for (k=0;k<3;k++)
    {
@@ -121,12 +117,10 @@ int main(int argc,char *argv[])
    }   
 
    dmax=0.0;
-   z.re=-1.0;
-   z.im=0.0;
 
    for (k=0;k<3;k++)
    {
-      mulc_spinor_add_dble(VOLUME,psd[k],psd[k+3],z);
+      mulr_spinor_add_dble(VOLUME,psd[k],psd[k+3],-1.0);
       d=norm_square_dble(VOLUME,0,psd[k]);
 
       if (d>dmax)
@@ -138,7 +132,8 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("Exported 3 spinor fields to the directory %s\n",sfld_dir);
+      printf("Exported 3 spinor fields to the directory\n"
+             "%s\n",sfld_dir);
       printf("Then reimported and deleted them\n\n");      
       printf("Maximal deviation = %.1e ",sqrt(dmax));
       printf("(should be exactly equal to 0.0)\n\n");
@@ -150,7 +145,8 @@ int main(int argc,char *argv[])
    
    if (my_rank==0)
    {
-      printf("Point source field exported to file %s\n\n",name);
+      printf("Point source field exported to file\n"
+             "%s\n\n",name);
       fclose(flog);
    }
 

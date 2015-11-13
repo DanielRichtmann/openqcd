@@ -3,13 +3,13 @@
 *
 * File force5.c
 *
-* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2011-2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Hasenbusch twisted mass pseudo-fermion action and force with even-odd
-* precconditioning
+* precconditioning.
 *
 * The externally accessible functions are
 *
@@ -75,8 +75,8 @@
 * Note that, in force5(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
-* [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/solver_parms.c].
+* [flags/lat_parms.c] and it is taken for granted that the parameters of
+* the solver have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The program force5() attempts to propagate the solutions of the Dirac
 * equation along the molecular-dynamics trajectories, using the field
@@ -88,7 +88,7 @@
 *
 *                  CGNE         SAP_GCR       DFL_SAP_GCR
 *   setpf5()         1             1               1
-*   force5()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)       
+*   force5()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)
 *   action5()        1             1               1
 *
 * (these figures do not include the workspace required by the solvers).
@@ -143,11 +143,11 @@ double setpf5(double mu0,double mu1,int ipf,int isp,int icom,int *status)
    set_sd2zero(VOLUME/2,phi+(VOLUME/2));
    bnd_sd2zero(EVEN_PTS,phi);
    sp=solver_parms(isp);
-   
+
    if (sp.solver==CGNE)
    {
       tmcgeo(sp.nmx,sp.res,mu1,phi,psi,status);
-      
+
       error_root(status[0]<0,1,"setpf5 [force5.c]","CGNE solver failed "
                  "(mu = %.4e, parameter set no %d, status = %d)",
                  mu1,isp,status[0]);
@@ -167,10 +167,10 @@ double setpf5(double mu0,double mu1,int ipf,int isp,int icom,int *status)
       mulg5_dble(VOLUME/2,phi);
       sap_gcr(sp.nkv,sp.nmx,sp.res,mu1,phi,psi,status);
       mulg5_dble(VOLUME/2,phi);
-      
+
       error_root(status[0]<0,1,"setpf5 [force5.c]","SAP_GCR solver failed "
                  "(mu = %.4e, parameter set no %d, status = %d)",
-                 mu1,isp,status[0]);      
+                 mu1,isp,status[0]);
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
@@ -180,7 +180,7 @@ double setpf5(double mu0,double mu1,int ipf,int isp,int icom,int *status)
       mulg5_dble(VOLUME/2,phi);
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,phi,psi,status);
       mulg5_dble(VOLUME/2,phi);
-      
+
       error_root((status[0]<0)||(status[1]<0),1,"setpf5 [force5.c]",
                  "DFL_SAP_GCR solver failed (mu = %.4e, parameter set "
                  "no %d, status = %d,%d,%d)",mu1,isp,

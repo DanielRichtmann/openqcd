@@ -21,11 +21,11 @@ all: rmxeq mkdep mkxeq
  
 MAIN = check1 check2 check3
 
-FLAGS = flags lat_parms hmc_parms dfl_parms sf_parms
+FLAGS = flags lat_parms hmc_parms dfl_parms
 
 LATTICE = bcnds uidx ftidx geometry 
 
-ARCHIVE = archive marchive
+ARCHIVE = archive
 
 LINALG = liealg cmatrix_dble
 

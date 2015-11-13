@@ -6,6 +6,11 @@ first        7
 last         7
 step         1
 
+[Boundary conditions]
+type         0
+# phi        0.937 0.389
+# phi'       -0.283 1.23  
+
 [Wilson flow]
 n            100
 eps          0.02

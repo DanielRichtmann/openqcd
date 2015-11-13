@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the solver for the little Dirac equation
+* Check of the solver for the little Dirac equation.
 *
 *******************************************************************************/
 
@@ -36,9 +36,9 @@
 #include "global.h"
 
 int my_rank,id,first,last,step;
-int bs[4],Ns,nkv,nmx,eoflg;
-double kappa,csw,cF,mu;
-double m0,res;
+int bs[4],Ns,nkv,nmx,eoflg,bc;
+double kappa,csw,mu,cF,cF_prime;
+double phi[2],phi_prime[2],m0,res;
 char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 
 
@@ -47,10 +47,10 @@ static void new_subspace(void)
    int nb,isw,ifail;
    int n,nmax,k,l;
    spinor **mds,**ws;
-   sap_parms_t sp;   
+   sap_parms_t sp;
 
    blk_list(SAP_BLOCKS,&nb,&isw);
-   
+
    if (nb==0)
       alloc_bgr(SAP_BLOCKS);
 
@@ -62,10 +62,10 @@ static void new_subspace(void)
          "Inversion of the SW term was not safe");
 
    sp=sap_parms();
-   nmax=6;   
+   nmax=6;
    mds=reserve_ws(Ns);
    ws=reserve_ws(1);
-   
+
    for (k=0;k<Ns;k++)
    {
       random_s(VOLUME,mds[k],1.0f);
@@ -92,8 +92,8 @@ static void new_subspace(void)
       }
    }
 
-   dfl_subspace(mds);   
-   
+   dfl_subspace(mds);
+
    release_ws();
    release_ws();
 }
@@ -107,7 +107,6 @@ int main(int argc,char *argv[])
    double wt1,wt2,wdt;
    complex_dble **wvd,z;
    lat_parms_t lat;
-   sw_parms_t sw;
    dfl_parms_t dfl;
    FILE *flog=NULL,*fin=NULL;
 
@@ -131,16 +130,39 @@ int main(int argc,char *argv[])
       read_line("name","%s",nbase);
       read_line("cnfg_dir","%s",cnfg_dir);
       read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);  
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
 
       find_section("Lattice parameters");
       read_line("kappa","%lf",&kappa);
       read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);
       read_line("mu","%lf",&mu);
       read_line("eoflg","%d",&eoflg);
-      
+
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
+
+      if (bc!=3)
+         read_line("cF","%lf",&cF);
+
+      if (bc==2)
+         read_line("cF'","%lf",&cF_prime);
+      else
+         cF_prime=cF;
+
       find_section("DFL");
       read_line("bs","%d %d %d %d",bs,bs+1,bs+2,bs+3);
       read_line("Ns","%d",&Ns);
@@ -148,11 +170,11 @@ int main(int argc,char *argv[])
       find_section("GCR");
       read_line("nkv","%d",&nkv);
       read_line("nmx","%d",&nmx);
-      read_line("res","%lf",&res);      
-      
+      read_line("res","%lf",&res);
+
       fclose(fin);
    }
-   
+
    MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -164,43 +186,51 @@ int main(int argc,char *argv[])
    MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&mu,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&eoflg,1,MPI_INT,0,MPI_COMM_WORLD);
-   
-   MPI_Bcast(&bs,4,MPI_INT,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   start_ranlux(0,1234);
-   geometry();
+   lat=set_lat_parms(5.5,1.0,1,&kappa,csw);
+   print_lat_parms();
 
-   lat=set_lat_parms(6.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
+   set_bc_parms(bc,1.0,1.0,cF,cF_prime,phi,phi_prime);
+   print_bc_parms();
+
    set_sap_parms(bs,1,4,5);
-   m0=lat.m0u;
-   sw=set_sw_parms(m0);   
+   m0=lat.m0[0];
+   set_sw_parms(m0);
    set_tm_parms(eoflg);
    dfl=set_dfl_parms(bs,Ns);
    nv=Ns*VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
 
-   alloc_ws(Ns+1);   
+   start_ranlux(0,1234);
+   geometry();
+
+   alloc_ws(Ns+1);
    alloc_wv(2*nkv+1);
    alloc_wvd(7);
    wvd=reserve_wvd(4);
-   
+
    if (my_rank==0)
    {
-      printf("kappa = %.6f\n",lat.kappa_u);
-      printf("csw = %.6f\n",sw.csw);
-      printf("cF = %.6f\n",sw.cF);
       printf("mu = %.6f\n",mu);
-      printf("eoflg = %d\n\n",eoflg);      
-      
+      printf("eoflg = %d\n\n",eoflg);
+
       printf("bs = (%d,%d,%d,%d)\n",dfl.bs[0],dfl.bs[1],dfl.bs[2],dfl.bs[3]);
       printf("Ns = %d\n\n",dfl.Ns);
 
       printf("nkv = %d\n",nkv);
-      printf("nmx = %d\n",nmx);      
+      printf("nmx = %d\n",nmx);
       printf("res = %.2e\n\n",res);
 
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
@@ -210,7 +240,7 @@ int main(int argc,char *argv[])
 
    error_root(((last-first)%step)!=0,1,"main [check3.c]",
               "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
+   check_dir_root(cnfg_dir);
 
    nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
    error_root(nsize>=NAME_SIZE,1,"main [check3.c]",
@@ -220,12 +250,13 @@ int main(int argc,char *argv[])
    {
       sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
       import_cnfg(cnfg_file);
+      chs_ubnd(-1);
 
       if (my_rank==0)
       {
          printf("Configuration no %d\n",icnfg);
          fflush(flog);
-      } 
+      }
 
       new_subspace();
       random_vd(nv,wvd[0],1.0);
@@ -234,14 +265,14 @@ int main(int argc,char *argv[])
       set_Awhat(mu);
 
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();              
+      wt1=MPI_Wtime();
 
       rho=ltl_gcr(nkv,nmx,res,mu,wvd[0],wvd[1],&status);
 
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wdt=wt2-wt1;
-      
+
       error_chk();
       z.re=-1.0;
       z.im=0.0;
@@ -257,7 +288,7 @@ int main(int argc,char *argv[])
       Aweeinv_dble(wvd[2],wvd[3]);
       assign_vd2vd(nv/2,wvd[3],wvd[2]);
       del=sqrt(vnorm_square_dble(nv,1,wvd[2]));
-      
+
       if (my_rank==0)
       {
          printf("status = %d\n",status);
@@ -280,7 +311,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
       fclose(flog);
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

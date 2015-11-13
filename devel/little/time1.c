@@ -3,12 +3,12 @@
 *
 * File time1.c
 *
-* Copyright (C) 2007, 2008, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2007, 2008, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of Awhat()
+* Timing of Awhat().
 *
 *******************************************************************************/
 
@@ -45,7 +45,7 @@ static void random_basis(int Ns)
       random_s(VOLUME,ws[i],1.0f);
       bnd_s2zero(ALL_PTS,ws[i]);
    }
-   
+
    dfl_subspace(ws);
    release_ws();
 }
@@ -53,12 +53,13 @@ static void random_basis(int Ns)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,count,nt;
+   int my_rank,bc,count,nt;
    int i,nflds,ifail;
    int bs[4],Ns,nb,nbb,nv;
+   double phi[2],phi_prime[2];
    double mu,wt1,wt2,wdt;
    complex **wv;
-   FILE *fin=NULL,*flog=NULL;   
+   FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -67,11 +68,11 @@ int main(int argc,char *argv[])
    {
       flog=freopen("time1.log","w",stdout);
       fin=freopen("check3.in","r",stdin);
-      
+
       printf("\n");
       printf("Timing of Awhat()\n");
-      printf("-----------------\n\n");   
-      
+      printf("-----------------\n\n");
+
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
@@ -82,15 +83,29 @@ int main(int argc,char *argv[])
 
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
       printf("Ns = %d\n\n",Ns);
-      fflush(flog);      
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
+                    "Syntax: time1 [-bc <type>]");
    }
 
-   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
 
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,1.0,1.234);
+   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
+
    set_sw_parms(0.125);
-   set_dfl_parms(bs,Ns);   
+   set_dfl_parms(bs,Ns);
    mu=0.0376;
 
    nb=VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
@@ -99,13 +114,14 @@ int main(int argc,char *argv[])
           FACE2/(bs[0]*bs[1]*bs[3])+
           FACE3/(bs[0]*bs[1]*bs[2]));
    nv=Ns*nb;
-   
-   start_ranlux(0,123456);   
+
+   start_ranlux(0,123456);
    geometry();
 
    alloc_ws(Ns);
    alloc_wvd(2);
    random_ud();
+   chs_ubnd(-1);
    random_basis(Ns);
 
    ifail=set_Awhat(mu);
@@ -122,7 +138,7 @@ int main(int argc,char *argv[])
              (double)(sizeof(complex)*8*Ns*nv)*1.0e-6);
       fflush(flog);
    }
-   
+
    nflds=(int)(1.0e6/(double)(sizeof(complex)*nv));
    if ((nflds%2)!=0)
       nflds+=1;
@@ -139,26 +155,26 @@ int main(int argc,char *argv[])
    if (nt<1)
       nt=1;
    wdt=0.0;
-   
+
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime(); 
+      wt1=MPI_Wtime();
       for (count=0;count<nt;count++)
       {
          for (i=0;i<nflds;i+=2)
             Awhat(wv[i],wv[i+1]);
       }
       MPI_Barrier(MPI_COMM_WORLD);
-      wt2=MPI_Wtime();   
+      wt2=MPI_Wtime();
 
       wdt=wt2-wt1;
       nt*=2;
-   } 
+   }
 
    error_chk();
    wdt=4.0e6*wdt/(double)(nt*nflds);
-   
+
    if (my_rank==0)
    {
       printf("Time per application of Awhat(), including communications:\n");
@@ -179,13 +195,15 @@ int main(int argc,char *argv[])
 
       while (wdt<5.0)
       {
+         for (i=0;i<nflds;i+=2)
+            set_v2zero((nbb/2)*Ns,wv[i+1]+nv);
+
          MPI_Barrier(MPI_COMM_WORLD);
-         wt1=MPI_Wtime(); 
+         wt1=MPI_Wtime();
          for (count=0;count<nt;count++)
          {
             for (i=0;i<nflds;i+=2)
             {
-               set_v2zero((nbb/2)*Ns,wv[i+1]+nv);               
                cpv_int_bnd(wv[i]);
                cpv_ext_bnd(wv[i+1]);
             }
@@ -197,7 +215,7 @@ int main(int argc,char *argv[])
          nt*=2;
       }
 
-      wdt=4.0e6*wdt/(double)(nt*nflds);      
+      wdt=4.0e6*wdt/(double)(nt*nflds);
 
       if (my_rank==0)
       {
@@ -208,10 +226,10 @@ int main(int argc,char *argv[])
          printf("Per point: %4.3f usec\n\n",wdt/(double)(VOLUME));
       }
    }
-   
+
    if (my_rank==0)
       fclose(flog);
 
-   MPI_Finalize();   
+   MPI_Finalize();
    exit(0);
 }

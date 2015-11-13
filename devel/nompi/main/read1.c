@@ -3,17 +3,19 @@
 *
 * File read1.c
 *
-* Copyright (C) 2010, 2011 Martin Luescher
+* Copyright (C) 2010-2014 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Reads and evaluates data from the *.dat files created by the programs qcd1,
-* qcd2 and ym1. The file to be read has to be specified on the command line.
+* Reads and evaluates data from the *.dat files created by the programs qcd1
+* and ym1. The file to be read has to be specified on the command line.
 *
-* This program prints some information on the energy deficit <dH> and the
-* average acceptance rate to stdout. Furthermore, the average and integrated
-* autocorrelation time of the plaquette are computed.
+* This program writes the history of the MD energy deficit dH, the acceptance
+* flag iac and the average plaquette to the file <run name>.run1.dat in the
+* plots directory. In addition, some information about the distribution of dH
+* and the integrated autocorrelation time of the plaquette are printed to
+* stdout.
 *
 *******************************************************************************/
 
@@ -29,7 +31,7 @@
 typedef struct
 {
    int nt,iac;
-   double dH,avpl;   
+   double dH,avpl;
 } dat_t;
 
 static int nms,nfirst,nlast,neff;
@@ -42,7 +44,7 @@ static int read_dat(int n,dat_t *ndat,FILE *fin)
    stdint_t istd[2];
    double dstd[2];
 
-   endian=endianness();   
+   endian=endianness();
    ic=0;
 
    for (i=0;i<n;i++)
@@ -58,19 +60,19 @@ static int read_dat(int n,dat_t *ndat,FILE *fin)
          bswap_int(2,istd);
          bswap_double(2,dstd);
       }
-      
+
       (*ndat).nt=(int)(istd[0]);
       (*ndat).iac=(int)(istd[1]);
 
-      (*ndat).dH=dstd[0];      
+      (*ndat).dH=dstd[0];
       (*ndat).avpl=dstd[1];
-      
+
       ic+=1;
       ndat+=1;
    }
-   
+
    return ic;
-} 
+}
 
 
 static void read_file(char *fin)
@@ -85,13 +87,13 @@ static void read_file(char *fin)
    printf("Read data from file %s\n\n",fin);
    ipos=ftell(fdat);
    nms=0;
-      
+
    while (read_dat(1,&ndat,fdat)==1)
       nms+=1;
 
    error(nms==0,1,"read_file [read1.c]",
          "Empty data file");
-   
+
    adat=amalloc(nms*sizeof(*adat),3);
    error(adat==NULL,1,"read_file [read1.c]",
          "Unable to allocate data array");
@@ -107,19 +109,19 @@ static void select_range(void)
 {
    int n,no,nf,nl;
    int np,dn,ie;
-   
-   printf("There are %d measurements (trajectories no %d - %d)\n",
+
+   printf("There are %d measurements (trajectories no %d - %d).\n",
           nms,adat[0].nt,adat[nms-1].nt);
    printf("Range [nfirst,nlast] of trajectories to analyse: ");
    scanf("%d %d",&nfirst,&nlast);
 
    nf=0;
    nl=0;
-      
+
    for (n=0;n<nms;n++)
    {
       no=adat[n].nt;
-      
+
       if (no<nfirst)
          nf+=1;
 
@@ -130,13 +132,13 @@ static void select_range(void)
    nfirst=nf;
    nlast=nl;
    neff=nlast-nfirst;
-      
-   printf("Keep %d measurements (trajectories no %d - %d)\n\n",
+
+   printf("Keep %d measurements (trajectories no %d - %d).\n\n",
           neff,adat[nfirst].nt,adat[nlast-1].nt);
 
    error(neff<2,1,"select_range [read1.c]",
          "Selected range contains less than 2 measurements");
-   
+
    np=adat[nfirst].nt;
    dn=adat[nfirst+1].nt-adat[nfirst].nt;
 
@@ -145,7 +147,7 @@ static void select_range(void)
    else
    {
       ie=0;
-         
+
       for (n=(nfirst+1);n<nlast;n++)
       {
          no=adat[n].nt;
@@ -201,24 +203,24 @@ static void print_plot(char *fin)
    else
       p+=1;
    n-=(p-fin);
-   
+
    error(n>=NAME_SIZE,1,"print_plot [read1.c]","File name is too long");
    strncpy(base,p,n);
    base[n]='\0';
-   
-   error(name_size("plots/%s.run.dat",base)>=NAME_SIZE,1,
+
+   error(name_size("plots/%s.run1.dat",base)>=NAME_SIZE,1,
          "print_plot [read1.c]","File name is too long");
-   sprintf(plt_file,"plots/%s.run.dat",base);
+   sprintf(plt_file,"plots/%s.run1.dat",base);
    fout=fopen(plt_file,"w");
    error(fout==NULL,1,"print_plot [read1.c]",
-         "Unable to open output file");   
-   
+         "Unable to open output file");
+
    fprintf(fout,"#\n");
    fprintf(fout,"# Data written by the program ym1 or qcd1\n");
    fprintf(fout,"# ---------------------------------------\n");
    fprintf(fout,"#\n");
    fprintf(fout,"# Number of measurements = %d\n",nms);
-   fprintf(fout,"#\n");   
+   fprintf(fout,"#\n");
    fprintf(fout,"# nt:   trajectory number\n");
    fprintf(fout,"# dH:   MD energy deficit\n");
    fprintf(fout,"# iac:  acceptance flag\n");
@@ -227,13 +229,13 @@ static void print_plot(char *fin)
    fprintf(fout,"#\n");
 
    ndat=adat;
-   
+
    for (ims=0;ims<nms;ims++)
    {
       fprintf(fout," %5d  ",(*ndat).nt);
-      fprintf(fout," % .4e  ",(*ndat).dH);      
+      fprintf(fout," % .4e  ",(*ndat).dH);
       fprintf(fout," %1d  ",(*ndat).iac);
-      fprintf(fout," %.8e",(*ndat).avpl);            
+      fprintf(fout," %.8e",(*ndat).avpl);
       fprintf(fout,"\n");
 
       ndat+=1;
@@ -248,8 +250,8 @@ static void print_plot(char *fin)
 int main(int argc,char *argv[])
 {
    int n;
-   double **pa,*a,abar;
-   
+   double *a,abar;
+
    error(argc!=2,1,"main [read1.c]","Syntax: read1 <filename>");
 
    printf("\n");
@@ -259,20 +261,18 @@ int main(int argc,char *argv[])
    read_file(argv[1]);
    select_range();
 
-   pa=amalloc(1*sizeof(*pa),3);
-   a=amalloc(neff*sizeof(double),3);
-   error((pa==NULL)||(a==NULL),1,"main [read1.c]",
+   a=malloc(neff*sizeof(double));
+   error(a==NULL,1,"main [read1.c]",
          "Unable to allocate data array");
-   *pa=a;
 
    for (n=0;n<neff;n++)
       a[n]=fabs(adat[nfirst+n].dH);
 
    printf("Fraction of trajectories with |dH| larger than\n\n");
    printf("    1.0: %.4f\n",tail(neff,a,1.0));
-   printf("    2.0: %.4f\n",tail(neff,a,2.0));      
-   printf("   10.0: %.4f\n",tail(neff,a,10.0));         
-   printf("  100.0: %.4f\n",tail(neff,a,100.0));         
+   printf("    2.0: %.4f\n",tail(neff,a,2.0));
+   printf("   10.0: %.4f\n",tail(neff,a,10.0));
+   printf("  100.0: %.4f\n",tail(neff,a,100.0));
    printf(" 1000.0: %.4f\n",tail(neff,a,1000.0));
    printf("\n");
 
@@ -298,7 +298,7 @@ int main(int argc,char *argv[])
 
    printf("<iac> = %.3f (%.3f)\n\n",
           average(neff,a),sigma0(neff,a));
-   
+
    for (n=0;n<neff;n++)
       a[n]=adat[nfirst+n].avpl;
 
@@ -319,7 +319,7 @@ int main(int argc,char *argv[])
    if (neff>=100)
       abar=print_auto(neff,a);
    else
-      abar=print_jack(1,neff,pa,f);
+      abar=print_jack(1,neff,&a,f);
 
    printf(" <tr{U(p)}> = %1.6f\n\n",abar);
 

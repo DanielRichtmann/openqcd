@@ -1,8 +1,9 @@
 
 ################################################################################
 #
-# 2+1 flavour QCD "at the physical point" with Iwasaki action, second kind of 
-# twisted-mass reweighting and even-odd preconditioning
+# 2+1 flavour QCD "at the physical point" with Iwasaki action, open boundary
+# conditions, second kind of light-quark twisted-mass reweighting and even-odd
+# preconditioning.
 #
 ################################################################################
 
@@ -18,10 +19,11 @@ cnfg_dir     /data/openQCD/cnfg
 [Lattice parameters]
 beta         1.9
 c0           3.648
-kappa_u      0.137796
-kappa_s      0.136634
-kappa_c      0.0
+kappa        0.137796 0.136634
 csw          1.715
+
+[Boundary conditions]
+type         0
 cG           1.0
 cF           1.0
 
@@ -51,13 +53,13 @@ forces       0
 [Level 1]
 integrator   OMF4
 nstep        1
-forces       1 2 3 5 6 
+forces       1 2 3 5 6
 
 [Level 2]
 integrator   OMF2
 lambda       0.1666667
 nstep        6
-forces       4 7 8 
+forces       4 7 8
 
 [Rational 0]
 degree       9
@@ -84,14 +86,14 @@ isp          1 0
 action       ACF_TM2_EO
 ipf          2
 im0          0
-imu          0 2 
+imu          0 2
 isp          1 1
 
 [Action 4]
 action       ACF_TM2_EO
 ipf          3
 im0          0
-imu          0 1 
+imu          0 1
 isp          1 1
 
 [Action 5]
@@ -172,7 +174,7 @@ nkv          24
 isolv        1
 nmr          4
 ncy          5
-nmx          1024
+nmx          128
 res          1.0e-11
 
 [Solver 2]
@@ -186,7 +188,7 @@ nkv          24
 isolv        1
 nmr          4
 ncy          5
-nmx          1024
+nmx          128
 res          1.0e-10
 
 [Solver 4]
@@ -208,14 +210,14 @@ Ns           28
 
 [Deflation subspace generation]
 kappa        0.13770
-mu           0.005
+mu           0.001
 ninv         9
 nmr          4
 ncy          4
 
 [Deflation projection]
 nkv          24
-nmx          512
+nmx          128
 res          1.0e-2
 
 [Deflation update scheme]
@@ -225,5 +227,5 @@ nsm          1
 [Wilson flow]
 integrator   RK3
 eps          1.0e-2
-nstep        600   
-dnms         10    
+nstep        600
+dnms         10

@@ -8,13 +8,13 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Basic functions for double-precision Hermitian 6x6 matrices
+* Basic functions for double-precision Hermitian 6x6 matrices.
 *
 * The externally accessible functions are
 *
 *   void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
-*     Multiplies the Weyl spinor s by the matrix m+i*mu and assigns the 
-*     result to the Weyl spinor r. The source spinor is overwritten if 
+*     Multiplies the Weyl spinor s by the matrix m+i*mu and assigns the
+*     result to the Weyl spinor r. The source spinor is overwritten if
 *     r=s and otherwise left unchanged.
 *
 *   int inv_pauli_dble(double mu,pauli_dble *m,pauli_dble *im)
@@ -36,10 +36,10 @@
 *   int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
 *                        spinor_dble *r)
 *     Applies the inverse of the matrix field m[2*vol]+i*mu*gamma_5 to the
-*     spinor field s[vol] and assigns the result to the field r[vol]. The 
-*     source field is overwritten if r=s and otherwise left unchanged (the 
-*     arrays may not overlap in this case). On exit the program returns 0 
-*     or 1 depending on whether the matrix inversions were safe or not (in 
+*     spinor field s[vol] and assigns the result to the field r[vol]. The
+*     source field is overwritten if r=s and otherwise left unchanged (the
+*     arrays may not overlap in this case). On exit the program returns 0
+*     or 1 depending on whether the matrix inversions were safe or not (in
 *     the latter case, the output field is unusable).
 *
 * Notes:
@@ -96,7 +96,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
    m+=2;
    _prefetch_pauli_dble(m);
    m-=2;
-   
+
    __asm__ __volatile__ ("vmovsd %0, %%xmm14 \n\t"
                          "vmovsd %1, %%xmm2 \n\t"
                          "vmovsd %2, %%xmm3 \n\t"
@@ -125,18 +125,18 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "vpermilpd $0x5, %%ymm3, %%ymm9"
                          :
                          :
-                         "m" ((*m).u[6]),                         
+                         "m" ((*m).u[6]),
                          "m" ((*m).u[7]),
                          "m" ((*m).u[16]),
                          "m" ((*m).u[17]),
                          "m" ((*s).c1.c1.re),
                          "m" ((*s).c1.c1.im),
-                         "m" ((*s).c1.c2.re),                         
+                         "m" ((*s).c1.c2.re),
                          "m" ((*s).c1.c2.im)
                          :
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm4", "xmm8", "xmm9", "xmm10");
-   
+
    __asm__ __volatile__ ("vmulpd %%ymm0, %%ymm2, %%ymm2 \n\t"
                          "vmulpd %%ymm1, %%ymm3, %%ymm3 \n\t"
                          "vmulpd %%ymm1, %%ymm4, %%ymm4 \n\t"
@@ -158,7 +158,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
    s+=4;
    _prefetch_weyl(s);
    s-=4;
-   
+
    __asm__ __volatile__ ("vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
                          "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
                          "vmulpd %%ymm0, %%ymm10, %%ymm10 \n\t"
@@ -180,7 +180,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "xmm2", "xmm3", "xmm4", "xmm5",
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10");
-   
+
    __asm__ __volatile__ ("vpermilpd $0x5, %%ymm5, %%ymm8 \n\t"
                          "vpermilpd $0x5, %%ymm6, %%ymm9 \n\t"
                          "vpermilpd $0x5, %%ymm7, %%ymm10 \n\t"
@@ -191,7 +191,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "vmulpd %%ymm1, %%ymm7, %%ymm7 \n\t"
                          "vmulpd %%ymm0, %%ymm8, %%ymm8 \n\t"
                          "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
-                         "vmulpd %%ymm0, %%ymm10, %%ymm10"  
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10"
                          :
                          :
                          :
@@ -232,12 +232,12 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "m" ((*s).c1.c3.re),
                          "m" ((*s).c1.c3.im),
                          "m" ((*s).c2.c1.re),
-                         "m" ((*s).c2.c1.im)                             
+                         "m" ((*s).c2.c1.im)
                          :
                          "xmm0", "xmm1", "xmm5", "xmm6",
                          "xmm7", "xmm8", "xmm9", "xmm10",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vmulpd %%ymm0, %%ymm11, %%ymm11 \n\t"
                          "vmulpd %%ymm0, %%ymm12, %%ymm12 \n\t"
                          "vmulpd %%ymm0, %%ymm13, %%ymm13 \n\t"
@@ -280,7 +280,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm2", "xmm3", "xmm4", "xmm11",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vperm2f128 $0x1, %%ymm11, %%ymm11, %%ymm11\n\t"
                          "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
                          "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
@@ -293,7 +293,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "vaddpd %%ymm13, %%ymm7, %%ymm7 \n\t"
                          "vmulpd %%ymm0, %%ymm8, %%ymm8 \n\t"
                          "vmulpd %%ymm0, %%ymm9, %%ymm9 \n\t"
-                         "vmulpd %%ymm0, %%ymm10, %%ymm10"  
+                         "vmulpd %%ymm0, %%ymm10, %%ymm10"
                          :
                          :
                          :
@@ -308,20 +308,20 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "m" ((*m).u[12]),
                          "m" ((*m).u[13]),
                          "m" ((*m).u[14]),
-                         "m" ((*m).u[15]),                         
+                         "m" ((*m).u[15]),
                          "m" ((*m).u[20]),
                          "m" ((*m).u[21]),
                          "m" ((*m).u[22]),
-                         "m" ((*m).u[23])                         
+                         "m" ((*m).u[23])
                          :
                          "xmm11", "xmm12");
-   
+
    __asm__ __volatile__ ("vmovupd %0, %%ymm13 \n\t"
                          "vaddsubpd %%ymm8, %%ymm5, %%ymm5 \n\t"
                          "vaddsubpd %%ymm9, %%ymm6, %%ymm6 \n\t"
                          "vaddsubpd %%ymm10, %%ymm7, %%ymm7 \n\t"
                          "vmovddup %4, %%ymm0 \n\t"
-                         "vmovddup %5, %%ymm1 \n\t"                           
+                         "vmovddup %5, %%ymm1 \n\t"
                          "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
                          "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
                          "vpermilpd $0x5, %%ymm13, %%ymm10"
@@ -330,12 +330,12 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "m" ((*m).u[26]),
                          "m" ((*m).u[27]),
                          "m" ((*m).u[28]),
-                         "m" ((*m).u[29]),                         
+                         "m" ((*m).u[29]),
                          "m" ((*s).c2.c2.re),
                          "m" ((*s).c2.c2.im),
                          "m" ((*s).c2.c3.re),
                          "m" ((*s).c2.c3.im)
-                         
+
                          :
                          "xmm0", "xmm1", "xmm5", "xmm6",
                          "xmm7", "xmm8", "xmm9", "xmm10",
@@ -349,7 +349,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "vaddpd %%ymm13, %%ymm4, %%ymm4 \n\t"
                          "vmovupd %0, %%ymm11 \n\t"
                          "vmovsd %4, %%xmm12 \n\t"
-                         "vmovsd %5, %%xmm13 \n\t" 
+                         "vmovsd %5, %%xmm13 \n\t"
                          "vmulpd %%ymm1, %%ymm8, %%ymm8 \n\t"
                          "vmulpd %%ymm1, %%ymm9, %%ymm9 \n\t"
                          "vmulpd %%ymm1, %%ymm10, %%ymm10"
@@ -358,7 +358,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "m" ((*m).u[30]),
                          "m" ((*m).u[31]),
                          "m" ((*m).u[32]),
-                         "m" ((*m).u[33]),                         
+                         "m" ((*m).u[33]),
                          "m" ((*m).u[4]),
                          "m" ((*m).u[5])
                          :
@@ -380,7 +380,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm2", "xmm3", "xmm4", "xmm12",
                          "xmm13");
-   
+
    __asm__ __volatile__ ("vperm2f128 $0x1, %%ymm13, %%ymm13, %%ymm13 \n\t"
                          "vpermilpd $0x5, %%ymm11, %%ymm8 \n\t"
                          "vpermilpd $0x5, %%ymm12, %%ymm9 \n\t"
@@ -420,14 +420,14 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "vaddpd %%ymm12, %%ymm13, %%ymm6 \n\t"
                          "vmovapd %%ymm2, %0 \n\t"
                          "vmovapd %%ymm4, %2 \n\t"
-                         "vmovapd %%ymm6, %4"                         
+                         "vmovapd %%ymm6, %4"
                          :
                          "=m" ((*r).c1.c1),
                          "=m" ((*r).c1.c2),
                          "=m" ((*r).c1.c3),
-                         "=m" ((*r).c2.c1),                         
+                         "=m" ((*r).c2.c1),
                          "=m" ((*r).c2.c2),
-                         "=m" ((*r).c2.c3)                         
+                         "=m" ((*r).c2.c3)
                          :
                          :
                          "xmm2", "xmm4", "xmm5", "xmm6",
@@ -450,7 +450,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "movapd %%xmm10, %%xmm11 \n\t"
                          "movapd %%xmm13, %%xmm14 \n\t"
                          "movapd %%xmm10, %%xmm12 \n\t"
-                         "movapd %%xmm13, %%xmm15"                         
+                         "movapd %%xmm13, %%xmm15"
                          :
                          :
                          "m" (mu),
@@ -470,7 +470,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "mulpd %%xmm12, %%xmm2 \n\t"
                          "mulpd %%xmm10, %%xmm3 \n\t"
                          "mulpd %%xmm11, %%xmm4 \n\t"
-                         "mulpd %%xmm12, %%xmm5"                         
+                         "mulpd %%xmm12, %%xmm5"
                          :
                          :
                          "m" ((*s).c1.c1),
@@ -478,11 +478,11 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "m" ((*s).c1.c3),
                          "m" ((*s).c2.c1),
                          "m" ((*s).c2.c2),
-                         "m" ((*s).c2.c3)                         
+                         "m" ((*s).c2.c3)
                          :
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm4", "xmm5");
-   
+
    __asm__ __volatile__ ("movddup %0, %%xmm6 \n\t"
                          "movddup %1, %%xmm7 \n\t"
                          "movddup %2, %%xmm8 \n\t"
@@ -504,7 +504,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
    s+=2;
    _prefetch_weyl_dble(s);
    s-=2;
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -590,7 +590,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -615,7 +615,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm4", "xmm5", "xmm6", "xmm7",
                          "xmm8", "xmm9", "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("movddup %0, %%xmm6 \n\t"
                          "movddup %1, %%xmm7 \n\t"
                          "movddup %2, %%xmm8 \n\t"
@@ -633,7 +633,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -676,7 +676,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -737,7 +737,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -780,7 +780,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -823,7 +823,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -866,7 +866,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -952,7 +952,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    __asm__ __volatile__ ("mulpd %0, %%xmm6 \n\t"
                          "mulpd %1, %%xmm7 \n\t"
                          "mulpd %2, %%xmm8 \n\t"
@@ -1629,21 +1629,21 @@ static double norm_aa(void)
 
 static void apply_aa(complex_dble *v,complex_dble *w)
 {
-   cmat_vec_dble(6,aa,v,cc);   
+   cmat_vec_dble(6,aa,v,cc);
 
    w[0].re=cc[0].re;
    w[0].im=cc[0].im;
    w[1].re=cc[1].re;
    w[1].im=cc[1].im;
    w[2].re=cc[2].re;
-   w[2].im=cc[2].im;   
+   w[2].im=cc[2].im;
 
    w[3].re=cc[3].re;
    w[3].im=cc[3].im;
    w[4].re=cc[4].re;
    w[4].im=cc[4].im;
    w[5].re=cc[5].re;
-   w[5].im=cc[5].im;    
+   w[5].im=cc[5].im;
 }
 
 
@@ -1708,7 +1708,7 @@ complex_dble det_pauli_dble(double mu,pauli_dble *m)
          r1+=(aa[6*j+k].re*aa[6*j+k].re+aa[6*j+k].im*aa[6*j+k].im);
 
       r1=sqrt(r1);
-      
+
       if (r1<=eps)
       {
          w.re=0.0;
@@ -1716,7 +1716,7 @@ complex_dble det_pauli_dble(double mu,pauli_dble *m)
 
          return w;
       }
-      
+
       if (r2>=(DBL_EPSILON*r1))
       {
          r3=1.0/r2;
@@ -1733,7 +1733,7 @@ complex_dble det_pauli_dble(double mu,pauli_dble *m)
       w.im=det.re*z.im+det.im*z.re;
       det.re=w.re;
       det.im=w.im;
-      
+
       aa[6*k+k].re+=z.re;
       aa[6*k+k].im+=z.im;
       r3=1.0/(r1*(r1+r2));
@@ -1762,7 +1762,7 @@ complex_dble det_pauli_dble(double mu,pauli_dble *m)
 
    w.re=det.re*aa[35].re-det.im*aa[35].im;
    w.im=det.re*aa[35].im+det.im*aa[35].re;
-      
+
    return w;
 }
 
@@ -1773,7 +1773,7 @@ void apply_sw_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
    spin_t *ps,*pr,*pm;
 
    ps=(spin_t*)(s);
-   pr=(spin_t*)(r);   
+   pr=(spin_t*)(r);
    pm=ps+vol;
 
    for (;ps<pm;ps++)
@@ -1796,7 +1796,7 @@ int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
 
    ifail=0;
    ps=(spin_t*)(s);
-   pr=(spin_t*)(r);   
+   pr=(spin_t*)(r);
    pm=ps+vol;
 
    for (;ps<pm;ps++)
@@ -1804,7 +1804,7 @@ int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
       eps=DELTA*set_aa(mu,m);
       ifail|=fwd_house(eps);
       solv_sys();
-      bck_house();      
+      bck_house();
       if ((eps*norm_aa())>1.0)
          ifail=1;
       apply_aa((*ps).c,(*pr).c);
@@ -1813,7 +1813,7 @@ int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
       eps=DELTA*set_aa(-mu,m);
       ifail|=fwd_house(eps);
       solv_sys();
-      bck_house();      
+      bck_house();
       if ((eps*norm_aa())>1.0)
          ifail=1;
       apply_aa((*ps).c+6,(*pr).c+6);

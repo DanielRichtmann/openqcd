@@ -3,12 +3,12 @@
 *
 * File sw_term.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the SW term 
+* Computation of the SW term.
 *
 * The externally accessible functions are
 *
@@ -20,25 +20,32 @@
 *
 * Notes:
 *
-* The calculated matrix is equal to 1 at global time 0 and NPROC0*L0-1. At
-* all other times it is given by
+* The program sets the SW term to unity at global time
+*
+*  x0=0                (open, SF and open-SF boundary conditions),
+*
+*  x0=NPROC0*L0-1      (open boundary conditions).
+*
+* In all other cases, it is given by
 *
 *    c(x0)+csw*(i/4)*sigma_{mu nu}*Fhat_{mu nu}(x)
 *
 * where
-*           
-*    c(x0) = 4+m0+cF-1     if x0=1 or NPROC0*L0-2,     
-*            4+m0          otherwise,
-*           
+*
+*    c(x0) = 4+m0+cF[0]-1     if x0=1 (open, SF or open-SF bc),
+*            4+m0+cF[1]-1     if x0=NPROCO*L0-2 (open bc),
+*                             or x0=NPROC0*L0-1 (SF or open-SF bc),
+*            4+m0             otherwise,
+*
 *    sigma_{mu nu}=(i/2)*[gamma_mu,gamma_nu],
 *
 * and Fhat_{mu nu} is the standard (clover) expression for the gauge field
 * tensor as computed by the program ftensor() [tcharge/ftensor.c]. The upper
 * and lower 6x6 blocks of the matrix are stored in the pauli_dble structures
-* swd[2*ix] and swd[2*ix+1], where ix is the label of the point x. 
+* swd[2*ix] and swd[2*ix+1], where ix is the label of the point x.
 *
 * The quark mass m0 and the improvement coefficients csw and cF are obtained
-* from the parameter data base by calling sw_parms() [flags/parms.c]. Note
+* from the parameter data base by calling sw_parms() [flags/lat_parms.c]. Note
 * that this program checks the flags data base and only computes those parts
 * of the SW array that do not already have the correct values.
 *
@@ -61,9 +68,11 @@
 #include "sw_term.h"
 #include "global.h"
 
-static double c1,c2,c3;
+#define N0 (NPROC0*L0)
+
+static double c1,c2,c3[2];
 static u3_alg_dble X ALIGNED16;
-static const pauli_dble sw0={{1.0,1.0,1.0,1.0,1.0,1.0, 
+static const pauli_dble sw0={{1.0,1.0,1.0,1.0,1.0,1.0,
                               0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,
                               0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,
                               0.0,0.0,0.0,0.0,0.0,0.0}};
@@ -142,10 +151,11 @@ static void u3_alg2pauli3(pauli_dble *m)
 
 static void set_swd(int vol,int ofs,u3_alg_dble **ft,pauli_dble *sw)
 {
-   int ix,t;
+   int bc,ix,t;
    double c,*u;
    u3_alg_dble *ft0,*ft1,*ft2,*ft3,*ft4,*ft5;
 
+   bc=bc_type();
    vol+=ofs;
    sw+=2*ofs;
    ft0=ft[0]+ofs;
@@ -153,32 +163,34 @@ static void set_swd(int vol,int ofs,u3_alg_dble **ft,pauli_dble *sw)
    ft2=ft[2]+ofs;
    ft3=ft[3]+ofs;
    ft4=ft[4]+ofs;
-   ft5=ft[5]+ofs;   
+   ft5=ft[5]+ofs;
 
    for (ix=ofs;ix<vol;ix++)
    {
       t=global_time(ix);
 
-      if ((t==0)||(t==(NPROC0*L0-1)))
+      if (((t==0)&&(bc!=3))||((t==(N0-1))&&(bc==0)))
       {
          sw[0]=sw0;
-         sw[1]=sw0;         
+         sw[1]=sw0;
          sw+=2;
       }
       else
       {
-         if ((t==1)||(t==(NPROC0*L0-2)))
-            c=c3;
+         if ((t==1)&&(bc!=3))
+            c=c3[0];
+         else if (((t==(N0-2))&&(bc==0))||((t==(N0-1))&&((bc==1)||(bc==2))))
+            c=c3[1];
          else
             c=c1;
-      
+
          _u3_alg_mul_sub(X,c2,*ft3,*ft0);
          u3_alg2pauli1(sw);
          _u3_alg_mul_sub(X,c2,*ft4,*ft1);
          u3_alg2pauli2(sw);
          _u3_alg_mul_sub(X,c2,*ft5,*ft2);
          u3_alg2pauli3(sw);
-         
+
          u=(*sw).u;
          u[0]+=c;
          u[1]+=c;
@@ -226,9 +238,11 @@ static int iswd(int vol,pauli_dble *sw)
    for (;sw<sm;sw++)
       ifail|=inv_pauli_dble(0.0,sw,sw);
 
-   MPI_Reduce(&ifail,&n,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD); 
-   MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+   if (NPROC>1)
+      MPI_Allreduce(&ifail,&n,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
+   else
+      n=ifail;
+
    return n;
 }
 
@@ -248,22 +262,23 @@ int sw_term(ptset_t set)
       error(iprms[0]!=(int)(set),1,"sw_term [sw_term.c]",
             "Parameter is not global");
    }
-   
+
    swp=sw_parms();
    c1=4.0+swp.m0;
    c2=-0.5*swp.csw;
-   c3=c1+swp.cF-1.0;
-   
+   c3[0]=c1+swp.cF[0]-1.0;
+   c3[1]=c1+swp.cF[1]-1.0;
+
    if (query_flags(SWD_UP2DATE)!=1)
    {
       ft=ftensor();
       sw=swdfld();
-      set_swd(VOLUME,0,ft,sw);      
+      set_swd(VOLUME,0,ft,sw);
       set_flags(COMPUTED_SWD);
    }
 
    ie=query_flags(SWD_E_INVERTED);
-   io=query_flags(SWD_O_INVERTED);      
+   io=query_flags(SWD_O_INVERTED);
 
    if ((ie==1)&&((set==NO_PTS)||(set==ODD_PTS)))
    {
@@ -279,7 +294,7 @@ int sw_term(ptset_t set)
       sw=swdfld();
       set_swd(VOLUME/2,VOLUME/2,ft,sw);
       io=0;
-   }      
+   }
 
    ifail=0;
 
@@ -303,7 +318,7 @@ int sw_term(ptset_t set)
       set_flags(INVERTED_SWD_E);
 
    if (io==1)
-      set_flags(INVERTED_SWD_O);   
+      set_flags(INVERTED_SWD_O);
 
    return ifail;
 }

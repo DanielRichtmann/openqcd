@@ -3,18 +3,17 @@
 *
 * File qcd1.c
 *
-* Copyright (C) 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* HMC simulation program for QCD with Wilson quarks and open boundary
-* conditions
+* HMC simulation program for QCD with Wilson quarks.
 *
 * Syntax: qcd1 -i <filename> [-noloc] [-noexp] [-rmold] [-noms]
 *                            [-c <filename> [-a [-norng]]]
 *
-* For usage instructions see the file README.qcd1
+* For usage instructions see the file README.qcd1.
 *
 *******************************************************************************/
 
@@ -81,7 +80,6 @@ static char cnfg_file[NAME_SIZE],end_file[NAME_SIZE];
 static char nbase[NAME_SIZE],cnfg[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fdat=NULL,*fend=NULL;
 
-static lat_parms_t lat;
 static hmc_parms_t hmc;
 
 
@@ -92,21 +90,21 @@ static int write_dat(int n,dat_t *ndat)
    double dstd[2];
 
    ic=0;
-   
+
    for (i=0;i<n;i++)
    {
       istd[0]=(stdint_t)((*ndat).nt);
       istd[1]=(stdint_t)((*ndat).iac);
 
-      dstd[0]=(*ndat).dH;      
+      dstd[0]=(*ndat).dH;
       dstd[1]=(*ndat).avpl;
-      
+
       if (endian==BIG_ENDIAN)
       {
          bswap_int(2,istd);
          bswap_double(2,dstd);
       }
-      
+
       iw=fwrite(istd,sizeof(stdint_t),2,fdat);
       iw+=fwrite(dstd,sizeof(double),2,fdat);
 
@@ -116,9 +114,9 @@ static int write_dat(int n,dat_t *ndat)
       ic+=1;
       ndat+=1;
    }
-   
+
    return ic;
-} 
+}
 
 
 static int read_dat(int n,dat_t *ndat)
@@ -128,7 +126,7 @@ static int read_dat(int n,dat_t *ndat)
    double dstd[2];
 
    ic=0;
-   
+
    for (i=0;i<n;i++)
    {
       ir=fread(istd,sizeof(stdint_t),2,fdat);
@@ -142,19 +140,19 @@ static int read_dat(int n,dat_t *ndat)
          bswap_int(2,istd);
          bswap_double(2,dstd);
       }
-      
+
       (*ndat).nt=(int)(istd[0]);
       (*ndat).iac=(int)(istd[1]);
 
-      (*ndat).dH=dstd[0];      
+      (*ndat).dH=dstd[0];
       (*ndat).avpl=dstd[1];
-      
+
       ic+=1;
       ndat+=1;
    }
-   
+
    return ic;
-} 
+}
 
 
 static void alloc_data(void)
@@ -168,14 +166,14 @@ static void alloc_data(void)
 
    pp=amalloc(3*(nn+1)*sizeof(*pp),3);
    p=amalloc(3*(nn+1)*(tmax+1)*sizeof(*p),4);
-   
+
    error((pp==NULL)||(p==NULL),1,"alloc_data [qcd1.c]",
          "Unable to allocate data arrays");
 
    data.Wsl=pp;
    data.Ysl=pp+nn+1;
    data.Qsl=pp+2*(nn+1);
-   
+
    for (in=0;in<(3*(nn+1));in++)
    {
       *pp=p;
@@ -186,7 +184,7 @@ static void alloc_data(void)
    Wact=p;
    p+=nn+1;
    Yact=p;
-   p+=nn+1;   
+   p+=nn+1;
    Qtop=p;
 }
 
@@ -195,21 +193,21 @@ static void write_file_head(void)
 {
    int iw;
    stdint_t istd[3];
-   double dstd[1];   
+   double dstd[1];
 
    istd[0]=(stdint_t)(file_head.dn);
    istd[1]=(stdint_t)(file_head.nn);
-   istd[2]=(stdint_t)(file_head.tmax);   
+   istd[2]=(stdint_t)(file_head.tmax);
    dstd[0]=file_head.eps;
-   
+
    if (endian==BIG_ENDIAN)
    {
       bswap_int(3,istd);
       bswap_double(1,dstd);
    }
-   
+
    iw=fwrite(istd,sizeof(stdint_t),3,fdat);
-   iw+=fwrite(dstd,sizeof(double),1,fdat);   
+   iw+=fwrite(dstd,sizeof(double),1,fdat);
 
    error_root(iw!=4,1,"write_file_head [qcd1.c]",
               "Incorrect write count");
@@ -223,17 +221,17 @@ static void check_file_head(void)
    double dstd[1];
 
    ir=fread(istd,sizeof(stdint_t),3,fdat);
-   ir+=fread(dstd,sizeof(double),1,fdat);   
+   ir+=fread(dstd,sizeof(double),1,fdat);
 
    error_root(ir!=4,1,"check_file_head [qcd1.c]",
               "Incorrect read count");
-   
+
    if (endian==BIG_ENDIAN)
    {
       bswap_int(3,istd);
-      bswap_double(1,dstd);      
+      bswap_double(1,dstd);
    }
-   
+
    error_root(((int)(istd[0])!=file_head.dn)||
               ((int)(istd[1])!=file_head.nn)||
               ((int)(istd[2])!=file_head.tmax)||
@@ -247,7 +245,7 @@ static void write_data(void)
    int iw,nn,tmax;
    int in,t;
    stdint_t istd[1];
-   double dstd[1];   
+   double dstd[1];
 
    istd[0]=(stdint_t)(data.nt);
 
@@ -256,8 +254,8 @@ static void write_data(void)
 
    iw=fwrite(istd,sizeof(stdint_t),1,fdat);
 
-   nn=file_head.nn;   
-   tmax=file_head.tmax;   
+   nn=file_head.nn;
+   tmax=file_head.tmax;
 
    for (in=0;in<=nn;in++)
    {
@@ -270,7 +268,7 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }     
+   }
 
    for (in=0;in<=nn;in++)
    {
@@ -283,7 +281,7 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }   
+   }
 
    for (in=0;in<=nn;in++)
    {
@@ -296,8 +294,8 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }   
-   
+   }
+
    error_root(iw!=(1+3*(nn+1)*tmax),1,"write_data [qcd1.c]",
               "Incorrect write count");
 }
@@ -309,7 +307,7 @@ static int read_data(void)
    int in,t;
    stdint_t istd[1];
    double dstd[1];
-   
+
    ir=fread(istd,sizeof(stdint_t),1,fdat);
 
    if (ir!=1)
@@ -317,10 +315,10 @@ static int read_data(void)
 
    if (endian==BIG_ENDIAN)
       bswap_int(1,istd);
-   
+
    data.nt=(int)(istd[0]);
 
-   nn=file_head.nn;   
+   nn=file_head.nn;
    tmax=file_head.tmax;
 
    for (in=0;in<=nn;in++)
@@ -331,7 +329,7 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Wsl[in][t]=dstd[0];
       }
    }
@@ -344,11 +342,11 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Ysl[in][t]=dstd[0];
       }
    }
-   
+
    for (in=0;in<=nn;in++)
    {
       for (t=0;t<tmax;t++)
@@ -357,11 +355,11 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Qsl[in][t]=dstd[0];
       }
    }
-   
+
    error_root(ir!=(1+3*(nn+1)*tmax),1,"read_data [qcd1.c]",
               "Read error or incomplete data record");
 
@@ -401,22 +399,22 @@ static void setup_files(void)
 {
    if (noloc==0)
       check_dir(loc_dir);
-   
+
    if (noexp==0)
       check_dir_root(cnfg_dir);
 
    check_dir_root(log_dir);
-   check_dir_root(dat_dir);   
+   check_dir_root(dat_dir);
    error_root(name_size("%s/%s.log~",log_dir,nbase)>=NAME_SIZE,1,
               "setup_files [qcd1.c]","log_dir name is too long");
    error_root(name_size("%s/%s.ms.dat~",dat_dir,nbase)>=NAME_SIZE,1,
-              "setup_files [qcd1.c]","dat_dir name is too long");   
-      
+              "setup_files [qcd1.c]","dat_dir name is too long");
+
    sprintf(log_file,"%s/%s.log",log_dir,nbase);
    sprintf(par_file,"%s/%s.par",dat_dir,nbase);
    sprintf(dat_file,"%s/%s.dat",dat_dir,nbase);
    sprintf(msdat_file,"%s/%s.ms.dat",dat_dir,nbase);
-   sprintf(rng_file,"%s/%s.rng",dat_dir,nbase);   
+   sprintf(rng_file,"%s/%s.rng",dat_dir,nbase);
    sprintf(end_file,"%s/%s.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
    sprintf(par_save,"%s~",par_file);
@@ -428,27 +426,39 @@ static void setup_files(void)
 
 static void read_lat_parms(void)
 {
-   double beta,c0,kappa[3],csw[3];
+   int nk;
+   double beta,c0,csw,*kappa;
 
    if (my_rank==0)
    {
       find_section("Lattice parameters");
       read_line("beta","%lf",&beta);
       read_line("c0","%lf",&c0);
-      read_line("kappa_u","%lf",kappa);
-      read_line("kappa_s","%lf",kappa+1);
-      read_line("kappa_c","%lf",kappa+2);
-      read_line("csw","%lf",csw);
-      read_line("cG","%lf",csw+1);
-      read_line("cF","%lf",csw+2);   
+      nk=count_tokens("kappa");
+      read_line("csw","%lf",&csw);
    }
 
    MPI_Bcast(&beta,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&c0,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(kappa,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(csw,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
-   lat=set_lat_parms(beta,c0,kappa[0],kappa[1],kappa[2],csw[0],csw[1],csw[2]);
+   MPI_Bcast(&nk,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   if (nk>0)
+   {
+      kappa=malloc(nk*sizeof(*kappa));
+      error(kappa==NULL,1,"read_lat_parms [qcd1.c]",
+            "Unable to allocate parameter array");
+      if (my_rank==0)
+         read_dprms("kappa",nk,kappa);
+      MPI_Bcast(kappa,nk,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   }
+   else
+      kappa=NULL;
+
+   set_lat_parms(beta,c0,nk,kappa,csw);
+
+   if (nk>0)
+      free(kappa);
 
    if (append)
       check_lat_parms(fdat);
@@ -457,14 +467,70 @@ static void read_lat_parms(void)
 }
 
 
+static void read_bc_parms(void)
+{
+   int bc;
+   double cG,cG_prime,cF,cF_prime;
+   double phi[2],phi_prime[2];
+
+   if (my_rank==0)
+   {
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+      cG=1.0;
+      cG_prime=1.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
+
+      if (bc!=3)
+      {
+         read_line("cG","%lf",&cG);
+         read_line("cF","%lf",&cF);
+      }
+
+      if (bc==2)
+      {
+         read_line("cG'","%lf",&cG_prime);
+         read_line("cF'","%lf",&cF_prime);
+      }
+   }
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cG,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cG_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime);
+
+   if (append)
+      check_bc_parms(fdat);
+   else
+      write_bc_parms(fdat);
+}
+
+
 static void read_schedule(void)
 {
    int ie,ir,iw;
    stdint_t istd[3];
-   
+
    if (my_rank==0)
    {
-      find_section("MD trajectories");      
+      find_section("MD trajectories");
       read_line("nth","%d",&nth);
       read_line("ntr","%d",&ntr);
       read_line("dtr_log","%d",&dtr_log);
@@ -485,7 +551,7 @@ static void read_schedule(void)
       ie|=((dtr_cnfg%dtr_log)!=0);
       ie|=((nth%dtr_cnfg)!=0);
       ie|=((ntr%dtr_cnfg)!=0);
-         
+
       if (noms==0)
       {
          ie|=(dtr_ms<dtr_log);
@@ -493,7 +559,7 @@ static void read_schedule(void)
          ie|=((dtr_ms%dtr_log)!=0);
          ie|=((dtr_cnfg%dtr_ms)!=0);
       }
-         
+
       error_root(ie!=0,1,"read_schedule [qcd1.c]",
                  "Improper value of nth,ntr,dtr_log,dtr_ms or dtr_cnfg");
    }
@@ -508,9 +574,9 @@ static void read_schedule(void)
    {
       if (append)
       {
-         ir=fread(istd,sizeof(stdint_t),3,fdat);         
+         ir=fread(istd,sizeof(stdint_t),3,fdat);
          error_root(ir!=3,1,"read_schedule [qcd1.c]",
-                    "Incorrect read count");         
+                    "Incorrect read count");
 
          if (endian==BIG_ENDIAN)
             bswap_int(3,istd);
@@ -518,21 +584,21 @@ static void read_schedule(void)
          ie=0;
          ie|=(istd[0]!=(stdint_t)(dtr_log));
          ie|=(istd[1]!=(stdint_t)(dtr_ms));
-         ie|=(istd[2]!=(stdint_t)(dtr_cnfg));         
-         
+         ie|=(istd[2]!=(stdint_t)(dtr_cnfg));
+
          error_root(ie!=0,1,"read_schedule [qcd1.c]",
                     "Parameters do not match previous run");
       }
       else
       {
          istd[0]=(stdint_t)(dtr_log);
-         istd[1]=(stdint_t)(dtr_ms);         
-         istd[2]=(stdint_t)(dtr_cnfg);         
-         
+         istd[1]=(stdint_t)(dtr_ms);
+         istd[2]=(stdint_t)(dtr_cnfg);
+
          if (endian==BIG_ENDIAN)
             bswap_int(3,istd);
 
-         iw=fwrite(istd,sizeof(stdint_t),3,fdat);         
+         iw=fwrite(istd,sizeof(stdint_t),3,fdat);
          error_root(iw!=3,1,"read_schedule [qcd1.c]",
                     "Incorrect write count");
       }
@@ -547,20 +613,20 @@ static void read_actions(void)
    double tau,*mu;
    action_parms_t ap;
    rat_parms_t rp;
-   
+
    if (my_rank==0)
    {
       find_section("HMC parameters");
       nact=count_tokens("actions");
       read_line("npf","%d",&npf);
-      read_line("nlv","%d",&nlv);      
+      read_line("nlv","%d",&nlv);
       read_line("tau","%lf",&tau);
    }
 
-   MPI_Bcast(&nact,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nact,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&npf,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);      
-   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nlv,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&tau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    if (nact>0)
    {
@@ -575,7 +641,7 @@ static void read_actions(void)
       iact=NULL;
 
    nmu=0;
-   
+
    for (i=0;i<nact;i++)
    {
       k=iact[i];
@@ -606,7 +672,7 @@ static void read_actions(void)
             nmu=count_tokens("mu");
          }
 
-         MPI_Bcast(&nmu,1,MPI_INT,0,MPI_COMM_WORLD); 
+         MPI_Bcast(&nmu,1,MPI_INT,0,MPI_COMM_WORLD);
       }
    }
 
@@ -621,7 +687,7 @@ static void read_actions(void)
          find_section("HMC parameters");
          read_dprms("mu",nmu,mu);
       }
-      
+
       MPI_Bcast(mu,nmu,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
    else
@@ -633,15 +699,15 @@ static void read_actions(void)
       free(iact);
    if (nmu>0)
       free(mu);
-   
+
    if (append)
    {
-      check_hmc_parms(fdat);      
+      check_hmc_parms(fdat);
       check_action_parms(fdat);
    }
    else
    {
-      write_hmc_parms(fdat);      
+      write_hmc_parms(fdat);
       write_action_parms(fdat);
    }
 }
@@ -695,7 +761,7 @@ static void read_integrator(void)
       write_force_parms(fdat);
    }
 }
-   
+
 
 static void read_sap_parms(void)
 {
@@ -731,15 +797,15 @@ static void read_dfl_parms(void)
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_parms(bs,Ns);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation subspace generation");
       read_line("kappa","%lf",&kappa);
       read_line("mu","%lf",&mu);
-      read_line("ninv","%d",&ninv);     
+      read_line("ninv","%d",&ninv);
       read_line("nmr","%d",&nmr);
       read_line("ncy","%d",&ncy);
    }
@@ -750,16 +816,16 @@ static void read_dfl_parms(void)
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_gen_parms(kappa,mu,ninv,nmr,ncy);
-   
+
    if (my_rank==0)
    {
       find_section("Deflation projection");
       read_line("nkv","%d",&nkv);
-      read_line("nmx","%d",&nmx);           
+      read_line("nmx","%d",&nmx);
       read_line("res","%lf",&res);
    }
 
-   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    set_dfl_pro_parms(nkv,nmx,res);
@@ -768,13 +834,13 @@ static void read_dfl_parms(void)
    {
       find_section("Deflation update scheme");
       read_line("dtau","%lf",&dtau);
-      read_line("nsm","%d",&nsm);           
+      read_line("nsm","%d",&nsm);
    }
 
    MPI_Bcast(&dtau,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nsm,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&nsm,1,MPI_INT,0,MPI_COMM_WORLD);
    set_dfl_upd_parms(dtau,nsm);
-   
+
    if (append)
       check_dfl_parms(fdat);
    else
@@ -798,7 +864,7 @@ static void read_solvers(void)
 
    isap=0;
    idfl=0;
-   
+
    for (i=0;i<nact;i++)
    {
       ap=action_parms(iact[i]);
@@ -807,7 +873,7 @@ static void read_solvers(void)
           (ap.action==ACF_TM1_EO)||
           (ap.action==ACF_TM1_EO_SDET)||
           (ap.action==ACF_TM2)||
-          (ap.action==ACF_TM2_EO)||          
+          (ap.action==ACF_TM2_EO)||
           (ap.action==ACF_RAT)||
           (ap.action==ACF_RAT_SDET))
       {
@@ -818,7 +884,7 @@ static void read_solvers(void)
             nsp=1;
 
          for (k=0;k<nsp;k++)
-         {         
+         {
             j=ap.isp[k];
             sp=solver_parms(j);
 
@@ -851,7 +917,7 @@ static void read_solvers(void)
 
          if ((fp.force==FRF_TM1)||
              (fp.force==FRF_TM1_EO)||
-             (fp.force==FRF_TM1_EO_SDET)||             
+             (fp.force==FRF_TM1_EO_SDET)||
              (fp.force==FRF_TM2)||
              (fp.force==FRF_TM2_EO)||
              (fp.force==FRF_RAT)||
@@ -881,7 +947,7 @@ static void read_solvers(void)
       check_solver_parms(fdat);
    else
       write_solver_parms(fdat);
-   
+
    if (isap)
       read_sap_parms();
 
@@ -900,15 +966,15 @@ static void read_wflow_parms(void)
    {
       if (append)
       {
-         ir=fread(istd,sizeof(stdint_t),1,fdat);         
+         ir=fread(istd,sizeof(stdint_t),1,fdat);
          error_root(ir!=1,1,"read_wflow_parms [qcd1.c]",
-                    "Incorrect read count");         
+                    "Incorrect read count");
 
          if (endian==BIG_ENDIAN)
             bswap_int(1,istd);
 
          error_root(istd[0]!=(stdint_t)(noms==0),1,"read_wflow_parms [qcd1.c]",
-                    "Attempt to mix measurement with other runs");  
+                    "Attempt to mix measurement with other runs");
       }
       else
       {
@@ -917,13 +983,13 @@ static void read_wflow_parms(void)
          if (endian==BIG_ENDIAN)
             bswap_int(1,istd);
 
-         iw=fwrite(istd,sizeof(stdint_t),1,fdat);         
+         iw=fwrite(istd,sizeof(stdint_t),1,fdat);
          error_root(iw!=1,1,"read_wflow_parms [qcd1.c]",
                     "Incorrect write count");
       }
-   
+
       if (noms==0)
-      {   
+      {
          find_section("Wilson flow");
          read_line("integrator","%s",line);
          read_line("eps","%lf",&eps);
@@ -952,24 +1018,24 @@ static void read_wflow_parms(void)
       }
    }
 
-   MPI_Bcast(&flint,1,MPI_INT,0,MPI_COMM_WORLD);      
-   MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
+   MPI_Bcast(&flint,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nstep,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&dnms,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    file_head.dn=dnms;
    file_head.nn=nstep/dnms;
    file_head.tmax=N0;
-   file_head.eps=eps;   
+   file_head.eps=eps;
 
    if ((my_rank==0)&&(noms==0))
    {
       if (append)
       {
-         ir=fread(istd,sizeof(stdint_t),3,fdat);         
+         ir=fread(istd,sizeof(stdint_t),3,fdat);
          ir+=fread(dstd,sizeof(double),1,fdat);
          error_root(ir!=4,1,"read_wflow_parms [qcd1.c]",
-                    "Incorrect read count");         
+                    "Incorrect read count");
 
          if (endian==BIG_ENDIAN)
          {
@@ -982,15 +1048,15 @@ static void read_wflow_parms(void)
          ie|=(istd[1]!=(stdint_t)(nstep));
          ie|=(istd[2]!=(stdint_t)(dnms));
          ie|=(dstd[0]!=eps);
-         
+
          error_root(ie!=0,1,"read_wflow_parms [qcd1.c]",
                     "Parameters do not match previous run");
       }
       else
       {
          istd[0]=(stdint_t)(flint);
-         istd[1]=(stdint_t)(nstep);         
-         istd[2]=(stdint_t)(dnms);         
+         istd[1]=(stdint_t)(nstep);
+         istd[2]=(stdint_t)(dnms);
          dstd[0]=eps;
 
          if (endian==BIG_ENDIAN)
@@ -999,7 +1065,7 @@ static void read_wflow_parms(void)
             bswap_double(1,dstd);
          }
 
-         iw=fwrite(istd,sizeof(stdint_t),3,fdat);         
+         iw=fwrite(istd,sizeof(stdint_t),3,fdat);
          iw+=fwrite(dstd,sizeof(double),1,fdat);
          error_root(iw!=4,1,"read_wflow_parms [qcd1.c]",
                     "Incorrect write count");
@@ -1011,7 +1077,7 @@ static void read_wflow_parms(void)
 static void read_infile(int argc,char *argv[])
 {
    int ifile;
-   
+
    if (my_rank==0)
    {
       flog=freopen("STARTUP_ERROR","w",stdout);
@@ -1020,7 +1086,7 @@ static void read_infile(int argc,char *argv[])
       noloc=find_opt(argc,argv,"-noloc");
       noexp=find_opt(argc,argv,"-noexp");
       rmold=find_opt(argc,argv,"-rmold");
-      noms=find_opt(argc,argv,"-noms");      
+      noms=find_opt(argc,argv,"-noms");
       scnfg=find_opt(argc,argv,"-c");
       append=find_opt(argc,argv,"-a");
       norng=find_opt(argc,argv,"-norng");
@@ -1036,7 +1102,7 @@ static void read_infile(int argc,char *argv[])
 
       error_root((noexp)&&(noloc),1,"read_infile [qcd1.c]",
 		 "The concurrent use of -noloc and -noexp is not permitted");
-      
+
       if (scnfg)
       {
          strncpy(cnfg,argv[scnfg+1],NAME_SIZE-1);
@@ -1051,12 +1117,12 @@ static void read_infile(int argc,char *argv[])
    }
 
    MPI_Bcast(&noloc,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&rmold,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&noms,1,MPI_INT,0,MPI_COMM_WORLD); 
+   MPI_Bcast(&noms,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&scnfg,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&append,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&norng,1,MPI_INT,0,MPI_COMM_WORLD); 
+   MPI_Bcast(&norng,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
 
@@ -1064,12 +1130,12 @@ static void read_infile(int argc,char *argv[])
    {
       find_section("Random number generator");
       read_line("level","%d",&level);
-      read_line("seed","%d",&seed);     
+      read_line("seed","%d",&seed);
    }
 
    MPI_Bcast(&level,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&seed,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    read_dirs();
    setup_files();
 
@@ -1085,6 +1151,7 @@ static void read_infile(int argc,char *argv[])
    }
 
    read_lat_parms();
+   read_bc_parms();
    read_schedule();
    read_actions();
    read_integrator();
@@ -1106,15 +1173,15 @@ static void check_old_log(int ic,int *nl,int *icnfg)
 {
    int ir,isv;
    int np[4],bp[4];
-   
+
    fend=fopen(log_file,"r");
    error_root(fend==NULL,1,"check_old_log [qcd1.c]",
               "Unable to open log file");
    (*nl)=0;
    (*icnfg)=0;
-   ir=1;      
+   ir=1;
    isv=0;
-         
+
    while (fgets(line,NAME_SIZE,fend)!=NULL)
    {
       if (strstr(line,"process grid")!=NULL)
@@ -1139,16 +1206,16 @@ static void check_old_log(int ic,int *nl,int *icnfg)
       }
    }
 
-   fclose(fend);            
+   fclose(fend);
 
    error_root(ir!=1,1,"check_old_log [qcd1.c]","Incorrect read count");
 
    error_root(ic!=(*icnfg),1,"check_old_log [qcd1.c]",
-              "Continuation run:\n"              
+              "Continuation run:\n"
               "Initial configuration is not the last one of the previous run");
 
    error_root(isv==0,1,"check_old_log [qcd1.c]",
-              "Continuation run:\n"              
+              "Continuation run:\n"
               "The log file extends beyond the last configuration save");
 }
 
@@ -1157,7 +1224,7 @@ static void check_old_dat(int nl)
 {
    int nt;
    dat_t ndat;
-   
+
    fdat=fopen(dat_file,"rb");
    error_root(fdat==NULL,1,"check_old_dat [qcd1.c]",
               "Unable to open data file");
@@ -1166,7 +1233,7 @@ static void check_old_dat(int nl)
    while (read_dat(1,&ndat)==1)
       nt=ndat.nt;
 
-   fclose(fdat);   
+   fclose(fdat);
 
    error_root(nt!=nl,1,"check_old_dat [qcd1.c]",
               "Continuation run: Incomplete or too many data records");
@@ -1197,7 +1264,7 @@ static void check_old_msdat(int nl)
                     "No data records found");
          break;
       }
-         
+
       nt=data.nt;
 
       if (ic==1)
@@ -1212,7 +1279,7 @@ static void check_old_msdat(int nl)
 
       pnt=nt;
    }
-   
+
    fclose(fdat);
 
    error_root((nt!=nl)||((ic>1)&&(dnt!=dtr_ms)),1,
@@ -1227,14 +1294,14 @@ static void check_files(int *nl,int *icnfg)
 
    ipgrd[0]=0;
    ipgrd[1]=0;
-   
+
    if (my_rank==0)
    {
       if (noloc)
          error_root(cnfg[strlen(cnfg)-1]=='*',1,
                     "check_files [qcd1.c]","Attempt to read an "
                     "imported configuration when -noloc is set");
-      
+
       if (append)
       {
          error_root(strstr(cnfg,nbase)!=cnfg,1,"check_files [qcd1.c]",
@@ -1242,8 +1309,8 @@ static void check_files(int *nl,int *icnfg)
                     "Run name does not match the previous one");
          error_root(sscanf(cnfg+strlen(nbase),"n%d",&ic)!=1,1,
                     "check_files [qcd1.c]","Continuation run:\n"
-                    "Unable to read configuration number from file name"); 
-         
+                    "Unable to read configuration number from file name");
+
          check_old_log(ic,nl,icnfg);
          check_old_dat(*nl);
          if (noms==0)
@@ -1273,7 +1340,7 @@ static void check_files(int *nl,int *icnfg)
             write_file_head();
             fclose(fdat);
          }
-         
+
          (*nl)=0;
          (*icnfg)=1;
       }
@@ -1296,11 +1363,11 @@ static void check_files(int *nl,int *icnfg)
                        "check_files [qcd1.c]","loc_dir name is too long");
          else
             error_root(name_size("%s/%s",cnfg_dir,cnfg)>=NAME_SIZE,1,
-                       "check_files [qcd1.c]","cnfg_dir name is too long");  
+                       "check_files [qcd1.c]","cnfg_dir name is too long");
       }
    }
 
-   MPI_Bcast(nl,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(nl,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(icnfg,1,MPI_INT,0,MPI_COMM_WORLD);
 }
 
@@ -1333,7 +1400,7 @@ static void init_ud(void)
 static void init_rng(int icnfg)
 {
    int ic;
-   
+
    if (append)
    {
       if (cnfg[strlen(cnfg)-1]!='*')
@@ -1366,7 +1433,7 @@ static void recall_ud(su3_dble *usv)
 {
    su3_dble *udb;
 
-   udb=udfld();   
+   udb=udfld();
    cm3x3_assign(4*VOLUME,usv,udb);
    set_flags(UPDATED_UD);
 }
@@ -1381,7 +1448,7 @@ static void set_data(int nt)
    dn=file_head.dn;
    nn=file_head.nn;
    eps=file_head.eps;
-                  
+
    for (in=0;in<nn;in++)
    {
       Wact[in]=plaq_action_slices(data.Wsl[in]);
@@ -1406,7 +1473,7 @@ static void print_info(int icnfg)
 {
    int isap,idfl,n;
    long ip;
-   
+
    if (my_rank==0)
    {
       ip=ftell(flog);
@@ -1414,14 +1481,14 @@ static void print_info(int icnfg)
 
       if (ip==0L)
          remove("STARTUP_ERROR");
-      
+
       if (append)
          flog=freopen(log_file,"a",stdout);
       else
          flog=freopen(log_file,"w",stdout);
 
       error_root(flog==NULL,1,"print_info [qcd1.c]","Unable to open log file");
-      
+
       if (append)
          printf("Continuation run, start from configuration %s\n\n",cnfg);
       else
@@ -1434,11 +1501,11 @@ static void print_info(int icnfg)
             printf("New run, start from configuration %s\n\n",cnfg);
          else
             printf("New run, start from random configuration\n\n");
-      
+
          printf("Using the HMC algorithm\n");
          printf("Program version %s\n",openQCD_RELEASE);
       }
-      
+
       if (endian==LITTLE_ENDIAN)
          printf("The machine is little endian\n");
       else
@@ -1452,27 +1519,25 @@ static void print_info(int icnfg)
       printf("\n");
 
       if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
-         printf("Process grid and process block size changed:\n");            
+         printf("Process grid and process block size changed:\n");
       else if (ipgrd[0]!=0)
          printf("Process grid changed:\n");
       else if (ipgrd[1]!=0)
          printf("Process block size changed:\n");
-      
+
       if ((append==0)||(ipgrd[0]!=0)||(ipgrd[1]!=0))
       {
          printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
-         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
          printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-         printf("%dx%dx%dx%d process block size\n",
+         printf("%dx%dx%dx%d process block size\n\n",
                 NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
+      }
 
-         if (append)
-            printf("\n");
-         else
-         {
-            printf("Open boundary conditions\n\n");
-            print_lat_parms();
-         }
+      if (append==0)
+      {
+         print_lat_parms();
+         print_bc_parms();
       }
 
       printf("Random number generator:\n");
@@ -1498,7 +1563,7 @@ static void print_info(int icnfg)
       }
       else
          printf("level = %d, seed = %d\n\n",level,seed);
-      
+
       if (append)
       {
          printf("Trajectories:\n");
@@ -1508,7 +1573,7 @@ static void print_info(int icnfg)
       {
          print_hmc_parms();
 
-         printf("Trajectories:\n");         
+         printf("Trajectories:\n");
          printf("nth = %d, ntr = %d\n",nth,ntr);
 
          if (noms)
@@ -1550,7 +1615,7 @@ static void print_info(int icnfg)
             printf("nstep = %d\n",file_head.dn*file_head.nn);
             printf("dnms = %d\n\n",file_head.dn);
          }
-      }         
+      }
 
       fflush(flog);
    }
@@ -1573,14 +1638,14 @@ static void print_log(dat_t *ndat)
 static void save_dat(int n,double siac,double wtcyc,double wtall,dat_t *ndat)
 {
    int iw;
-   
+
    if (my_rank==0)
    {
       fdat=fopen(dat_file,"ab");
       error_root(fdat==NULL,1,"save_dat [qcd1.c]",
                  "Unable to open data file");
 
-      iw=write_dat(1,ndat);      
+      iw=write_dat(1,ndat);
       error_root(iw!=1,1,"save_dat [qcd1.c]",
                  "Incorrect write count");
       fclose(fdat);
@@ -1597,26 +1662,26 @@ static void save_msdat(int n,double wtms,double wtmsall)
 {
    int nms,in,dn,nn,din;
    double eps;
-   
+
    if (my_rank==0)
    {
       fdat=fopen(msdat_file,"ab");
       error_root(fdat==NULL,1,"save_msdat [qcd1.c]",
                  "Unable to open data file");
-      write_data();      
+      write_data();
       fclose(fdat);
 
       nms=(n+1-nth)/dtr_ms+(nth>0);
       dn=file_head.dn;
       nn=file_head.nn;
       eps=file_head.eps;
-      
+
       din=nn/10;
       if (din<1)
-         din=1;      
+         din=1;
 
       printf("Measurement run:\n\n");
-      
+
       for (in=0;in<=nn;in+=din)
          printf("n = %3d, t = %.2e, Wact = %.6e, Yact = %.6e, Q = % .2e\n",
                 in*dn,eps*(double)(in*dn),Wact[in],Yact[in],Qtop[in]);
@@ -1632,6 +1697,12 @@ static void save_msdat(int n,double wtms,double wtmsall)
 
 static void save_cnfg(int icnfg)
 {
+   int ie;
+
+   ie=check_bc(0.0)^0x1;
+   ie|=chs_ubnd(1);
+   error_root(ie!=0,1,"save_cnfg [qcd1.c]","Unexpected boundary values");
+
    if (noloc==0)
    {
       sprintf(cnfg_file,"%s/%sn%d_%d",loc_dir,nbase,icnfg,my_rank);
@@ -1717,7 +1788,7 @@ int main(int argc,char *argv[])
    geometry();
 
    hmc_wsize(&nwud,&nws,&nwsd,&nwv,&nwvd);
-   alloc_wud(nwud);   
+   alloc_wud(nwud);
    alloc_ws(nws);
    alloc_wsd(nwsd);
    alloc_wv(nwv);
@@ -1729,27 +1800,31 @@ int main(int argc,char *argv[])
    act1=act0+hmc.nact+1;
    error(act0==NULL,1,"main [qcd1.c]","Unable to allocate action arrays");
 
-   print_info(icnfg);   
+   print_info(icnfg);
    hmc_sanity_check();
    set_mdsteps();
    setup_counters();
    setup_chrono();
    init_ud();
    init_rng(icnfg);
-   
-   npl=(double)(6*(N0-1))*(double)(N1*N2*N3);
+
+   if (bc_type()==0)
+      npl=(double)(6*(N0-1)*N1)*(double)(N2*N3);
+   else
+      npl=(double)(6*N0*N1)*(double)(N2*N3);
+
    iend=0;
    siac=0.0;
    wtcyc=0.0;
    wtall=0.0;
    wtms=0.0;
    wtmsall=0.0;
-   
+
    for (n=0;(iend==0)&&(n<ntr);n++)
    {
       MPI_Barrier(MPI_COMM_WORLD);
       wt1=MPI_Wtime();
-      
+
       iac=run_hmc(act0,act1);
 
       MPI_Barrier(MPI_COMM_WORLD);
@@ -1764,22 +1839,22 @@ int main(int argc,char *argv[])
 
          for (i=0;i<=hmc.nact;i++)
             w0[0]+=(act1[i]-act0[i]);
-         
+
          w0[1]=plaq_wsum_dble(0)/npl;
-         
+
          MPI_Reduce(w0,w1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-         MPI_Bcast(w1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);         
+         MPI_Bcast(w1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
          ndat.nt=nl+n+1;
          ndat.iac=iac;
          ndat.dH=w1[0];
          ndat.avpl=w1[1];
-         
+
          print_log(&ndat);
          wtall+=wtcyc;
          save_dat(n,siac,wtcyc,wtall,&ndat);
          wtcyc=0.0;
-            
+
          if ((noms==0)&&((n+1)>=nth)&&(((ntr-n-1)%dtr_ms)==0))
          {
             MPI_Barrier(MPI_COMM_WORLD);
@@ -1790,7 +1865,7 @@ int main(int argc,char *argv[])
             set_data(nl+n+1);
             recall_ud(usv[0]);
             release_wud();
-         
+
             MPI_Barrier(MPI_COMM_WORLD);
             wt2=MPI_Wtime();
 
@@ -1818,10 +1893,10 @@ int main(int argc,char *argv[])
          }
 
          remove_cnfg(icnfg-1);
-         icnfg+=1;         
+         icnfg+=1;
       }
    }
-   
+
    if (my_rank==0)
       fclose(flog);
 

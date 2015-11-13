@@ -3,12 +3,12 @@
 *
 * File force2.c
 *
-* Copyright (C) 2011, 2012, 2013 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2011-2013 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Hasenbusch twisted_mass pseudo-fermion action and force
+* Hasenbusch twisted_mass pseudo-fermion action and force.
 *
 * The externally accessible functions are
 *
@@ -73,8 +73,8 @@
 * Note that, in force2(), the GCR solvers solve the Dirac equations twice.
 * In these cases, the program writes the status values one after the other
 * to the array. The bare quark mass m0 is the one last set by sw_parms()
-* [flags/parms.c] and it is taken for granted that the solver parameters
-* have been set by set_solver_parms() [flags/solver_parms.c].
+* [flags/lat_parms.c] and it is taken for granted that the parameters of
+* the solver have been set by set_solver_parms() [flags/solver_parms.c].
 *
 * The program force2() attempts to propagate the solutions of the Dirac
 * equation along the molecular-dynamics trajectories, using the field
@@ -86,7 +86,7 @@
 *
 *                  CGNE         SAP_GCR       DFL_SAP_GCR
 *   setpf2()         1             1               1
-*   force2()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)       
+*   force2()     2+(icr>0)     2+2*(icr>0)     2+2*(icr>0)
 *   action2()        1             1               1
 *
 * (these figures do not include the workspace required by the solvers).
@@ -131,7 +131,7 @@ double setpf2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
    tm=tm_parms();
    if (tm.eoflg==1)
       set_tm_parms(0);
-   
+
    mdfs=mdflds();
    phi=(*mdfs).pf[ipf];
    wsd=reserve_wsd(1);
@@ -140,7 +140,7 @@ double setpf2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
    random_sd(VOLUME,phi,1.0);
    bnd_sd2zero(ALL_PTS,phi);
    sp=solver_parms(isp);
-   
+
    if (sp.solver==CGNE)
    {
       tmcg(sp.nmx,sp.res,mu1,phi,psi,status);
@@ -164,10 +164,10 @@ double setpf2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
       mulg5_dble(VOLUME,phi);
       sap_gcr(sp.nkv,sp.nmx,sp.res,mu1,phi,psi,status);
       mulg5_dble(VOLUME,phi);
-      
+
       error_root(status[0]<0,1,"setpf2 [force2.c]","SAP_GCR solver failed "
                  "(mu = %.4e, parameter set no %d, status = %d)",
-                 mu1,isp,status[0]);      
+                 mu1,isp,status[0]);
    }
    else if (sp.solver==DFL_SAP_GCR)
    {
@@ -177,7 +177,7 @@ double setpf2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
       mulg5_dble(VOLUME,phi);
       dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,phi,psi,status);
       mulg5_dble(VOLUME,phi);
-      
+
       error_root((status[0]<0)||(status[1]<0),1,
                  "setpf2 [force2.c]","DFL_SAP_GCR solver failed "
                  "(mu = %.4e, parameter set no %d, status = %d,%d,%d)",
@@ -211,7 +211,7 @@ double action2(double mu0,double mu1,int ipf,int isp,int icom,int *status)
 {
    double dmu2,act;
 
-   dmu2=mu1*mu1-mu0*mu0;   
+   dmu2=mu1*mu1-mu0*mu0;
    act=dmu2*action1(mu0,ipf,isp,icom,status);
 
    return act;

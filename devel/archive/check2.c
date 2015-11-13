@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2007, 2010, 2011 Martin Luescher
+* Copyright (C) 2005, 2007, 2010, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Exporting and importing gauge and momentum configurations
+* Exporting and importing gauge configurations.
 *
 *******************************************************************************/
 
@@ -20,27 +20,14 @@
 #include "mpi.h"
 #include "su3.h"
 #include "flags.h"
-#include "su3fcts.h"
 #include "random.h"
 #include "utils.h"
 #include "lattice.h"
 #include "uflds.h"
-#include "mdflds.h"
+#include "su3fcts.h"
 #include "linalg.h"
 #include "archive.h"
 #include "global.h"
-
-
-static void save_flds(su3_dble *usv,su3_alg_dble *fsv)
-{
-   su3_dble *udb;
-   mdflds_t *mdfs;
-
-   udb=udfld();
-   mdfs=mdflds();
-   cm3x3_assign(4*VOLUME,udb,usv);
-   assign_alg2alg(4*VOLUME,(*mdfs).mom,fsv);
-}
 
 
 static int cmp_ud(su3_dble *u,su3_dble *v)
@@ -91,50 +78,12 @@ static int check_ud(su3_dble *usv)
 }
 
 
-static int cmp_fd(su3_alg_dble *ma,su3_alg_dble *mb)
-{
-   int it;
-
-   it =((*ma).c1!=(*mb).c1);
-   it|=((*ma).c2!=(*mb).c2);
-   it|=((*ma).c3!=(*mb).c3);
-   it|=((*ma).c4!=(*mb).c4);
-   it|=((*ma).c5!=(*mb).c5);
-   it|=((*ma).c6!=(*mb).c6);
-   it|=((*ma).c7!=(*mb).c7);
-   it|=((*ma).c8!=(*mb).c8);
-   
-   return it;
-}
-
-
-static int check_fd(su3_alg_dble *fsv)
-{
-   int it;
-   su3_alg_dble *m,*mm;
-   mdflds_t *mdfs;
-
-   mdfs=mdflds();   
-   m=(*mdfs).mom;
-   mm=m+4*VOLUME;
-   it=0;
-   
-   for (;m<mm;m++)
-   {
-      it|=cmp_fd(m,fsv);
-      fsv+=1;
-   }
-
-   return it;
-}
-
-
 int main(int argc,char *argv[])
 {
-   int my_rank,nsize;
-   su3_dble **usv;
-   su3_alg_dble **fsv;
-   char cnfg_dir[NAME_SIZE],cnfg[NAME_SIZE],mfld[NAME_SIZE];
+   int my_rank,bc,nsize,ie;
+   double phi[2],phi_prime[2];   
+   su3_dble *udb,**usv;
+   char cnfg_dir[NAME_SIZE],cnfg[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -146,8 +95,8 @@ int main(int argc,char *argv[])
       fin=freopen("check2.in","r",stdin);
       
       printf("\n");
-      printf("Exporting and importing gauge and momentum configurations\n");
-      printf("---------------------------------------------------------\n\n");
+      printf("Exporting and importing gauge configurations\n");
+      printf("--------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -155,54 +104,55 @@ int main(int argc,char *argv[])
 
       read_line("cnfg_dir","%s\n",cnfg_dir);
       fclose(fin);
-      
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
 
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,123456);
    geometry();
    alloc_wud(1);
-   alloc_wfd(1);
    
    check_dir_root(cnfg_dir);   
-   nsize=name_size("%s/testcnfg0",cnfg_dir);
+   nsize=name_size("%s/testcnfg",cnfg_dir);
    error_root(nsize>=NAME_SIZE,1,"main [check2.c]","cnfg_dir name is too long");
 
    if (my_rank==0)
    {
-      printf("Export random field configurations to the files %s/testcnfg\n"
-             "and %s/testmfld.\n\n",cnfg_dir,cnfg_dir);
-      printf("Then read the fields from there and compare with the saved\n"
+      printf("Export random field configurations to the file\n"
+             "%s/testcnfg.\n",cnfg_dir);
+      printf("Then read the fields from there and compare with the saved "
              "fields.\n\n");
    }
 
+   udb=udfld();
    usv=reserve_wud(1);
-   fsv=reserve_wfd(1);
-
    random_ud();
-   random_mom();
-   save_flds(usv[0],fsv[0]);
+   cm3x3_assign(4*VOLUME,udb,usv[0]);
 
    sprintf(cnfg,"%s/testcnfg",cnfg_dir);
-   sprintf(mfld,"%s/testmfld",cnfg_dir);
-      
    export_cnfg(cnfg);
-   export_mfld(mfld);
    
    random_ud();
-   random_mom();
-   
    import_cnfg(cnfg);
-   import_mfld(mfld);
    error_chk();
 
-   error(check_ud(usv[0])!=0,1,"main [check2.c]",
-         "The gauge field is not properly restored");
-   error(check_fd(fsv[0])!=0,1,"main [check2.c]",
-         "The momentum field is not properly restored");
-
+   ie=(check_bc(0.0)^0x1);
+   ie|=check_ud(usv[0]);
+   error(ie!=0,1,"main [check2.c]","The gauge field is not properly restored");
    print_flags();      
    
    if (my_rank==0)

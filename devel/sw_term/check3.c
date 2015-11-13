@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the SW term for abelian background fields
+* Check of the SW term for abelian background fields.
 *
 *******************************************************************************/
 
@@ -30,8 +30,13 @@
 #include "sw_term.h"
 #include "global.h"
 
-static int np[4];
-static double t[3],a[4],p[4];
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
+
+static int bc,np[4];
+static double t[3],a[4],p[4],inp[4];
 static double (*Fhat)[3];
 static const su3_dble ud0={{0.0}};
 static spinor_dble ws;
@@ -60,17 +65,17 @@ static void set_parms(void)
 
       ranlxd(a,4);
 
-      np[0]=(int)(a[0]*(double)(NPROC0*L0));
-      np[1]=(int)(a[1]*(double)(NPROC1*L1));
-      np[2]=(int)(a[2]*(double)(NPROC2*L2));
-      np[3]=(int)(a[3]*(double)(NPROC3*L3));
+      np[0]=(int)(a[0]*(double)(N0));
+      np[1]=(int)(a[1]*(double)(N1));
+      np[2]=(int)(a[2]*(double)(N2));
+      np[3]=(int)(a[3]*(double)(N3));
 
       pi=4.0*atan(1.0);
 
-      p[0]=(double)(np[0])*2.0*pi/(double)(NPROC0*L0);
-      p[1]=(double)(np[1])*2.0*pi/(double)(NPROC1*L1);
-      p[2]=(double)(np[2])*2.0*pi/(double)(NPROC2*L2);
-      p[3]=(double)(np[3])*2.0*pi/(double)(NPROC3*L3);
+      p[0]=(double)(np[0])*2.0*pi/(double)(N0);
+      p[1]=(double)(np[1])*2.0*pi/(double)(N1);
+      p[2]=(double)(np[2])*2.0*pi/(double)(N2);
+      p[3]=(double)(np[3])*2.0*pi/(double)(N3);
 
       gauss_dble(a,4);
    }
@@ -78,17 +83,92 @@ static void set_parms(void)
    MPI_Bcast(t,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(a,4,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(p,4,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   inp[0]=1.0/(double)(N0);
+   inp[1]=1.0/(double)(N1);
+   inp[2]=1.0/(double)(N2);
+   inp[3]=1.0/(double)(N3);
+}
+
+
+static double afld(int *x,int mu)
+{
+   double xt[4],px;
+
+   xt[0]=(double)(safe_mod(x[0],N0));
+   xt[1]=(double)(safe_mod(x[1],N1));
+   xt[2]=(double)(safe_mod(x[2],N2));
+   xt[3]=(double)(safe_mod(x[3],N3));
+
+   px=p[0]*xt[0]+p[1]*xt[1]+p[2]*xt[2]+p[3]*xt[3];
+
+   return a[mu]*sin(px);
+}
+
+
+static void ftplaq(int *x,int mu,int nu,double *ftp)
+{
+   double sm,om[3],*phi;
+   bc_parms_t bcp;
+
+   bcp=bc_parms();
+
+   if ((x[0]==0)&&(mu==0)&&(bc==1))
+   {
+      sm=afld(x,mu);
+      x[mu]+=1;
+      sm+=afld(x,nu);
+      x[mu]-=1;
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      phi=bcp.phi[0];
+      om[0]=t[0]*sm-phi[0]*inp[nu];
+      om[1]=t[1]*sm-phi[1]*inp[nu];
+      om[2]=t[2]*sm-phi[2]*inp[nu];
+   }
+   else if ((x[0]==(N0-1))&&(mu==0)&&((bc==1)||(bc==2)))
+   {
+      sm=afld(x,mu)-afld(x,nu);
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      phi=bcp.phi[1];
+      om[0]=t[0]*sm+phi[0]*inp[nu];
+      om[1]=t[1]*sm+phi[1]*inp[nu];
+      om[2]=t[2]*sm+phi[2]*inp[nu];
+   }
+   else
+   {
+      sm=afld(x,mu)-afld(x,nu);
+      x[mu]+=1;
+      sm+=afld(x,nu);
+      x[mu]-=1;
+      x[nu]+=1;
+      sm-=afld(x,mu);
+      x[nu]-=1;
+
+      om[0]=t[0]*sm;
+      om[1]=t[1]*sm;
+      om[2]=t[2]*sm;
+   }
+
+   ftp[0]=sin(om[0]);
+   ftp[1]=sin(om[1]);
+   ftp[2]=sin(om[2]);
 }
 
 
 static void set_ud(void)
 {
-   int bo[4],x0,x1,x2,x3,ix,mu;
-   double px,r1,r2;
+   int bo[4],x[4];
+   int x0,x1,x2,x3,ix,ifc,mu;
+   double r1,r2;
    su3_dble *udb,*u;
 
    udb=udfld();
-   
    bo[0]=cpr[0]*L0;
    bo[1]=cpr[1]*L1;
    bo[2]=cpr[2]*L2;
@@ -103,31 +183,25 @@ static void set_ud(void)
             for (x3=0;x3<L3;x3++)
             {
                ix=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
+               x[0]=bo[0]+x0;
+               x[1]=bo[1]+x1;
+               x[2]=bo[2]+x2;
+               x[3]=bo[3]+x3;
 
                if (ix>=(VOLUME/2))
                {
-                  px=p[0]*(double)(x0+bo[0])+p[1]*(double)(x1+bo[1])+
-                     p[2]*(double)(x2+bo[2])+p[3]*(double)(x3+bo[3]);
                   u=udb+8*(ix-(VOLUME/2));
 
-                  for (mu=0;mu<4;mu++)
+                  for (ifc=0;ifc<8;ifc++)
                   {
-                     (*u)=ud0;
-                     r1=a[mu]*sin(px);
+                     mu=ifc/2;
+                     if (ifc&0x1)
+                        x[mu]-=1;
+                     r1=afld(x,mu);
+                     if (ifc&0x1)
+                        x[mu]+=1;
                      r2=t[0]*r1;
-                     (*u).c11.re=cos(r2);
-                     (*u).c11.im=sin(r2);
-                     r2=t[1]*r1;
-                     (*u).c22.re=cos(r2);
-                     (*u).c22.im=sin(r2);
-                     r2=t[2]*r1;
-                     (*u).c33.re=cos(r2);
-                     (*u).c33.im=sin(r2);
-                     u+=1;
-
                      (*u)=ud0;
-                     r1=a[mu]*sin(px-p[mu]);
-                     r2=t[0]*r1;
                      (*u).c11.re=cos(r2);
                      (*u).c11.im=sin(r2);
                      r2=t[1]*r1;
@@ -144,16 +218,16 @@ static void set_ud(void)
       }
    }
 
-   openbcd();
+   set_bc();
    set_flags(UPDATED_UD);
 }
 
 
 static void compute_Fhat(int mu,int nu)
 {
-   int bo[4],x0,x1,x2,x3,ix;
-   int n,*bp,*bm;
-   double px,fx,fy,fw,fz;
+   int bo[4],x[4];
+   int x0,x1,x2,x3,ix;
+   double ftp[4][3];
 
    bo[0]=cpr[0]*L0;
    bo[1]=cpr[1]*L1;
@@ -169,40 +243,33 @@ static void compute_Fhat(int mu,int nu)
             for (x3=0;x3<L3;x3++)
             {
                ix=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
+               x[0]=bo[0]+x0;
+               x[1]=bo[1]+x1;
+               x[2]=bo[2]+x2;
+               x[3]=bo[3]+x3;
 
-               px=p[0]*(double)(x0+bo[0])+p[1]*(double)(x1+bo[1])+
-                  p[2]*(double)(x2+bo[2])+p[3]*(double)(x3+bo[3]);
+               if (((x[0]>0)&&((x[0]<(N0-1))||(bc!=0)))||(bc==3))
+               {
+                  ftplaq(x,mu,nu,ftp[0]);
+                  x[mu]-=1;
+                  ftplaq(x,mu,nu,ftp[1]);
+                  x[nu]-=1;
+                  ftplaq(x,mu,nu,ftp[2]);
+                  x[mu]+=1;
+                  ftplaq(x,mu,nu,ftp[3]);
 
-               fx=a[nu]*(sin(px+p[mu])-sin(px))-a[mu]*(sin(px+p[nu])-sin(px));
-               px-=p[mu];
-               fy=a[nu]*(sin(px+p[mu])-sin(px))-a[mu]*(sin(px+p[nu])-sin(px));
-               px-=p[nu];
-               fz=a[nu]*(sin(px+p[mu])-sin(px))-a[mu]*(sin(px+p[nu])-sin(px));
-               px+=p[mu];
-               fw=a[nu]*(sin(px+p[mu])-sin(px))-a[mu]*(sin(px+p[nu])-sin(px));
-
-               Fhat[ix][0]=0.25*(sin(t[0]*fx)+sin(t[0]*fy)+
-                                 sin(t[0]*fw)+sin(t[0]*fz));
-               Fhat[ix][1]=0.25*(sin(t[1]*fx)+sin(t[1]*fy)+
-                                 sin(t[1]*fw)+sin(t[1]*fz));
-               Fhat[ix][2]=0.25*(sin(t[2]*fx)+sin(t[2]*fy)+
-                                 sin(t[2]*fw)+sin(t[2]*fz));
+                  Fhat[ix][0]=0.25*(ftp[0][0]+ftp[1][0]+ftp[2][0]+ftp[3][0]);
+                  Fhat[ix][1]=0.25*(ftp[0][1]+ftp[1][1]+ftp[2][1]+ftp[3][1]);
+                  Fhat[ix][2]=0.25*(ftp[0][2]+ftp[1][2]+ftp[2][2]+ftp[3][2]);
+               }
+               else
+               {
+                  Fhat[ix][0]=0.0;
+                  Fhat[ix][1]=0.0;
+                  Fhat[ix][2]=0.0;
+               }
             }
          }
-      }
-   }
-
-   if ((mu==0)||(nu==0))
-   {
-      bp=bnd_pts(&n);
-      bm=bp+n;
-
-      for (;bp<bm;bp++)
-      {
-         ix=(*bp);
-         Fhat[ix][0]=0.0;
-         Fhat[ix][1]=0.0;
-         Fhat[ix][2]=0.0;         
       }
    }
 }
@@ -388,28 +455,31 @@ static void mul_swd(double m0,double csw,spinor_dble *pk,spinor_dble *pl)
 }
 
 
-static void bnd_corr(double cF,spinor_dble *pk,spinor_dble *pl)
+static void bnd_corr(double *cF,spinor_dble *pk,spinor_dble *pl)
 {
-   int *pt,*pm,n,iy;
+   int ix,s;
    double c;
 
-   c=cF-1.0;
-   pt=bnd_pts(&n);
-   pm=pt+n;
-
-   for (;pt<pm;pt++)
+   for (ix=0;ix<VOLUME;ix++)
    {
-      pl[*pt]=pk[*pt];
+      s=global_time(ix);
+      c=0.0;
 
-      if (global_time(*pt)==0)
-         iy=iup[*pt][0];
-      else
-         iy=idn[*pt][0];
+      if (((s==0)&&(bc!=3))||((s==(N0-1))&&(bc==0)))
+         pl[ix]=pk[ix];
 
-      _vector_mulr_assign(pl[iy].c1,c,pk[iy].c1);
-      _vector_mulr_assign(pl[iy].c2,c,pk[iy].c2);
-      _vector_mulr_assign(pl[iy].c3,c,pk[iy].c3);
-      _vector_mulr_assign(pl[iy].c4,c,pk[iy].c4);                          
+      if ((s==1)&&(bc!=3))
+         c=cF[0]-1.0;
+      else if (((s==(N0-2))&&(bc==0))||((s==(N0-1))&&((bc==1)||(bc==2))))
+         c=cF[1]-1.0;
+
+      if (c!=0.0)
+      {
+         _vector_mulr_assign(pl[ix].c1,c,pk[ix].c1);
+         _vector_mulr_assign(pl[ix].c2,c,pk[ix].c2);
+         _vector_mulr_assign(pl[ix].c3,c,pk[ix].c3);
+         _vector_mulr_assign(pl[ix].c4,c,pk[ix].c4);
+      }
    }
 }
 
@@ -417,8 +487,8 @@ static void bnd_corr(double cF,spinor_dble *pk,spinor_dble *pl)
 int main(int argc,char *argv[])
 {
    int my_rank,n;
-   double d;
-   complex_dble z;
+   double phi[2],phi_prime[2];
+   double d,dmax;
    pauli_dble *sw;
    spinor_dble **psd;
    sw_parms_t swp;
@@ -440,7 +510,24 @@ int main(int argc,char *argv[])
 
       printf("For this test to pass, the calculated differences delta\n");
       printf("should be at most 1*10^(-14) or so\n\n");
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check3.c]",
+                    "Syntax: check3 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
@@ -448,12 +535,13 @@ int main(int argc,char *argv[])
    alloc_wsd(3);
    psd=reserve_wsd(3);
 
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,1.0,1.234);
    set_sw_parms(-0.0123);
    swp=sw_parms();
+   dmax=0.0;
 
    if (my_rank==0)
-      printf("m0=%.4e, csw=%.4e, cF=%.4e\n\n",swp.m0,swp.csw,swp.cF);
+      printf("m0=%.4e, csw=%.4e, cF=%.4e, cF'=%.4e\n\n",
+             swp.m0,swp.csw,swp.cF[0],swp.cF[1]);
 
    for (n=0;n<4;n++)
    {
@@ -466,11 +554,12 @@ int main(int argc,char *argv[])
       apply_sw_dble(VOLUME,0.0,sw,psd[0],psd[1]);
       mul_swd(swp.m0,swp.csw,psd[0],psd[2]);
       bnd_corr(swp.cF,psd[0],psd[2]);
-      
-      z.re=-1.0;
-      z.im=0.0;
-      mulc_spinor_add_dble(VOLUME,psd[2],psd[1],z);
+
+      mulr_spinor_add_dble(VOLUME,psd[2],psd[1],-1.0);
       d=norm_square_dble(VOLUME,1,psd[2])/norm_square_dble(VOLUME,1,psd[0]);
+      d=sqrt(d);
+      if (d>dmax)
+         dmax=d;
 
       if (my_rank==0)
       {
@@ -479,15 +568,15 @@ int main(int argc,char *argv[])
          printf("t=%.2f,%.2f,%.2f, a=%.2f,%.2f,%.2f,%.2f, ",
                 t[0],t[1],t[2],a[0],a[1],a[2],a[3]);
          printf("np=%d,%d,%d,%d\n",np[0],np[1],np[2],np[3]);
-         printf("delta = %.2e\n\n",sqrt(d));
+         printf("delta = %.2e\n\n",d);
       }
    }
-   
+
    error_chk();
 
    if (my_rank==0)
    {
-      printf("\n");
+      printf("Maximal deviation = %.1e\n\n",dmax);
       fclose(flog);
    }
 

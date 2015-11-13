@@ -39,12 +39,12 @@ block_t b;
 
 with the following entries:
 
-b.bo[4]                 Cartesian coordinates (in the local lattice) of the 
-                        base point of the block. 
+b.bo[4]                 Cartesian coordinates (in the local lattice) of the
+                        base point of the block.
 
-b.bs[4]                 Linear sizes of the block in the four dimensions. The 
+b.bs[4]                 Linear sizes of the block in the four dimensions. The
                         local coordinates in direction mu of the points in the
-                        block thus range from b.bo[mu] to b.bo[mu]+b.bs[mu]-1 
+                        block thus range from b.bo[mu] to b.bo[mu]+b.bs[mu]-1
                         inclusive.
 
 b.vol                   Number of points in the block.
@@ -52,14 +52,15 @@ b.vol                   Number of points in the block.
 b.vbb                   Total number of exterior boundary points of the
                         block.
 
-b.nbp                   Number of points in the block at global time 0 and
-                        NPROC0*L0-1.
+b.nbp                   Number of points in the block at global time 0
+                        (boundary conditions type 0,1 or 2)and and time
+                        NPROC0*L0-1 (boundary conditions type 0).
 
 b.ns                    Number of single-precision spinor fields on the block.
 
 b.nsd                   Number of double-precision spinor fields on the block.
 
-b.shf                   The bits b1,b2,...,b7 in this number (counting from 
+b.shf                   The bits b1,b2,...,b7 in this number (counting from
                         the lowest) indicate that
 
                           b1=1:  The block is protected,
@@ -72,9 +73,9 @@ b.shf                   The bits b1,b2,...,b7 in this number (counting from
                           b8=1:  bb.wd is shared
 
 			(the last two bits refer to the Weyl fields on the
-                        exterior boundaries of the block). As explained below, 
-                        block fields can be shared among the blocks in a block 
-                        grid. Protected blocks cannot be freed or reallocated. 
+                        exterior boundaries of the block). As explained below,
+                        block fields can be shared among the blocks in a block
+                        grid. Protected blocks cannot be freed or reallocated.
 
 b.ipt[b.vol+1]          The block points are labeled by an index ix. If
                         x0,x1,x2,x3 are the coordinates of a block point
@@ -90,10 +91,11 @@ b.imb[b.vol+1]          For a given block point with label ix, this array
                         array is not used).
 
 b.ibp[b.nbp]            Array of the labels ix of the block points at global
-                        time 0 and NPROC0*L0-1. The labels are in ascending
-                        order. In particular, the first b.nbp/2 entries are
-                        the labels of the even points and the second half
-                        those of the odd points at the specified times.
+                        time 0 (boundary conditions type 0,1 or 2) and time
+                        NPROC0*L0-1 (boundary conditions type 0). The labels
+                        are in ascending order. In particular, the first and
+                        second half of the array contain the labels of the
+                        even and odd points, respectively.
 
 b.iup[b.vol][4]         Block geometry arrays, giving the labels of the
 b.idn[b.vol][4]         neighbours of a given block point. If the neighbour
@@ -103,10 +105,10 @@ b.idn[b.vol][4]         neighbours of a given block point. If the neighbour
 b.u[4*b.vol]            The single-precision gauge field on the block is
                         stored in this array in such a way that the 8 link
                         variables at the odd point with label ix are the 8
-                        elements at b.u+8*(ix-b.vol/2) (as on the global 
-                        lattice). The links sticking out of the block are 
-                        special in the sense that the variables residing 
-                        there are not used. 
+                        elements at b.u+8*(ix-b.vol/2) (as on the global
+                        lattice). The links sticking out of the block are
+                        special in the sense that the variables residing
+                        there are not used.
 
 b.ud[4*b.vol]           This array contains the double-precision gauge field
                         on the block. The storage conventions are the same as
@@ -167,7 +169,7 @@ with the following entries:
 bb.ifc                  The faces in the -0,+0,-1,+1,-2,+2,-3,+3 directions
                         are labeled by a number ifc ranging from 0 to 7.
 
-bb.ibn                  Indicates whether the face is contained in the 
+bb.ibn                  Indicates whether the face is contained in the
                         exterior boundary of the local lattice (bb.ibn=1)
                         or not (bb.ibn=0).
 
@@ -184,14 +186,14 @@ bb.ipp[bb.vol+1]        The points in the face are labeled by an index ix.
 
 bb.map[bb.vol+1]        For a given face point with label ix, bb.map[ix] is
                         the label of the partner point of the corresponding
-                        point on the opposite face of the block (the last 
+                        point on the opposite face of the block (the last
                         entry in the array is not used).
 
 bb.imb[bb.vol+1]        For a given face point with label ix, bb.imb[ix]
                         is the label of the point in the local lattice
                         (or in its exterior boundary; see README.global).
                         The array thus defines the embedding of the face
-                        in full lattice (the last entry in the array is 
+                        in full lattice (the last entry in the array is
                         not used).
 
 bb.u[bb.vol]            Array of the single-precision gauge-field variables
@@ -203,10 +205,10 @@ bb.ud[bb.vol]           Array of the double-precision gauge-field variables
                         with their partner points on the block.
 
 bb.w[bb.nw][bb.vol]     The value of the k'th single-precision Weyl field
-                        at the face point with label ix is bb.w[k][ix]. 
+                        at the face point with label ix is bb.w[k][ix].
 
 bb.wd[bb.nwd][bb.vol]   The value of the k'th double-precision Weyl field
-                        at the face point with label ix is bb.wd[k][ix]. 
+                        at the face point with label ix is bb.wd[k][ix].
 
 Which field arrays are allocated may be chosen when the program alloc_bnd()
 [block.c] is called.

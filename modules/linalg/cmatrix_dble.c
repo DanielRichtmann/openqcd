@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Complex matrix algebra (double-precision version)
+* Complex matrix algebra (double-precision version).
 *
 * The externally accessible functions are
 *
@@ -18,7 +18,7 @@
 *   void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,
 *                             complex_dble *w)
 *     Adds a*v to w, where v and w are n-vectors and a an nxn matrix.
-*     
+*
 *   void cmat_add_dble(int n,complex_dble *a,complex_dble *b,complex_dble *c)
 *     Computes the sum c=a+b of two nxn matrices a and b.
 *
@@ -46,7 +46,7 @@
 *
 *   A_{ij} = a[i*n+j]
 *
-* where i,j=0,1,..,n-1. It is assumed that the input and output arrays do 
+* where i,j=0,1,..,n-1. It is assumed that the input and output arrays do
 * not overlap in memory (the results are otherwise unpredictable).
 *
 * The inverse of a given matrix computed by cmat_inv_dble() may suffer
@@ -70,6 +70,10 @@
 #include "utils.h"
 #include "linalg.h"
 
+#ifndef ALIGN
+#define ALIGN 6
+#endif
+
 static int nmax=0;
 static double *rsv;
 static complex_dble *dsv;
@@ -85,7 +89,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("vxorpd %%ymm0, %%ymm0, %%ymm0 \n\t"
@@ -96,7 +100,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3");
-      
+
          for (vv=v;vv<vm;vv+=4)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -133,9 +137,9 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1]),
                                   "m" (vv[2]),
-                                  "m" (vv[3])                                  
+                                  "m" (vv[3])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
                                   "xmm8", "xmm9", "xmm10", "xmm11");
 
             a+=4;
@@ -158,7 +162,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("vxorpd %%ymm0, %%ymm0, %%ymm0 \n\t"
@@ -167,7 +171,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                :
                                "xmm0", "xmm1");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -187,8 +191,8 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -217,7 +221,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                :
                                "xmm0", "xmm1");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -237,8 +241,8 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -259,7 +263,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "=m" (w[0])
                                :
                                "m" (a[0].re),
-                               "m" (a[0].im),                               
+                               "m" (a[0].im),
                                "m" (vv[0])
                                :
                                "xmm0", "xmm1", "xmm4", "xmm5",
@@ -281,7 +285,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
@@ -293,7 +297,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "m" (w[0])
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3");
-      
+
          for (vv=v;vv<vm;vv+=4)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -330,9 +334,9 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1]),
                                   "m" (vv[2]),
-                                  "m" (vv[3])                                  
+                                  "m" (vv[3])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
                                   "xmm8", "xmm9", "xmm10", "xmm11");
 
             a+=4;
@@ -355,7 +359,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
@@ -365,7 +369,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "m" (w[0])
                                :
                                "xmm0", "xmm1");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -385,8 +389,8 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -416,7 +420,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "m" (w[0])
                                :
                                "xmm0", "xmm1");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("vmovddup %0, %%ymm4 \n\t"
@@ -436,8 +440,8 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -458,7 +462,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "=m" (w[0])
                                :
                                "m" (a[0].re),
-                               "m" (a[0].im),                               
+                               "m" (a[0].im),
                                "m" (vv[0])
                                :
                                "xmm0", "xmm1", "xmm4", "xmm5",
@@ -482,7 +486,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("xorpd %%xmm0, %%xmm0 \n\t"
@@ -493,7 +497,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("movapd %0, %%xmm4 \n\t"
@@ -517,8 +521,8 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -544,7 +548,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n-1;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("xorpd %%xmm0, %%xmm0 \n\t"
@@ -555,7 +559,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("movapd %0, %%xmm4 \n\t"
@@ -579,8 +583,8 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -601,7 +605,7 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3",
                                "xmm4", "xmm5");
-         
+
          __asm__ __volatile__ ("addpd %%xmm1, %%xmm0 \n\t"
                                "addpd %%xmm3, %%xmm2 \n\t"
                                "movapd %%xmm0, %%xmm1 \n\t"
@@ -632,7 +636,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("movsd %0, %%xmm0 \n\t"
@@ -645,7 +649,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "m" (w[0].im)
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3");
-      
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("movapd %0, %%xmm4 \n\t"
@@ -669,8 +673,8 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -696,7 +700,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
    {
       vm=v+n-1;
       wm=w+n;
-   
+
       for (;w<wm;w++)
       {
          __asm__ __volatile__ ("movsd %0, %%xmm0 \n\t"
@@ -708,8 +712,8 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                "m" (w[0].re),
                                "m" (w[0].im)
                                :
-                               "xmm0", "xmm1", "xmm2", "xmm3");         
-      
+                               "xmm0", "xmm1", "xmm2", "xmm3");
+
          for (vv=v;vv<vm;vv+=2)
          {
             __asm__ __volatile__ ("movapd %0, %%xmm4 \n\t"
@@ -733,8 +737,8 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                   "m" (vv[0]),
                                   "m" (vv[1])
                                   :
-                                  "xmm0", "xmm1", "xmm2", "xmm3", 
-                                  "xmm4", "xmm5", "xmm6", "xmm7");           
+                                  "xmm0", "xmm1", "xmm2", "xmm3",
+                                  "xmm4", "xmm5", "xmm6", "xmm7");
 
             a+=2;
          }
@@ -755,7 +759,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
                                :
                                "xmm0", "xmm1", "xmm2", "xmm3",
                                "xmm4", "xmm5");
-         
+
 
          __asm__ __volatile__ ("addpd %%xmm1, %%xmm0 \n\t"
                                "addpd %%xmm3, %%xmm2 \n\t"
@@ -786,12 +790,12 @@ void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
 
    vm=v+n;
    wm=w+n;
-   
+
    for (;w<wm;w++)
    {
       (*w).re=0.0;
       (*w).im=0.0;
-         
+
       for (vv=v;vv<vm;vv++)
       {
          (*w).re+=((*a).re*(*vv).re-(*a).im*(*vv).im);
@@ -808,7 +812,7 @@ void cmat_vec_assign_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
 
    vm=v+n;
    wm=w+n;
-   
+
    for (;w<wm;w++)
    {
       for (vv=v;vv<vm;vv++)
@@ -861,7 +865,7 @@ void cmat_mul_dble(int n,complex_dble *a,complex_dble *b,complex_dble *c)
    am=a+n*n;
    bm=b+n;
    bbm=b+n*n;
-   
+
    for (;a<am;a+=n)
    {
       for (;b<bm;b++)
@@ -891,7 +895,7 @@ void cmat_dag_dble(int n,complex_dble *a,complex_dble *b)
 
    am=a+n*n;
    bbm=b+n*n;
-   
+
    for (;a<am;)
    {
       for (bb=b;bb<bbm;bb+=n)
@@ -916,11 +920,11 @@ static int alloc_arrays(int n)
       rsv=NULL;
       dsv=NULL;
    }
-   
+
    if (n>0)
    {
-      rsv=amalloc(n*sizeof(*rsv),4);
-      dsv=amalloc(n*sizeof(*dsv),4);
+      rsv=amalloc(n*sizeof(*rsv),ALIGN);
+      dsv=amalloc(n*sizeof(*dsv),ALIGN);
 
       if (error_loc((rsv==NULL)||(dsv==NULL),1,"alloc_arrays [cmatrix_dble.c]",
                     "Unable to allocate auxiliary arrays")==0)
@@ -1017,7 +1021,7 @@ static int fwd_house(int n,complex_dble *a,complex_dble *b,double *fnsq)
          z.re*=r3;
          z.im*=r3;
          bk=b+n*k+k;
-         bj=b+n*k+j;         
+         bj=b+n*k+j;
 
          for (i=k;i<n;i++)
          {
@@ -1117,13 +1121,13 @@ static void bck_house(int n,complex_dble *b)
          z.im*=rsv[k];
          bi=b+n*i+k;
          dj=dsv+k;
-         
+
          for (j=k;j<n;j++)
          {
             (*bi).re-=(z.re*(*dj).re+z.im*(*dj).im);
             (*bi).im+=(z.re*(*dj).im-z.im*(*dj).re);
             bi+=1;
-            dj+=1;            
+            dj+=1;
          }
       }
    }
@@ -1137,7 +1141,7 @@ int cmat_inv_dble(int n,complex_dble *a,complex_dble *b,double *k)
    complex_dble *bb,*bm;
 
    *k=1.0/DBL_EPSILON;
-   
+
    if (n>nmax)
    {
       if (alloc_arrays(n)!=0)
@@ -1150,7 +1154,7 @@ int cmat_inv_dble(int n,complex_dble *a,complex_dble *b,double *k)
       return ie;
 
    solv_sys(n,b);
-   bck_house(n,b);   
+   bck_house(n,b);
 
    bb=b;
    bm=bb+n*n;
@@ -1160,7 +1164,7 @@ int cmat_inv_dble(int n,complex_dble *a,complex_dble *b,double *k)
       fnsqi+=((*bb).re*(*bb).re+(*bb).im*(*bb).im);
 
    *k=sqrt(fnsq*fnsqi);
-   
+
    return 0;
 }
 

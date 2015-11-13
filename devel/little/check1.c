@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2007, 2011, 2012 Martin Luescher
+* Copyright (C) 2007, 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the programs in the module Aw_gen.c
+* Check of the programs in the module Aw_gen.c.
 *
 *******************************************************************************/
 
@@ -44,7 +44,7 @@ static void random_imb(int vol)
       imb[i]=i;
 
    rvol=(float)(vol);
-   
+
    for (i=0;i<(16*vol);i++)
    {
       ranlxs(r,2);
@@ -54,7 +54,7 @@ static void random_imb(int vol)
          a=vol-1;
       b=(int)(rvol*r[1]);
       if (b>=vol)
-         b=vol-1;      
+         b=vol-1;
 
       j=imb[a];
       imb[a]=imb[b];
@@ -66,7 +66,7 @@ static void random_imb(int vol)
 static void random_ufld(int vol)
 {
    int i;
-   
+
    for (i=0;i<vol;i++)
    {
       random_su3_dble(ud+i);
@@ -105,7 +105,7 @@ static void apply_ud(int vol,su3_dble *u,spinor_dble *s,spinor_dble *r)
       _su3_multiply(r[i].c1,u[i],s[i].c1);
       _su3_multiply(r[i].c2,u[i],s[i].c2);
       _su3_multiply(r[i].c3,u[i],s[i].c3);
-      _su3_multiply(r[i].c4,u[i],s[i].c4);      
+      _su3_multiply(r[i].c4,u[i],s[i].c4);
    }
 }
 
@@ -183,8 +183,8 @@ int main(int argc,char *argv[])
 {
    int my_rank,ix,mu,vol,iv;
    double rv,dev0[2],dev1[2];
-   complex_dble sp0[2],sp1[2],z;
-   FILE *flog=NULL;   
+   complex_dble sp0[2],sp1[2];
+   FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -192,9 +192,9 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("check1.log","w",stdout);
-      
+
       printf("\n");
-      printf("Check of the programs in the module Aw_gen.s\n");
+      printf("Check of the programs in the module Aw_gen.c\n");
       printf("--------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
@@ -203,7 +203,7 @@ int main(int argc,char *argv[])
       fflush(flog);
    }
 
-   start_ranlux(0,123456);   
+   start_ranlux(0,123456);
 
    for (iv=0;iv<3;iv++)
    {
@@ -217,63 +217,61 @@ int main(int argc,char *argv[])
       if (my_rank==0)
       {
          printf("\n");
-         printf("vol = %3d, absolute deviations:\n",vol); 
+         printf("vol = %3d, absolute deviations:\n",vol);
       }
-      
+
       rv=sqrt((double)(vol));
-      z.re=-1.0;
-      z.im=0.0;
       random_imb(vol);
       random_ufld(vol);
 
       random_sfld(vol);
       gather_sd(vol,imb,sd[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
-      mulc_spinor_add_dble(vol,sd[1],sd[2],z);
+      mulr_spinor_add_dble(vol,sd[1],sd[2],-1.0);
       dev0[0]=norm_square_dble(vol,1,sd[1]);
-      
+
       random_sfld(vol);
       permute_sd(vol,sd[0],sd[1]);
       gather_ud(vol,imb,ud,vd);
       apply_ud(vol,vd,sd[1],sd[2]);
       apply_ud(vol,ud,sd[0],sd[1]);
-      permute_sd(vol,sd[1],sd[0]);     
-      mulc_spinor_add_dble(vol,sd[0],sd[2],z);
-      dev0[1]=norm_square_dble(vol,1,sd[0]);     
+      permute_sd(vol,sd[1],sd[0]);
+      mulr_spinor_add_dble(vol,sd[0],sd[2],-1.0);
+      dev0[1]=norm_square_dble(vol,1,sd[0]);
 
       if (my_rank==0)
       {
          printf("gather_sd():     %.1e\n",sqrt(dev0[0]));
-         printf("gather_ud():     %.1e\n",sqrt(dev0[1]));         
-      }      
-      
+         printf("gather_ud():     %.1e\n",sqrt(dev0[1]));
+      }
+
       random_sfld(vol);
       apply_u2sd(vol,imb,ud,sd[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
       apply_ud(vol,ud,sd[2],sd[0]);
-      mulc_spinor_add_dble(vol,sd[1],sd[0],z);
+      mulr_spinor_add_dble(vol,sd[1],sd[0],-1.0);
       dev0[0]=norm_square_dble(vol,1,sd[1]);
-      
+
       random_sfld(vol);
       apply_udag2sd(vol,imb,ud,sd[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
       apply_ud(vol,ud,sd[1],sd[0]);
-      mulc_spinor_add_dble(vol,sd[0],sd[2],z);
-      dev0[1]=norm_square_dble(vol,1,sd[0]);     
+      mulr_spinor_add_dble(vol,sd[0],sd[2],-1.0);
+      dev0[1]=norm_square_dble(vol,1,sd[0]);
 
       if (my_rank==0)
       {
          printf("apply_u2sd():    %.1e\n",sqrt(dev0[0]));
-         printf("apply_udag2sd(): %.1e\n",sqrt(dev0[1]));         
-      }      
-      
+         printf("apply_udag2sd(): %.1e\n",sqrt(dev0[1]));
+      }
+
       for (mu=0;mu<4;mu++)
       {
          random_sd(vol,sd[0],1.0);
          random_sd(vol,sd[1],1.0);
          normalize_dble(vol,0,sd[0]);
          normalize_dble(vol,0,sd[1]);
-      
+
          spinor_prod_gamma[mu](vol,sd[0],sd[1],sp0);
          sp1[0]=spinor_prod_dble(vol,0,sd[0],sd[1]);
 
@@ -294,15 +292,15 @@ int main(int argc,char *argv[])
          }
       }
    }
-      
+
    error_chk();
-   
+
    if (my_rank==0)
    {
       printf("\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

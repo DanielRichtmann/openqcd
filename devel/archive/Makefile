@@ -21,28 +21,26 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 check4 check5 check6
 
-FLAGS = flags lat_parms hmc_parms dfl_parms sf_parms
+FLAGS = flags lat_parms hmc_parms dfl_parms
 
 LATTICE = bcnds uidx geometry 
 
-ARCHIVE = archive marchive sarchive
+ARCHIVE = archive sarchive
 
 LINALG = liealg cmatrix_dble salg_dble
 
-RANDOM = ranlux ranlxs ranlxd gauss random_su3
+RANDOM = ranlux ranlxs ranlxd gauss 
 
-UFLDS = plaq_sum shift uflds udcom
-
-MDFLDS = mdflds fcom
+UFLDS = plaq_sum uflds udcom
 
 SFLDS = sflds
 
-SU3FCTS = chexp su3prod su3ren cm3x3
+SU3FCTS = chexp cm3x3 random_su3 su3prod su3ren 
 
 UTILS = endian mutils utils wspace
 
 MODULES = $(FLAGS) $(LATTICE) $(ARCHIVE) $(LINALG) $(RANDOM) $(UFLDS) \
-          $(MDFLDS) $(SFLDS) $(SU3FCTS) $(UTILS)
+          $(SFLDS) $(SU3FCTS) $(UTILS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -55,7 +53,7 @@ LOGOPTION =
 MDIR = ../../modules
 
 VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/archive:$(MDIR)/linalg:\
-          $(MDIR)/random:$(MDIR)/uflds:$(MDIR)/mdflds:$(MDIR)/sflds:\
+          $(MDIR)/random:$(MDIR)/uflds:$(MDIR)/sflds:\
           $(MDIR)/su3fcts:$(MDIR)/utils
 
 

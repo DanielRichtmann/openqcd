@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of add_chrono() and get_chrono()
+* Check of add_chrono() and get_chrono().
 *
 *******************************************************************************/
 
@@ -44,16 +44,17 @@ static void set_psi(spinor_dble **chi,spinor_dble *psi)
       z.re=pow(t,(double)(i));
       z.im=0.0;
       mulc_spinor_add_dble(VOLUME,psi,chi[i],z);
-   }      
+   }
 }
-   
+
 
 int main(int argc,char *argv[])
 {
    int my_rank,i;
    int nop,iop,itu;
    int ncr,ifr,zero;
-   double mu,eps,dev;
+   double phi[2],phi_prime[2];
+   double kappa,mu,eps,dev;
    spinor_dble **chi,**wsd;
    mdstep_t *s,*sm;
    FILE *flog=NULL;
@@ -74,23 +75,30 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
-   mu=0.5;   
+   mu=0.5;
    zero=0;
    ncr=4;
-   
-   set_lat_parms(5.3,1.6667,0.13650,0.0,0.0,1.23,0.98,1.0);
+
+   kappa=0.1365;
+   set_lat_parms(5.3,1.6667,1,&kappa,1.789);
+   phi[0]=0.378;
+   phi[1]=0.012;
+   phi_prime[0]=0.892;
+   phi_prime[1]=0.912;
+   set_bc_parms(0,1.23,1.27,0.98,1.03,phi,phi_prime);
+
    set_hmc_parms(0,NULL,1,1,&mu,2,2.0);
    ifr=0;
    set_mdint_parms(0,OMF4,0.0,1,1,&ifr);
    ifr=1;
-   set_mdint_parms(1,OMF4,0.2,ncr,1,&ifr);   
+   set_mdint_parms(1,OMF4,0.2,ncr,1,&ifr);
 
    set_force_parms(0,FRG,0,0,0,NULL,NULL,NULL);
    set_force_parms(1,FRF_TM1,0,0,0,&zero,&zero,&ncr);
 
    print_mdint_parms();
    print_force_parms();
-   
+
    start_ranlux(0,1234);
    geometry();
    alloc_wsd(6);
@@ -104,12 +112,12 @@ int main(int argc,char *argv[])
 
    for (i=0;i<4;i++)
       random_sd(VOLUME,chi[i],1.0);
-   
+
    for (;s<sm;s++)
    {
       iop=(*s).iop;
       eps=(*s).eps;
-   
+
       if (iop==itu)
          step_mdtime(eps);
       else if (iop==1)
@@ -125,17 +133,17 @@ int main(int argc,char *argv[])
             if (my_rank==0)
                printf("t = %.3f, dev = %.1e\n",mdtime(),sqrt(dev));
          }
-         
+
          add_chrono(1,wsd[0]);
       }
    }
-   
+
    if (my_rank==0)
    {
       printf("\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

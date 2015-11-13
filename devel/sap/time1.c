@@ -3,12 +3,12 @@
 *
 * File time1.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of blk_mres() and blk_eo_mres()
+* Timing of blk_mres() and blk_eo_mres().
 *
 *******************************************************************************/
 
@@ -33,10 +33,11 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,count,nt;
+   int my_rank,bc,count,nt;
    int nb,isw,nmr,bs[4];
-   int n,ie;   
+   int n,ie;
    float mu;
+   double phi[2],phi_prime[2];
    double wt1,wt2,wdt;
    spinor **ps;
    FILE *flog=NULL,*fin=NULL;
@@ -60,7 +61,7 @@ int main(int argc,char *argv[])
 #if (defined x64)
 #if (defined AVX)
       printf("Using AVX instructions\n");
-#else      
+#else
       printf("Using SSE3 instructions and 16 xmm registers\n");
 #endif
 #if (defined P3)
@@ -81,30 +82,48 @@ int main(int argc,char *argv[])
 
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
       printf("nmr = %d\n\n",nmr);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
+                    "Syntax: time1 [-bc <type>]");
    }
 
-   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);      
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
+
    start_ranlux(0,12345);
    geometry();
    alloc_ws(1);
    set_sap_parms(bs,0,1,1);
-   alloc_bgr(SAP_BLOCKS);   
+   alloc_bgr(SAP_BLOCKS);
 
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.156,1.0,1.234);
    set_sw_parms(0.0123);
    mu=0.0785f;
 
    random_ud();
+   chs_ubnd(-1);
    sw_term(NO_PTS);
    assign_ud2ubgr(SAP_BLOCKS);
    assign_swd2swbgr(SAP_BLOCKS,NO_PTS);
 
    ps=reserve_ws(1);
-   random_s(VOLUME,ps[0],1.0f);   
+   random_s(VOLUME,ps[0],1.0f);
+   bnd_s2zero(ALL_PTS,ps[0]);
+   normalize(VOLUME,1,ps[0]);
    blk_list(SAP_BLOCKS,&nb,&isw);
-   
+
    nt=(int)(1.0e7/(double)(nmr*VOLUME));
    if (nt<2)
       nt=2;
@@ -113,7 +132,7 @@ int main(int argc,char *argv[])
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<nt;count++)
       {
          for (n=0;n<nb;n++)
@@ -144,7 +163,7 @@ int main(int argc,char *argv[])
    ie=assign_swd2swbgr(SAP_BLOCKS,ODD_PTS);
    error_root(ie,1,"main [time1.c]",
               "The inversion of the SW term was not safe");
-   
+
    nt=(int)(1.0e7/(double)(nmr*VOLUME));
    if (nt<2)
       nt=2;
@@ -153,7 +172,7 @@ int main(int argc,char *argv[])
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<nt;count++)
       {
          for (n=0;n<nb;n++)

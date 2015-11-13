@@ -9,12 +9,17 @@ step         2
 [Lattice parameters]
 beta         6.0
 c0           1.6667
-kappa_u      0.1300
-kappa_s      0.12505
-kappa_c      0.0
+kappa        0.1300 0.12505
 csw          1.234
+
+[Boundary conditions]
+type         0
+#phi          0.12 -0.56
+#phi'         0.92 0.76
 cG           1.10
+#cG'          1.05
 cF           0.95
+#cF'          0.90
 
 [HMC parameters]
 actions      0 1 2 3 4
@@ -61,7 +66,7 @@ range        0.001 7.7
 [Level 0]
 integrator   OMF4
 nstep        1
-forces       0 
+forces       0
 
 [Level 1]
 integrator   OMF4

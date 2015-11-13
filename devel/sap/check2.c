@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2008, 2012 Martin Luescher
+* Copyright (C) 2005, 2008, 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Direct test of the Schwarz alternating procedure
+* Direct test of the Schwarz alternating procedure.
 *
 *******************************************************************************/
 
@@ -35,9 +35,11 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,n,ie,itm;
+   int my_rank,bc;
+   int n,ie,itm;
    int bs[4],nmr;
    float mu,res,del[3];
+   double phi[2],phi_prime[2];
    spinor **ps;
    tm_parms_t tm;
    FILE *flog=NULL,*fin=NULL;
@@ -67,11 +69,27 @@ int main(int argc,char *argv[])
       printf("mu = %.3e\n",mu);
       printf("nmr = %d\n\n",nmr);
       fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
+                    "Syntax: check2 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&mu,1,MPI_FLOAT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
@@ -79,8 +97,7 @@ int main(int argc,char *argv[])
    alloc_bgr(SAP_BLOCKS);
    alloc_ws(4);
    ps=reserve_ws(4);
-   
-   set_lat_parms(5.6,1.0,0.0,0.0,0.0,0.1,1.3,1.15);
+
    set_sw_parms(0.05);
 
    for (itm=0;itm<2;itm++)
@@ -89,15 +106,16 @@ int main(int argc,char *argv[])
          set_tm_parms(1);
       else
          set_tm_parms(0);
-   
+
       random_ud();
+      chs_ubnd(-1);
       sw_term(NO_PTS);
       assign_ud2u();
-      assign_swd2sw();   
+      assign_swd2sw();
       assign_ud2ubgr(SAP_BLOCKS);
       assign_swd2swbgr(SAP_BLOCKS,NO_PTS);
 
-      set_s2zero(VOLUME,ps[0]);   
+      set_s2zero(VOLUME,ps[0]);
       random_s(VOLUME,ps[1],1.0f);
       bnd_s2zero(ALL_PTS,ps[1]);
       normalize(VOLUME,1,ps[1]);
@@ -109,7 +127,7 @@ int main(int argc,char *argv[])
          printf("Twisted-mass flag = %d\n",tm.eoflg);
          printf("MinRes block solver:\n");
       }
-      
+
       for (n=0;n<8;n++)
       {
          sap(mu,0,nmr,ps[0],ps[1]);
@@ -118,7 +136,7 @@ int main(int argc,char *argv[])
 
          if (my_rank==0)
             printf("n = %d: \t residue = %.2e\t ",n+1,res);
-      
+
          Dw(mu,ps[0],ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[2],-1.0f);
          mulr_spinor_add(VOLUME,ps[3],ps[1],1.0f);
@@ -129,14 +147,14 @@ int main(int argc,char *argv[])
          bnd_s2zero(ALL_PTS,ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[0],-1.0f);
          del[1]=norm_square(VOLUME,1,ps[3]);
-         del[1]=(float)(sqrt((double)(del[1])));         
+         del[1]=(float)(sqrt((double)(del[1])));
 
          assign_s2s(VOLUME,ps[1],ps[3]);
          bnd_s2zero(ALL_PTS,ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[1],-1.0f);
          del[2]=norm_square(VOLUME,1,ps[3]);
-         del[2]=(float)(sqrt((double)(del[1])));         
-         
+         del[2]=(float)(sqrt((double)(del[1])));
+
          if (my_rank==0)
             printf("check = %.2e, bnd checks = %.1e,%.1e\n",
                    del[0],del[1],del[2]);
@@ -147,8 +165,8 @@ int main(int argc,char *argv[])
       ie=assign_swd2swbgr(SAP_BLOCKS,ODD_PTS);
       error_root(ie,1,"main [check2.c]",
                  "The inversion of the SW term was not safe");
-   
-      set_s2zero(VOLUME,ps[0]);   
+
+      set_s2zero(VOLUME,ps[0]);
       random_s(VOLUME,ps[1],1.0f);
       bnd_s2zero(ALL_PTS,ps[1]);
       normalize(VOLUME,1,ps[1]);
@@ -159,7 +177,7 @@ int main(int argc,char *argv[])
          printf("\n");
          printf("Even-odd preconditioned MinRes block solver:\n");
       }
-   
+
       for (n=0;n<8;n++)
       {
          sap(mu,1,nmr,ps[0],ps[1]);
@@ -179,25 +197,25 @@ int main(int argc,char *argv[])
          bnd_s2zero(ALL_PTS,ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[0],-1.0f);
          del[1]=norm_square(VOLUME,1,ps[3]);
-         del[1]=(float)(sqrt((double)(del[1])));         
+         del[1]=(float)(sqrt((double)(del[1])));
 
          assign_s2s(VOLUME,ps[1],ps[3]);
          bnd_s2zero(ALL_PTS,ps[3]);
          mulr_spinor_add(VOLUME,ps[3],ps[1],-1.0f);
          del[2]=norm_square(VOLUME,1,ps[3]);
-         del[2]=(float)(sqrt((double)(del[1])));         
-         
+         del[2]=(float)(sqrt((double)(del[1])));
+
          if (my_rank==0)
             printf("check = %.2e, bnd checks = %.1e,%.1e\n",
                    del[0],del[1],del[2]);
       }
 
       if (my_rank==0)
-         printf("\n");      
+         printf("\n");
    }
-   
+
    error_chk();
-   
+
    if (my_rank==0)
       fclose(flog);
 

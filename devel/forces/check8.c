@@ -3,12 +3,12 @@
 *
 * File check8.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check and performance of the multi-shift CG solver
+* Check and performance of the multi-shift CG solver.
 *
 *******************************************************************************/
 
@@ -32,10 +32,10 @@
 #include "forces.h"
 #include "global.h"
 
-static int my_rank,first,last,step;
+static int my_rank,bc,first,last,step;
 static int nmu,nmx;
-static double kappa,csw,cF;
-static double m0,*mu,*res;
+static double kappa,csw,*mu,cF,cF_prime;
+static double uphi[2],uphi_prime[2],m0,*res;
 static char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 
 
@@ -46,7 +46,6 @@ int main(int argc,char *argv[])
    double wt1,wt2,wdt;
    spinor_dble *eta,*chi,*phi,**psi,**wsd,**rsd;
    lat_parms_t lat;
-   sw_parms_t sw;
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -69,14 +68,37 @@ int main(int argc,char *argv[])
       read_line("name","%s",nbase);
       read_line("cnfg_dir","%s",cnfg_dir);
       read_line("first","%d",&first);
-      read_line("last","%d",&last);  
-      read_line("step","%d",&step);  
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
 
       find_section("Lattice parameters");
       read_line("kappa","%lf",&kappa);
       read_line("csw","%lf",&csw);
-      read_line("cF","%lf",&cF);
       nmu=count_tokens("mu");
+
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      uphi[0]=0.0;
+      uphi[1]=0.0;
+      uphi_prime[0]=0.0;
+      uphi_prime[1]=0.0;
+      cF=1.0;
+      cF_prime=1.0;
+
+      if (bc==1)
+         read_dprms("uphi",2,uphi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("uphi'",2,uphi_prime);
+
+      if (bc!=3)
+         read_line("cF","%lf",&cF);
+
+      if (bc==2)
+         read_line("cF'","%lf",&cF_prime);
+      else
+         cF_prime=cF;
    }
 
    MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
@@ -87,13 +109,18 @@ int main(int argc,char *argv[])
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmu,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(uphi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(uphi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    mu=malloc(2*nmu*sizeof(*mu));
    error(mu==NULL,1,"main [check8.c]","Unable to allocate auxiliary arrays");
    res=mu+nmu;
-   
+
    if (my_rank==0)
    {
       find_section("Lattice parameters");
@@ -111,30 +138,32 @@ int main(int argc,char *argv[])
    MPI_Bcast(mu,nmu,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(res,nmu,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
+
+   lat=set_lat_parms(5.5,1.0,1,&kappa,csw);
+   print_lat_parms();
+
+   set_bc_parms(bc,1.0,1.0,cF,cF_prime,uphi,uphi_prime);
+   print_bc_parms();
+
    start_ranlux(0,1234);
    geometry();
 
-   lat=set_lat_parms(6.0,1.0,kappa,0.0,0.0,csw,1.0,cF);
-   m0=lat.m0u;
-   sw=set_sw_parms(m0);
+   m0=lat.m0[0];
+   set_sw_parms(m0);
 
    if (my_rank==0)
    {
-      printf("kappa = %.6f\n",lat.kappa_u);
-      printf("csw = %.6f\n",sw.csw);
-      printf("cF = %.6f\n",sw.cF);
       printf("mu = %.6f",mu[0]);
       for (k=1;k<nmu;k++)
          printf(", %.6f",mu[k]);
       printf("\n\n");
 
       printf("CG parameters:\n");
-      printf("nmx = %d\n",nmx);      
+      printf("nmx = %d\n",nmx);
       printf("res = %.2e",res[0]);
       for (k=1;k<nmu;k++)
          printf(", %.2e",res[k]);
-      printf("\n\n");      
+      printf("\n\n");
 
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
              nbase,first,nbase,last,step);
@@ -150,15 +179,14 @@ int main(int argc,char *argv[])
    eta=wsd[0];
    chi=wsd[1];
    psi=reserve_wsd(nmu);
-   
+
    error_root(((last-first)%step)!=0,1,"main [check8.c]",
               "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);   
+   check_dir_root(cnfg_dir);
    nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
    error_root(nsize>=NAME_SIZE,1,"main [check8.c]",
               "configuration file name is too long");
    ie=0;
-   
 
    for (icnfg=first;icnfg<=last;icnfg+=step)
    {
@@ -169,28 +197,29 @@ int main(int argc,char *argv[])
       {
          printf("Configuration no %d\n\n",icnfg);
          fflush(flog);
-      } 
+      }
 
+      chs_ubnd(-1);
       random_sd(VOLUME,eta,1.0);
       bnd_sd2zero(ALL_PTS,eta);
       nrm=sqrt(norm_square_dble(VOLUME/2,1,eta));
       assign_sd2sd(VOLUME,eta,chi);
 
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();              
+      wt1=MPI_Wtime();
 
       tmcgm(nmx,res,nmu,mu,eta,psi,&status);
 
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wdt=wt2-wt1;
-      
+
       error_chk();
       mulr_spinor_add_dble(VOLUME,chi,eta,-1.0);
       del=norm_square_dble(VOLUME,1,chi);
       error_root(del!=0.0,1,"main [check8.c]",
                  "Source field is not preserved");
-      
+
       if (my_rank==0)
       {
          printf("status = %d\n",status);
@@ -203,11 +232,11 @@ int main(int argc,char *argv[])
                     "Solver did not converge");
          printf("residues = ");
       }
-      
+
       rsd=reserve_wsd(1);
       phi=rsd[0];
       status=0;
-      
+
       for (k=0;k<nmu;k++)
       {
          Dwhat_dble(mu[k],psi[k],chi);
@@ -219,19 +248,19 @@ int main(int argc,char *argv[])
 
          if (del<res[k])
             status+=1;
-         
+
          if (my_rank==0)
          {
             if (k==0)
                printf("%.2e",del);
             else
                printf(", %.2e",del);
-         }         
+         }
       }
 
       release_wsd();
       ie+=(status<nmu);
-      
+
       if (my_rank==0)
       {
          printf("\n");
@@ -254,6 +283,6 @@ int main(int argc,char *argv[])
       fclose(flog);
    }
 
-   MPI_Finalize();    
+   MPI_Finalize();
    exit(0);
 }

@@ -47,7 +47,7 @@ static void test1(blk_grid_t grid,int *bs)
    error((bs[0]!=((*b).bs[0]))||(bs[1]!=((*b).bs[1]))||
          (bs[2]!=((*b).bs[2]))||(bs[3]!=((*b).bs[3])),1,
          "test1 [check1.c]","Block sizes are not correctly assigned");
-   
+
    for (;b<bm;b++)
    {
       vol=(*b).vol;
@@ -55,7 +55,7 @@ static void test1(blk_grid_t grid,int *bs)
 
       if (vol!=(bs[0]*bs[1]*bs[2]*bs[3]))
          itest=1;
-      
+
       for (ix=0;ix<vol;ix++)
       {
          iy=imb[ix];
@@ -100,7 +100,7 @@ static void test2(blk_grid_t grid)
       bo=(*b).bo;
       bs=(*b).bs;
       imb=(*b).imb;
-      
+
       for (x0=0;x0<bs[0];x0++)
       {
          for (x1=0;x1<bs[1];x1++)
@@ -163,12 +163,6 @@ static void test2(blk_grid_t grid)
             }
          }
       }
-
-      for (ix=0;ix<vol;ix+=2)
-      {
-         if (global_time(imb[ix])!=global_time(imb[ix+1]))
-            itest=8;         
-      }
    }
 
    error(itest==1,1,"test2 [check1.c]",
@@ -185,18 +179,17 @@ static void test2(blk_grid_t grid)
          "b.idn is incorrect");
    error(itest==7,1,"test2 [check1.c]",
          "b.idn is incorrect at the block boundary");
-   error(itest==8,1,"test2 [check1.c]",
-         "The time-ordering of the points is incorrect");
 }
 
 
 static void test3(blk_grid_t grid)
 {
-   int ix,iy,itest;
+   int bc,ix,iy,ie,itest;
    int nbp,nall,x[4];
    int nb,isw,vol,*bs,*imb;
    block_t *b,*bm;
 
+   bc=bc_type();
    itest=0;
    nall=0;
    b=blk_list(grid,&nb,&isw);
@@ -207,7 +200,7 @@ static void test3(blk_grid_t grid)
       vol=(*b).vol;
       bs=(*b).bs;
       imb=(*b).imb;
-      
+
       nbp=0;
       x[0]=0;
       x[1]=0;
@@ -216,19 +209,20 @@ static void test3(blk_grid_t grid)
 
       ix=ipt_blk(b,x);
       ix=imb[ix];
-      if (global_time(ix)==0)
+      if ((global_time(ix)==0)&&(bc!=3))
          nbp+=(bs[1]*bs[2]*bs[3]);
 
       x[0]=bs[0]-1;
       ix=ipt_blk(b,x);
       ix=imb[ix];
-      if (global_time(ix)==(NPROC0*L0-1))
-         nbp+=(bs[1]*bs[2]*bs[3]);   
+      if ((global_time(ix)==(NPROC0*L0-1))&&(bc==0))
+         nbp+=(bs[1]*bs[2]*bs[3]);
 
       if ((*b).nbp!=nbp)
          itest=1;
 
       nall+=nbp;
+      nbp=(*b).nbp;
 
       for (iy=0;iy<nbp;iy++)
       {
@@ -244,16 +238,18 @@ static void test3(blk_grid_t grid)
          }
 
          ix=imb[ix];
-      
-         if ((global_time(ix)!=0)&&(global_time(ix)!=(NPROC0*L0-1)))
+         ie=((global_time(ix)==0)&&(bc!=3));
+         ie|=((global_time(ix)==(NPROC0*L0-1))&&(bc==0));
+
+         if (ie==0)
             itest=4;
       }
    }
 
-   if (cpr[0]==0)
+   if ((cpr[0]==0)&&(bc!=3))
       nall-=(L1*L2*L3);
-   if (cpr[0]==(NPROC0-1))
-      nall-=(L1*L2*L3);      
+   if ((cpr[0]==(NPROC0-1))&&(bc==0))
+      nall-=(L1*L2*L3);
 
    error(itest==1,1,"test3 [check1.c]",
          "b.nbp is incorrect");
@@ -264,7 +260,7 @@ static void test3(blk_grid_t grid)
    error(itest==4,1,"test3 [check1.c]",
          "The points b.ibp are not all on the boundary of the lattice");
    error(nall!=0,1,"test3 [check1.c]",
-         "Incorrect total count of points at time 0 and NPROC0*L0-1");   
+         "Incorrect total count of points at time 0 and NPROC0*L0-1");
 }
 
 
@@ -277,7 +273,7 @@ static void test4(blk_grid_t grid)
 
    for (ix=0;ix<(VOLUME+BNDRY);ix++)
       ix_test[ix]=0;
-   
+
    itest=0;
    b=blk_list(grid,&nb,&isw);
    bm=b+nb;
@@ -341,9 +337,9 @@ static void test4(blk_grid_t grid)
    for (ix=0;ix<(VOLUME+BNDRY);ix++)
       if (ix_test[ix]!=1)
          itest=4;
-   
+
    error(itest==1,1,"test4 [check1.c]",
-         "bb.ifc and bb.vol are not correctly assigned");         
+         "bb.ifc and bb.vol are not correctly assigned");
    error(itest==2,1,"test4 [check1.c]",
          "bb.ipp is out of range");
    error(itest==3,1,"test4 [check1.c]",
@@ -362,7 +358,7 @@ static void test5(blk_grid_t grid)
 
    for (ix=0;ix<(VOLUME+BNDRY);ix++)
       ix_test[ix]=0;
-   
+
    itest=0;
    b=blk_list(grid,&nb,&isw);
    bm=b+nb;
@@ -391,7 +387,7 @@ static void test5(blk_grid_t grid)
                itest=2;
 
             if ((iz<(VOLUME/2))||((iz>=VOLUME)&&(iz<(VOLUME+(BNDRY/2)))))
-               itest=2;         
+               itest=2;
          }
 
          mu=ifc/2;
@@ -416,7 +412,7 @@ static void test5(blk_grid_t grid)
                for (is=1;is<bs[mu];is++)
                   iz=(*b).iup[iz][mu];
             }
-         
+
             if (iy!=iz)
                itest=4;
 
@@ -451,7 +447,8 @@ static void test5(blk_grid_t grid)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,igr,bs[4];
+   int my_rank,bc,igr,bs[4];
+   double phi[2],phi_prime[2];
    blk_grid_t grid;
    FILE *flog=NULL,*fin=NULL;
 
@@ -475,9 +472,23 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
+
    geometry();
    set_sap_parms(bs,0,1,1);
    set_dfl_parms(bs,2);
@@ -500,12 +511,11 @@ int main(int argc,char *argv[])
       test4(grid);
       test5(grid);
    }
-   
+
    error_chk();
 
    if (my_rank==0)
    {
-      printf("\n");
       printf("No errors detected\n\n");
       fclose(flog);
    }

@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the little modes
+* Computation of the little modes.
 *
 * The externally accessible functions are
 *
@@ -31,7 +31,7 @@
 * safe if and only if its Frobenius condition number is less than 10^6.
 *
 * All programs in this module may involve global communications and must
-* be called simultaneously on all processes.
+* be called simultaneously on all MPI processes.
 *
 *******************************************************************************/
 
@@ -66,9 +66,8 @@ static void sum_vprod(int n,complex_dble *z,complex_dble *w)
 
    if (NPROC>1)
    {
-      MPI_Reduce((double*)(z),(double*)(w),2*n,MPI_DOUBLE,
-                 MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast((double*)(w),2*n,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      MPI_Reduce(z,w,2*n,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+      MPI_Bcast(w,2*n,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
    else
    {
@@ -86,8 +85,8 @@ static void alloc_matrices(void)
    int k,nmat;
    dfl_parms_t dfl;
    dfl_grid_t grd;
-   
-   dfl=dfl_parms();   
+
+   dfl=dfl_parms();
    grd=dfl_geometry();
 
    Ns=dfl.Ns;
@@ -97,7 +96,7 @@ static void alloc_matrices(void)
    vds=vdflds();
    nmat=Ns*Ns;
 
-   Ads=amalloc(3*nmat*sizeof(*Ads),ALIGN);   
+   Ads=amalloc(3*nmat*sizeof(*Ads),ALIGN);
 
    error(Ads==NULL,1,"alloc_matrices [ltl_modes.c]",
          "Unable to allocate matrices");
@@ -120,17 +119,17 @@ int set_ltl_modes(void)
    double r,cn;
    complex **wv;
    complex_dble **wvd,z;
-   
+
    if (Ns==0)
       alloc_matrices();
 
    wvd=reserve_wvd(2);
    wv=vs+Ns;
-   
+
    for (k=0;k<Ns;k++)
    {
       assign_v2vd(nvh,wv[k],vds[k]);
-      
+
       if (k>0)
       {
          for (l=0;l<k;l++)
@@ -160,11 +159,11 @@ int set_ltl_modes(void)
       }
       else
          error_root(1,1,"set_ltl_modes() [ltl_modes.c]",
-                    "Degenerate little modes");     
+                    "Degenerate little modes");
    }
 
    release_wvd();
-   
+
    for (k=0;k<Ns;k++)
    {
       for (l=0;l<Ns;l++)
@@ -179,7 +178,7 @@ int set_ltl_modes(void)
 
    return ifail;
 }
-   
+
 
 complex_dble *ltl_matrix(void)
 {

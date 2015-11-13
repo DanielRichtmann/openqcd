@@ -7,12 +7,12 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Basic functions for single-precision Hermitian 6x6 matrices
+* Basic functions for single-precision Hermitian 6x6 matrices.
 *
 * The externally accessible functions are
 *
 *   void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
-*     Multiplies the Weyl spinor s by the matrix m+i*mu and assigns 
+*     Multiplies the Weyl spinor s by the matrix m+i*mu and assigns
 *     the result to the Weyl spinor r. The source spinor is overwritten
 *     if r=s and otherwise left unchanged.
 *
@@ -27,7 +27,7 @@
 *
 *   void apply_sw(int vol,float mu,pauli *m,spinor *s,spinor *r)
 *     Applies the matrix field m[2*vol]+i*mu*gamma_5 to the spinor field
-*     s[vol] and assigns the result to the field r[vol]. The source field 
+*     s[vol] and assigns the result to the field r[vol]. The source field
 *     is overwritten if r=s and otherwise left unchanged (the arrays may
 *     not overlap in this case).
 *
@@ -64,7 +64,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
    m+=4;
    _prefetch_pauli(m);
    m-=4;
-   
+
    __asm__ __volatile__ ("movss %0, %%xmm14 \n\t"
                          "movss %1, %%xmm2 \n\t"
                          "movss %2, %%xmm3 \n\t"
@@ -81,12 +81,12 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "xmm2", "xmm3", "xmm4", "xmm14");
 
    __asm__ __volatile__ ("movhps %0, %%xmm2 \n\t"
-                         "movhps %0, %%xmm3 \n\t"                         
+                         "movhps %0, %%xmm3 \n\t"
                          "movhps %2, %%xmm4 \n\t"
                          "movsldup %4, %%xmm0 \n\t"
                          "movshdup %4, %%xmm1 \n\t"
                          "addps %%xmm14, %%xmm2 \n\t"
-                         "subps %%xmm14, %%xmm3 \n\t"                         
+                         "subps %%xmm14, %%xmm3 \n\t"
                          "movaps %%xmm4, %%xmm10 \n\t"
                          "movaps %%xmm2, %%xmm8 \n\t"
                          "movaps %%xmm3, %%xmm9 \n\t"
@@ -96,7 +96,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "shufps $0x1b, %%xmm9, %%xmm9"
                          :
                          :
-                         "m" ((*m).u[6]),                         
+                         "m" ((*m).u[6]),
                          "m" ((*m).u[7]),
                          "m" ((*m).u[16]),
                          "m" ((*m).u[17]),
@@ -105,7 +105,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          :
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm4", "xmm8", "xmm9", "xmm10");
-   
+
    __asm__ __volatile__ ("mulps %%xmm0, %%xmm2 \n\t"
                          "mulps %%xmm1, %%xmm3 \n\t"
                          "mulps %%xmm1, %%xmm4 \n\t"
@@ -127,12 +127,12 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
    s+=4;
    _prefetch_weyl(s);
    s-=4;
-   
+
    __asm__ __volatile__ ("mulps %%xmm1, %%xmm8 \n\t"
                          "mulps %%xmm0, %%xmm9 \n\t"
-                         "mulps %%xmm0, %%xmm10 \n\t"                         
+                         "mulps %%xmm0, %%xmm10 \n\t"
                          "movhps %0, %%xmm5 \n\t"
-                         "movhps %2, %%xmm6 \n\t"                         
+                         "movhps %2, %%xmm6 \n\t"
                          "movhps %4, %%xmm7 \n\t"
                          "addsubps %%xmm8, %%xmm2 \n\t"
                          "addsubps %%xmm9, %%xmm3 \n\t"
@@ -149,7 +149,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "xmm2", "xmm3", "xmm4", "xmm5",
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10");
-   
+
    __asm__ __volatile__ ("movaps %%xmm5, %%xmm8 \n\t"
                          "movaps %%xmm6, %%xmm9 \n\t"
                          "movaps %%xmm7, %%xmm10 \n\t"
@@ -163,7 +163,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "shufps $0xb1, %%xmm10, %%xmm10 \n\t"
                          "mulps %%xmm0, %%xmm8 \n\t"
                          "mulps %%xmm0, %%xmm9 \n\t"
-                         "mulps %%xmm0, %%xmm10"  
+                         "mulps %%xmm0, %%xmm10"
                          :
                          :
                          :
@@ -189,10 +189,10 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "movhps %4, %%xmm13 \n\t"
                          "movsldup %6, %%xmm0 \n\t"
                          "movshdup %6, %%xmm1 \n\t"
-                         "addps %%xmm14, %%xmm13 \n\t"                         
+                         "addps %%xmm14, %%xmm13 \n\t"
                          "movaps %%xmm11, %%xmm8 \n\t"
                          "movaps %%xmm12, %%xmm9 \n\t"
-                         "movaps %%xmm13, %%xmm10 \n\t"                         
+                         "movaps %%xmm13, %%xmm10 \n\t"
                          "shufps $0xb1, %%xmm8, %%xmm8 \n\t"
                          "shufps $0xb1, %%xmm9, %%xmm9 \n\t"
                          "shufps $0xb1, %%xmm10, %%xmm10"
@@ -205,12 +205,12 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "m" ((*m).u[24]),
                          "m" ((*m).u[25]),
                          "m" ((*s).c1.c3),
-                         "m" ((*s).c2.c1)                         
+                         "m" ((*s).c2.c1)
                          :
                          "xmm0", "xmm1", "xmm5", "xmm6",
                          "xmm7", "xmm8", "xmm9", "xmm10",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("mulps %%xmm0, %%xmm11 \n\t"
                          "mulps %%xmm0, %%xmm12 \n\t"
                          "mulps %%xmm0, %%xmm13 \n\t"
@@ -236,7 +236,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "xmm13");
 
    __asm__ __volatile__ ("movhps %0, %%xmm11 \n\t"
-                         "movhps %2, %%xmm12 \n\t"                         
+                         "movhps %2, %%xmm12 \n\t"
                          "movhps %4, %%xmm13 \n\t"
                          "subps %%xmm14, %%xmm11 \n\t"
                          "addsubps %%xmm8, %%xmm2 \n\t"
@@ -253,7 +253,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          :
                          "xmm2", "xmm3", "xmm4", "xmm11",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("movaps %%xmm11, %%xmm8 \n\t"
                          "movaps %%xmm12, %%xmm9 \n\t"
                          "movaps %%xmm13, %%xmm10 \n\t"
@@ -269,7 +269,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "addps %%xmm13, %%xmm7 \n\t"
                          "mulps %%xmm0, %%xmm8 \n\t"
                          "mulps %%xmm0, %%xmm9 \n\t"
-                         "mulps %%xmm0, %%xmm10"  
+                         "mulps %%xmm0, %%xmm10"
                          :
                          :
                          :
@@ -284,23 +284,23 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "m" ((*m).u[12]),
                          "m" ((*m).u[13]),
                          "m" ((*m).u[14]),
-                         "m" ((*m).u[15]),                         
+                         "m" ((*m).u[15]),
                          "m" ((*m).u[20]),
                          "m" ((*m).u[21]),
                          "m" ((*m).u[22]),
-                         "m" ((*m).u[23])                         
+                         "m" ((*m).u[23])
                          :
                          "xmm11", "xmm12");
-   
+
    __asm__ __volatile__ ("movups %0, %%xmm13 \n\t"
                          "addsubps %%xmm8, %%xmm5 \n\t"
                          "addsubps %%xmm9, %%xmm6 \n\t"
                          "addsubps %%xmm10, %%xmm7 \n\t"
                          "movaps %%xmm11, %%xmm8 \n\t"
                          "movaps %%xmm12, %%xmm9 \n\t"
-                         "movaps %%xmm13, %%xmm10 \n\t"                         
+                         "movaps %%xmm13, %%xmm10 \n\t"
                          "movsldup %4, %%xmm0 \n\t"
-                         "movshdup %4, %%xmm1 \n\t"                           
+                         "movshdup %4, %%xmm1 \n\t"
                          "shufps $0xb1, %%xmm8, %%xmm8 \n\t"
                          "shufps $0xb1, %%xmm9, %%xmm9 \n\t"
                          "shufps $0xb1, %%xmm10, %%xmm10"
@@ -309,7 +309,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "m" ((*m).u[26]),
                          "m" ((*m).u[27]),
                          "m" ((*m).u[28]),
-                         "m" ((*m).u[29]),                         
+                         "m" ((*m).u[29]),
                          "m" ((*s).c2.c2),
                          "m" ((*s).c2.c3)
                          :
@@ -318,14 +318,14 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "xmm13");
 
    __asm__ __volatile__ ("mulps %%xmm0, %%xmm11 \n\t"
-                         "mulps %%xmm0, %%xmm12 \n\t"                         
+                         "mulps %%xmm0, %%xmm12 \n\t"
                          "mulps %%xmm0, %%xmm13 \n\t"
                          "addps %%xmm11, %%xmm2 \n\t"
                          "addps %%xmm12, %%xmm3 \n\t"
                          "addps %%xmm13, %%xmm4 \n\t"
                          "movups %0, %%xmm11 \n\t"
                          "movss %4, %%xmm12 \n\t"
-                         "movss %5, %%xmm13 \n\t" 
+                         "movss %5, %%xmm13 \n\t"
                          "mulps %%xmm1, %%xmm8 \n\t"
                          "mulps %%xmm1, %%xmm9 \n\t"
                          "mulps %%xmm1, %%xmm10"
@@ -334,7 +334,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "m" ((*m).u[30]),
                          "m" ((*m).u[31]),
                          "m" ((*m).u[32]),
-                         "m" ((*m).u[33]),                         
+                         "m" ((*m).u[33]),
                          "m" ((*m).u[4]),
                          "m" ((*m).u[5])
                          :
@@ -347,7 +347,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "addsubps %%xmm8, %%xmm2 \n\t"
                          "addsubps %%xmm9, %%xmm3 \n\t"
                          "addps %%xmm14, %%xmm12 \n\t"
-                         "subps %%xmm14, %%xmm13 \n\t"                         
+                         "subps %%xmm14, %%xmm13 \n\t"
                          "addsubps %%xmm10, %%xmm4"
                          :
                          :
@@ -356,7 +356,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          :
                          "xmm2", "xmm3", "xmm4", "xmm12",
                          "xmm13");
-   
+
    __asm__ __volatile__ ("movaps %%xmm11, %%xmm8 \n\t"
                          "movaps %%xmm12, %%xmm9 \n\t"
                          "movaps %%xmm13, %%xmm10 \n\t"
@@ -365,13 +365,13 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "shufps $0x1b, %%xmm10, %%xmm10 \n\t"
                          "mulps %%xmm1, %%xmm8 \n\t"
                          "mulps %%xmm1, %%xmm9 \n\t"
-                         "mulps %%xmm0, %%xmm10 \n\t"                           
+                         "mulps %%xmm0, %%xmm10 \n\t"
                          "shufps $0x4e, %%xmm13, %%xmm13 \n\t"
                          "shufps $0xb1, %%xmm5, %%xmm5 \n\t"
                          "shufps $0xb1, %%xmm6, %%xmm6 \n\t"
                          "mulps %%xmm0, %%xmm11 \n\t"
-                         "mulps %%xmm0, %%xmm12 \n\t"                         
-                         "mulps %%xmm1, %%xmm13"                         
+                         "mulps %%xmm0, %%xmm12 \n\t"
+                         "mulps %%xmm1, %%xmm13"
                          :
                          :
                          :
@@ -395,14 +395,14 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
                          "haddps %%xmm7, %%xmm6 \n\t"
                          "movaps %%xmm2, %0 \n\t"
                          "movaps %%xmm4, %2 \n\t"
-                         "movaps %%xmm6, %4"                         
+                         "movaps %%xmm6, %4"
                          :
                          "=m" ((*r).c1.c1),
                          "=m" ((*r).c1.c2),
                          "=m" ((*r).c1.c3),
-                         "=m" ((*r).c2.c1),                         
+                         "=m" ((*r).c2.c1),
                          "=m" ((*r).c2.c2),
-                         "=m" ((*r).c2.c3)                         
+                         "=m" ((*r).c2.c3)
                          :
                          :
                          "xmm2", "xmm3", "xmm4", "xmm5",
@@ -417,7 +417,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
    m+=4;
    _prefetch_pauli_dble(m);
    m-=4;
-   
+
    __asm__ __volatile__ ("vmovss %0, %%xmm14 \n\t"
                          "vmovss %1, %%xmm2 \n\t"
                          "vmovss %2, %%xmm3 \n\t"
@@ -442,14 +442,14 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          :
                          "xmm2", "xmm3", "xmm4",  "xmm8",
                          "xmm9", "xmm10", "xmm14", "xmm15");
-   
+
    __asm__ __volatile__ ("vmovhps %0, %%xmm2, %%xmm2 \n\t"
                          "vmovhps %0, %%xmm3, %%xmm3 \n\t"
                          "vmovhps %2, %%xmm4, %%xmm4 \n\t"
                          "vmovaps %4, %%xmm0"
                          :
                          :
-                         "m" (m[0].u[6]),                         
+                         "m" (m[0].u[6]),
                          "m" (m[0].u[7]),
                          "m" (m[0].u[16]),
                          "m" (m[0].u[17]),
@@ -470,12 +470,12 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "vmovsldup %%ymm0, %%ymm0"
                          :
                          :
-                         "m" (m[1].u[6]),                         
+                         "m" (m[1].u[6]),
                          "m" (m[1].u[7]),
                          "m" (m[1].u[16]),
                          "m" (m[1].u[17]),
                          "m" ((*s).c3.c1),
-                         "m" ((*s).c3.c2)                         
+                         "m" ((*s).c3.c2)
                          :
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm4", "xmm8", "xmm9", "xmm10",
@@ -492,7 +492,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          :
                          "xmm2", "xmm3", "xmm8", "xmm9",
                          "xmm10");
-   
+
    __asm__ __volatile__ ("vmulps %%ymm0, %%ymm2, %%ymm2 \n\t"
                          "vmulps %%ymm1, %%ymm3, %%ymm3 \n\t"
                          "vmulps %%ymm1, %%ymm4, %%ymm4 \n\t"
@@ -528,7 +528,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          :
                          "xmm8", "xmm9", "xmm10", "xmm11",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vmovhps %0, %%xmm5, %%xmm5 \n\t"
                          "vmovhps %2, %%xmm6, %%xmm6 \n\t"
                          "vmovhps %4, %%xmm7, %%xmm7 \n\t"
@@ -568,7 +568,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
    s+=4;
    _prefetch_spinor(s);
    s-=4;
-   
+
    __asm__ __volatile__ ("vpermilps $0xb1, %%ymm5, %%ymm8 \n\t"
                          "vpermilps $0xb1, %%ymm6, %%ymm9 \n\t"
                          "vpermilps $0xb1, %%ymm7, %%ymm10 \n\t"
@@ -579,13 +579,13 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "vmulps %%ymm1, %%ymm7, %%ymm7 \n\t"
                          "vmulps %%ymm0, %%ymm8, %%ymm8 \n\t"
                          "vmulps %%ymm0, %%ymm9, %%ymm9 \n\t"
-                         "vmulps %%ymm0, %%ymm10, %%ymm10"  
+                         "vmulps %%ymm0, %%ymm10, %%ymm10"
                          :
                          :
                          :
                          "xmm3", "xmm4", "xmm5", "xmm6",
                          "xmm7", "xmm8", "xmm9", "xmm10");
-   
+
    __asm__ __volatile__ ("vmovaps %0, %%xmm11 \n\t"
                          "vmovaps %4, %%xmm12 \n\t"
                          "vmovss %8, %%xmm13 \n\t"
@@ -650,7 +650,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          :
                          "xmm0", "xmm1", "xmm8", "xmm9",
                          "xmm10", "xmm11", "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vmulps %%ymm0, %%ymm11, %%ymm11 \n\t"
                          "vmulps %%ymm0, %%ymm12, %%ymm12 \n\t"
                          "vmulps %%ymm0, %%ymm13, %%ymm13 \n\t"
@@ -674,7 +674,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "xmm2", "xmm3", "xmm4", "xmm8",
                          "xmm9", "xmm10", "xmm11", "xmm12",
                          "xmm13");
-   
+
    __asm__ __volatile__ ("vmovhps %0, %%xmm11, %%xmm11 \n\t"
                          "vmovhps %2, %%xmm12, %%xmm12 \n\t"
                          "vmovhps %4, %%xmm13, %%xmm13 \n\t"
@@ -724,7 +724,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          :
                          "xmm8", "xmm9", "xmm10", "xmm11",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vpermilps $0x4e, %%ymm11, %%ymm11 \n\t"
                          "vpermilps $0xb1, %%ymm11, %%ymm8 \n\t"
                          "vpermilps $0xb1, %%ymm12, %%ymm9 \n\t"
@@ -737,7 +737,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "vaddps %%ymm13, %%ymm7, %%ymm7 \n\t"
                          "vmulps %%ymm0, %%ymm8, %%ymm8 \n\t"
                          "vmulps %%ymm0, %%ymm9, %%ymm9 \n\t"
-                         "vmulps %%ymm0, %%ymm10, %%ymm10"  
+                         "vmulps %%ymm0, %%ymm10, %%ymm10"
                          :
                          :
                          :
@@ -755,11 +755,11 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[0].u[12]),
                          "m" (m[0].u[13]),
                          "m" (m[0].u[14]),
-                         "m" (m[0].u[15]),                         
+                         "m" (m[0].u[15]),
                          "m" (m[0].u[20]),
                          "m" (m[0].u[21]),
                          "m" (m[0].u[22]),
-                         "m" (m[0].u[23])                         
+                         "m" (m[0].u[23])
                          :
                          "xmm5", "xmm6", "xmm7", "xmm11",
                          "xmm12");
@@ -771,7 +771,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[0].u[26]),
                          "m" (m[0].u[27]),
                          "m" (m[0].u[28]),
-                         "m" (m[0].u[29]),                         
+                         "m" (m[0].u[29]),
                          "m" ((*s).c2.c2),
                          "m" ((*s).c2.c3)
                          :
@@ -784,11 +784,11 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[1].u[12]),
                          "m" (m[1].u[13]),
                          "m" (m[1].u[14]),
-                         "m" (m[1].u[15]),                         
+                         "m" (m[1].u[15]),
                          "m" (m[1].u[20]),
                          "m" (m[1].u[21]),
                          "m" (m[1].u[22]),
-                         "m" (m[1].u[23])                         
+                         "m" (m[1].u[23])
                          :
                          "xmm8", "xmm9");
 
@@ -807,7 +807,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[1].u[26]),
                          "m" (m[1].u[27]),
                          "m" (m[1].u[28]),
-                         "m" (m[1].u[29]),                         
+                         "m" (m[1].u[29]),
                          "m" ((*s).c4.c2),
                          "m" ((*s).c4.c3)
                          :
@@ -822,7 +822,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "vaddps %%ymm13, %%ymm4, %%ymm4 \n\t"
                          "vmovups %0, %%xmm11 \n\t"
                          "vmovss %4, %%xmm12 \n\t"
-                         "vmovss %5, %%xmm13 \n\t" 
+                         "vmovss %5, %%xmm13 \n\t"
                          "vmulps %%ymm1, %%ymm8, %%ymm8 \n\t"
                          "vmulps %%ymm1, %%ymm9, %%ymm9 \n\t"
                          "vmulps %%ymm1, %%ymm10, %%ymm10"
@@ -831,7 +831,7 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[0].u[30]),
                          "m" (m[0].u[31]),
                          "m" (m[0].u[32]),
-                         "m" (m[0].u[33]),                         
+                         "m" (m[0].u[33]),
                          "m" (m[0].u[4]),
                          "m" (m[0].u[5])
                          :
@@ -869,13 +869,13 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "m" (m[1].u[30]),
                          "m" (m[1].u[31]),
                          "m" (m[1].u[32]),
-                         "m" (m[1].u[33]),                         
+                         "m" (m[1].u[33]),
                          "m" (m[1].u[34]),
                          "m" (m[1].u[35])
                          :
                          "xmm8", "xmm9", "xmm10", "xmm11",
                          "xmm12", "xmm13");
-   
+
    __asm__ __volatile__ ("vpermilps $0xb1, %%ymm5, %%ymm5 \n\t"
                          "vpermilps $0xb1, %%ymm6, %%ymm6 \n\t"
                          "vpermilps $0x4e, %%ymm13, %%ymm13 \n\t"
@@ -911,14 +911,14 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
                          "vhaddps %%ymm7, %%ymm6, %%ymm6 \n\t"
                          "vmovaps %%xmm2, %0 \n\t"
                          "vmovaps %%xmm4, %2 \n\t"
-                         "vmovaps %%xmm6, %4"                         
+                         "vmovaps %%xmm6, %4"
                          :
                          "=m" ((*r).c1.c1),
                          "=m" ((*r).c1.c2),
                          "=m" ((*r).c1.c3),
-                         "=m" ((*r).c2.c1),                         
+                         "=m" ((*r).c2.c1),
                          "=m" ((*r).c2.c2),
-                         "=m" ((*r).c2.c3)                         
+                         "=m" ((*r).c2.c3)
                          :
                          :
                          "xmm2", "xmm3", "xmm4", "xmm5",
@@ -926,14 +926,14 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
 
    __asm__ __volatile__ ("vextractf128 $0x1, %%ymm2, %0 \n\t"
                          "vextractf128 $0x1, %%ymm4, %2 \n\t"
-                         "vextractf128 $0x1, %%ymm6, %4"                         
+                         "vextractf128 $0x1, %%ymm6, %4"
                          :
                          "=m" ((*r).c3.c1),
                          "=m" ((*r).c3.c2),
                          "=m" ((*r).c3.c3),
-                         "=m" ((*r).c4.c1),                         
+                         "=m" ((*r).c4.c1),
                          "=m" ((*r).c4.c2),
-                         "=m" ((*r).c4.c3));                         
+                         "=m" ((*r).c4.c3));
 
    _avx_zeroupper();
 }
@@ -945,8 +945,8 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
    spin_t *ps,*pr;
 
    ps=(spin_t*)(s);
-   pr=(spin_t*)(r);   
-   
+   pr=(spin_t*)(r);
+
    mul_pauli(mu,m,(*ps).w,(*pr).w);
    mul_pauli(-mu,m+1,(*ps).w+1,(*pr).w+1);
 }
@@ -962,7 +962,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
    float *u;
 
    u=(*m).u;
-   
+
    rs.c1.c1.re=
       u[ 0]*(*s).c1.c1.re-   mu*(*s).c1.c1.im+
       u[ 6]*(*s).c1.c2.re-u[ 7]*(*s).c1.c2.im+
@@ -1068,8 +1068,8 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
    spin_t *ps,*pr;
 
    ps=(spin_t*)(s);
-   pr=(spin_t*)(r);   
-   
+   pr=(spin_t*)(r);
+
    mul_pauli(mu,m,(*ps).w,(*pr).w);
    mul_pauli(-mu,m+1,(*ps).w+1,(*pr).w+1);
 }
@@ -1096,12 +1096,12 @@ void assign_pauli(int vol,pauli_dble *md,pauli *m)
          u[1]=(float)(ud[1]);
          u[2]=(float)(ud[2]);
          u[3]=(float)(ud[3]);
-         u[4]=(float)(ud[4]);         
+         u[4]=(float)(ud[4]);
          u[5]=(float)(ud[5]);
          u[6]=(float)(ud[6]);
          u[7]=(float)(ud[7]);
          u[8]=(float)(ud[8]);
-      
+
          u+=9;
       }
 

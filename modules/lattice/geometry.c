@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Programs related to the lattice and block geometry
+* Programs related to the lattice and block geometry.
 *
 * The externally accessible functions are
 *
@@ -23,7 +23,7 @@
 *     local index of the point to ix.
 *
 *   int global_time(int ix)
-*     Returns the (global) time coordinate of the lattice point with local 
+*     Returns the (global) time coordinate of the lattice point with local
 *     index ix.
 *
 *   void geometry(void)
@@ -65,6 +65,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "lattice.h"
 #include "global.h"
@@ -85,7 +86,7 @@ int ipr_global(int *n)
    int n0,n1,n2,n3;
    int nb0,nb1,nb2,nb3;
    int np0,np1,np2,np3;
-   
+
    n0=safe_mod(n[0],NPROC0);
    n1=safe_mod(n[1],NPROC1);
    n2=safe_mod(n[2],NPROC2);
@@ -99,13 +100,13 @@ int ipr_global(int *n)
    np0=n0%NPROC0_BLK;
    np1=n1%NPROC1_BLK;
    np2=n2%NPROC2_BLK;
-   np3=n3%NPROC3_BLK;   
+   np3=n3%NPROC3_BLK;
 
    ib=nb0;
    ib=ib*NBLK1+nb1;
    ib=ib*NBLK2+nb2;
    ib=ib*NBLK3+nb3;
-   
+
    ip=np0;
    ip=ip*NPROC1_BLK+np1;
    ip=ip*NPROC2_BLK+np2;
@@ -131,7 +132,7 @@ void ipt_global(int *x,int *ip,int *ix)
    n[3]=x3/L3;
 
    (*ip)=ipr_global(n);
-   
+
    x0=x0%L0;
    x1=x1%L1;
    x2=x2%L2;
@@ -230,7 +231,7 @@ static void cache_block(int *bs)
    if (cbix!=NULL)
       free(cbix);
 
-   cbix=malloc(cbs[0]*cbs[1]*cbs[2]*cbs[3]*sizeof(int));
+   cbix=malloc(cbs[0]*cbs[1]*cbs[2]*cbs[3]*sizeof(*cbix));
    error(cbix==NULL,1,"cache_block [geometry.c]",
          "Unable to allocate auxiliary array");
 }
@@ -310,7 +311,7 @@ static void set_tms(void)
 
    if (tms!=NULL)
       free(tms);
-   
+
    tms=malloc(VOLUME*sizeof(*tms));
    error(tms==NULL,1,"set_tms [geometry.c]",
          "Unable to allocate time array");
@@ -469,7 +470,7 @@ void blk_geometry(block_t *b)
 
    bo=(*b).bo;
    bs=(*b).bs;
-   
+
    cache_block(bs);
    set_cbix();
 
@@ -494,7 +495,7 @@ void blk_geometry(block_t *b)
                   (*b).idn[ix][0]=index(bo,bs,x0-1,x1,x2,x3);
                else
                   (*b).idn[ix][0]=(*b).vol;
-               
+
                if ((x1+1)<bs[1])
                   (*b).iup[ix][1]=index(bo,bs,x0,x1+1,x2,x3);
                else
@@ -504,7 +505,7 @@ void blk_geometry(block_t *b)
                   (*b).idn[ix][1]=index(bo,bs,x0,x1-1,x2,x3);
                else
                   (*b).idn[ix][1]=(*b).vol;
-               
+
                if ((x2+1)<bs[2])
                   (*b).iup[ix][2]=index(bo,bs,x0,x1,x2+1,x3);
                else
@@ -514,7 +515,7 @@ void blk_geometry(block_t *b)
                   (*b).idn[ix][2]=index(bo,bs,x0,x1,x2-1,x3);
                else
                   (*b).idn[ix][2]=(*b).vol;
-               
+
                if ((x3+1)<bs[3])
                   (*b).iup[ix][3]=index(bo,bs,x0,x1,x2,x3+1);
                else
@@ -530,7 +531,7 @@ void blk_geometry(block_t *b)
    }
 
    (*b).ipt[(*b).vol]=(*b).ipt[0];
-   
+
    free(cbix);
    cbix=NULL;
 }
@@ -544,7 +545,7 @@ void blk_imbed(block_t *b)
 
    bo=(*b).bo;
    bs=(*b).bs;
-   
+
    for (x0=0;x0<bs[0];x0++)
    {
       for (x1=0;x1<bs[1];x1++)
@@ -564,11 +565,11 @@ void blk_imbed(block_t *b)
    }
 
    (*b).imb[(*b).vol]=(*b).imb[0];
-   
-   ibd=((cpr[0]==0)&&((*b).bo[0]==0));
-   ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0));
+
+   ibd=((cpr[0]==0)&&((*b).bo[0]==0)&&(bc_type()!=3));
+   ibu=((cpr[0]==(NPROC0-1))&&(((*b).bo[0]+(*b).bs[0])==L0)&&(bc_type()==0));
    ibp=(*b).ibp;
-      
+
    for (ix=0;ix<(*b).vol;ix++)
    {
       if (((ibd)&&((*b).idn[ix][0]==(*b).vol))||
@@ -590,7 +591,7 @@ void bnd_geometry(block_t *b)
    vol=(*b).vol;
    volh=vol/2;
    bb=(*b).bb;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       ipp[ifc]=bb[ifc].ipp;
@@ -614,7 +615,7 @@ void bnd_geometry(block_t *b)
 
             iw=iy;
             iz=iy;
-            
+
             while (iw<vol)
             {
                iz=iw;
@@ -633,7 +634,7 @@ void bnd_geometry(block_t *b)
 
             iw=iy;
             iz=iy;
-            
+
             while (iw<vol)
             {
                iz=iw;
@@ -641,7 +642,7 @@ void bnd_geometry(block_t *b)
             }
 
             map[ifc][0]=iz;
-            map[ifc]+=1;            
+            map[ifc]+=1;
          }
       }
    }
@@ -664,12 +665,12 @@ void bnd_imbed(block_t *b)
 
    bb=(*b).bb;
    imb=(*b).imb;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       vol=(*bb).vol;
       ipp=(*bb).ipp;
-         
+
       for (ix=0;ix<vol;ix++)
       {
          iy=imb[ipp[ix]];
@@ -681,12 +682,12 @@ void bnd_imbed(block_t *b)
       }
 
       (*bb).imb[vol]=(*bb).imb[0];
-      
+
       if ((*bb).imb[0]>=VOLUME)
          (*bb).ibn=1;
       else
          (*bb).ibn=0;
-      
+
       bb+=1;
    }
 }

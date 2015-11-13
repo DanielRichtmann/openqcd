@@ -21,7 +21,7 @@ The program has only few options since most of the parameters are passed
 through an input file. The options are
 
 -i <filename>    Specifies the name of the input file. The name can be
-                 a fully qualified name or be specified relative to the 
+                 a fully qualified name or be specified relative to the
                  working directory.
 
 -noexp           Field configurations are normally read in exported
@@ -49,17 +49,28 @@ cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory
 first        1                     # No of the first configuration to consider
 last         4                     # No of the last configuration
 step         1                     # Configuration separation (last-first must
-                                   # be an integer multiple of step)
 
 [Dirac operator]
 kappa        0.1300                # Hopping parameter
 csw          1.234                 # Coefficient of the SW term
-cF           0.95                  # Coefficient of the boundary 
-                                   # improvement term
+
+[Boundary conditions]
+type         2                     # Type of boundary condition (0: open,
+                                   # 1: SF, 2: open-SF, 3: periodic)
+phi          0.12 -0.56            # Boundary values of the gauge field at
+                                   # time 0
+phi'         0.92 0.76             # Boundary values of the gauge field at
+                                   # time NPROC0*L0
+cF           0.95                  # Fermion action improvement coefficient
+                                   # at time 0
+cF'          0.90                  # Fermion action improvement coefficient
+                                   # at time NPROC0*L0
 
 [Power method]
-pmx          20                    # Number of power iterations to be 
-                                   # applied when estimating ra and rb
+np_ra        20                    # Number of power iterations to be
+                                   # applied when estimating ra
+np_rb        100                   # Number of power iterations to be
+                                   # applied when estimating rb
 
 Then follows a description of the solver for the Dirac equation to be used in
 the course of the inverse power iterations (see doc/parms.pdf). The supported
@@ -72,24 +83,24 @@ have no effect on the run. The solver index must be set to 0.
 
 FILES
 
-The program searches for exported field configurations 
+The program searches for exported field configurations
 
-  <run name>n<int>        
+  <run name>n<int>
 
 in the directory cnfg_dir, where <int> is the configuration number.
-Imported configurations 
+Imported configurations
 
   <run name>n<int>_0       (on process 0)
   <run name>n<int>_1       (on process 1)
   <run name>n<int>_2       (on process 2)
         ...                     ...
 
-are searched in the directory loc_dir. 
+are searched in the directory loc_dir.
 
 The program prints the results of the computations to the files
 
   <run name>.ms2.log       Log file
-  <run name>.ms2.log~      Backup log file 
+  <run name>.ms2.log~      Backup log file
 
 in the directory log_dir. The backup file is updated each time a configuration
 is fully processed.

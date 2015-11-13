@@ -3,12 +3,12 @@
 *
 * File time1.c
 *
-* Copyright (C) 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2011-2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of the program sw_term()
+* Timing of the program sw_term().
 *
 *******************************************************************************/
 
@@ -30,7 +30,8 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,count,nt;
+   int my_rank,bc,count,nt;
+   double phi[2],phi_prime[2];
    double wt1,wt2,wdt;
    FILE *flog=NULL;
 
@@ -49,16 +50,31 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
 #if (defined AVX)
-   printf("Using AVX instructions\n\n");
+      printf("Using AVX instructions\n\n");
 #elif (defined x64)
-   printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
+      printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
+                    "Syntax: time1 [-bc <type>]");
    }
+
+   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   print_lat_parms();
+
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.123;
+   phi[1]=-0.534;
+   phi_prime[0]=0.912;
+   phi_prime[1]=0.078;
+   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime);
+   print_bc_parms();
 
    start_ranlux(0,12345);
    geometry();
-   
-   set_lat_parms(5.5,1.0,0.0,0.0,0.0,0.456,1.0,1.0);
    set_sw_parms(-0.0123);
    random_ud();
 
@@ -70,7 +86,7 @@ int main(int argc,char *argv[])
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<nt;count++)
       {
          set_flags(UPDATED_UD);
@@ -101,7 +117,7 @@ int main(int argc,char *argv[])
    while (wdt<5.0)
    {
       MPI_Barrier(MPI_COMM_WORLD);
-      wt1=MPI_Wtime();     
+      wt1=MPI_Wtime();
       for (count=0;count<nt;count++)
       {
          set_flags(ERASED_SWD);

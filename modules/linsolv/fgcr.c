@@ -3,12 +3,12 @@
 *
 * File fgcr.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic flexible GCR solver program for the lattice Dirac equation
+* Generic flexible GCR solver program for the lattice Dirac equation.
 *
 * The externally accessible function is
 *
@@ -30,7 +30,7 @@
 * are assumed to have the following properties:
 *
 *   void Dop(spinor_dble *s,spinor_dble *r)
-*     Application of the operator D to the Dirac field s and assignment of 
+*     Application of the operator D to the Dirac field s and assignment of
 *     the result to r. On exit s may be changed but must satisfy D*s=r.
 *
 *   void Mop(int k,spinor *rho,spinor *phi,spinor *chi)
@@ -44,7 +44,7 @@
 *
 * The other parameters of the program fgcr() are:
 *
-*   vol     Number of spinors in the Dirac fields.         
+*   vol     Number of spinors in the Dirac fields.
 *
 *   icom    Indicates whether the equation to be solved is a local
 *           equation (icom=0) or a global one (icom=1). Scalar products
@@ -115,8 +115,8 @@ static int alloc_arrays(int nkv)
       afree(b);
    }
 
-   a=amalloc(nkv*(nkv+1)*sizeof(*a),3);
-   b=amalloc(nkv*sizeof(*b),3);
+   a=amalloc(nkv*(nkv+1)*sizeof(*a),ALIGN);
+   b=amalloc(nkv*sizeof(*b),ALIGN);
 
    if ((a==NULL)||(b==NULL))
       return 1;
@@ -199,13 +199,13 @@ static void update_psi(int vol,int icom,int k,int nkv,
 
    for (l=k;l>=0;l--)
       mulc_spinor_add(vol,rho,phi[l],c[l]);
-   
+
    add_s2sd(vol,rho,psi);
    (*Dop)(psi,wrk);
    diff_sd2s(vol,eta,wrk,rho);
 
    rn=(double)(norm_square(vol,icom,rho));
-   rn=sqrt(rn);   
+   rn=sqrt(rn);
 }
 
 
@@ -233,14 +233,14 @@ double fgcr(int vol,int icom,
 
       error_root((vol<=0)||(nkv<1)||(nmx<1)||(res<=DBL_EPSILON),1,
                  "fgcr [fgcr.c]","Improper choice of vol,nkv,nmx or res");
-      
+
       if (nkv>nkm)
       {
          ie=alloc_arrays(nkv);
          error(ie,1,"fgcr [fgcr.c]","Unable to allocate auxiliary arrays");
       }
    }
-   else 
+   else
    {
       if ((vol<=0)||(nkv<1)||(nmx<1)||(res<=DBL_EPSILON))
       {
@@ -281,12 +281,12 @@ double fgcr(int vol,int icom,
          (*status)+=1;
 #ifdef FGCR_DBG
          message("[fgcr]: k = %d, rn = %.2e\n",k,rn);
-#endif         
+#endif
          if ((rn<=tol)||(rn<(PRECISION_LIMIT*rn_old))||
              ((k+1)==nkv)||((*status)==nmx))
             break;
       }
-      
+
       update_psi(vol,icom,k,nkv,eta,psi,Dop);
 
       if (((*status)==nmx)&&(rn>tol))

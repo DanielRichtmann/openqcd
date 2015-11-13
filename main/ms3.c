@@ -8,11 +8,11 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of Wilson flow observables
+* Computation of Wilson flow observables.
 *
 * Syntax: ms3 -i <input file> [-noexp] [-a]
 *
-* For usage instructions see the file README.ms3
+* For usage instructions see the file README.ms3.
 *
 *******************************************************************************/
 
@@ -52,7 +52,7 @@ static struct
 } data;
 
 static int my_rank,noexp,append,endian;
-static int first,last,step,bc;
+static int first,last,step;
 static int ipgrd[2],flint;
 static double *Wact,*Yact,*Qtop;
 
@@ -64,6 +64,8 @@ static char par_file[NAME_SIZE],par_save[NAME_SIZE];
 static char dat_file[NAME_SIZE],dat_save[NAME_SIZE];
 static char cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fdat=NULL,*fend=NULL;
+
+static bc_parms_t bcp;
 
 
 static void alloc_data(void)
@@ -77,14 +79,14 @@ static void alloc_data(void)
 
    pp=amalloc(3*(nn+1)*sizeof(*pp),3);
    p=amalloc(3*(nn+1)*(tmax+1)*sizeof(*p),4);
-   
+
    error((pp==NULL)||(p==NULL),1,"alloc_data [ms3.c]",
          "Unable to allocate data arrays");
 
    data.Wsl=pp;
    data.Ysl=pp+nn+1;
    data.Qsl=pp+2*(nn+1);
-   
+
    for (in=0;in<(3*(nn+1));in++)
    {
       *pp=p;
@@ -95,7 +97,7 @@ static void alloc_data(void)
    Wact=p;
    p+=nn+1;
    Yact=p;
-   p+=nn+1;   
+   p+=nn+1;
    Qtop=p;
 }
 
@@ -104,21 +106,21 @@ static void write_file_head(void)
 {
    int iw;
    stdint_t istd[3];
-   double dstd[1];   
+   double dstd[1];
 
    istd[0]=(stdint_t)(file_head.dn);
    istd[1]=(stdint_t)(file_head.nn);
-   istd[2]=(stdint_t)(file_head.tmax);   
+   istd[2]=(stdint_t)(file_head.tmax);
    dstd[0]=file_head.eps;
-   
+
    if (endian==BIG_ENDIAN)
    {
       bswap_int(3,istd);
       bswap_double(1,dstd);
    }
-   
+
    iw=fwrite(istd,sizeof(stdint_t),3,fdat);
-   iw+=fwrite(dstd,sizeof(double),1,fdat);   
+   iw+=fwrite(dstd,sizeof(double),1,fdat);
 
    error_root(iw!=4,1,"write_file_head [ms3.c]",
               "Incorrect write count");
@@ -132,17 +134,17 @@ static void check_file_head(void)
    double dstd[1];
 
    ir=fread(istd,sizeof(stdint_t),3,fdat);
-   ir+=fread(dstd,sizeof(double),1,fdat);   
+   ir+=fread(dstd,sizeof(double),1,fdat);
 
    error_root(ir!=4,1,"check_file_head [ms3.c]",
               "Incorrect read count");
-   
+
    if (endian==BIG_ENDIAN)
    {
       bswap_int(3,istd);
-      bswap_double(1,dstd);      
+      bswap_double(1,dstd);
    }
-   
+
    error_root(((int)(istd[0])!=file_head.dn)||
               ((int)(istd[1])!=file_head.nn)||
               ((int)(istd[2])!=file_head.tmax)||
@@ -156,7 +158,7 @@ static void write_data(void)
    int iw,nn,tmax;
    int in,t;
    stdint_t istd[1];
-   double dstd[1];   
+   double dstd[1];
 
    istd[0]=(stdint_t)(data.nc);
 
@@ -165,8 +167,8 @@ static void write_data(void)
 
    iw=fwrite(istd,sizeof(stdint_t),1,fdat);
 
-   nn=file_head.nn;   
-   tmax=file_head.tmax;   
+   nn=file_head.nn;
+   tmax=file_head.tmax;
 
    for (in=0;in<=nn;in++)
    {
@@ -179,7 +181,7 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }     
+   }
 
    for (in=0;in<=nn;in++)
    {
@@ -192,7 +194,7 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }   
+   }
 
    for (in=0;in<=nn;in++)
    {
@@ -205,8 +207,8 @@ static void write_data(void)
 
          iw+=fwrite(dstd,sizeof(double),1,fdat);
       }
-   }   
-   
+   }
+
    error_root(iw!=(1+3*(nn+1)*tmax),1,"write_data [ms3.c]",
               "Incorrect write count");
 }
@@ -218,7 +220,7 @@ static int read_data(void)
    int in,t;
    stdint_t istd[1];
    double dstd[1];
-   
+
    ir=fread(istd,sizeof(stdint_t),1,fdat);
 
    if (ir!=1)
@@ -226,10 +228,10 @@ static int read_data(void)
 
    if (endian==BIG_ENDIAN)
       bswap_int(1,istd);
-   
+
    data.nc=(int)(istd[0]);
 
-   nn=file_head.nn;   
+   nn=file_head.nn;
    tmax=file_head.tmax;
 
    for (in=0;in<=nn;in++)
@@ -240,7 +242,7 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Wsl[in][t]=dstd[0];
       }
    }
@@ -253,11 +255,11 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Ysl[in][t]=dstd[0];
       }
    }
-   
+
    for (in=0;in<=nn;in++)
    {
       for (t=0;t<tmax;t++)
@@ -266,11 +268,11 @@ static int read_data(void)
 
          if (endian==BIG_ENDIAN)
             bswap_double(1,dstd);
-            
+
          data.Qsl[in][t]=dstd[0];
       }
    }
-   
+
    error_root(ir!=(1+3*(nn+1)*tmax),1,"read_data [ms3.c]",
               "Read error or incomplete data record");
 
@@ -296,7 +298,7 @@ static void read_dirs(void)
       }
       else
       {
-         read_line("cnfg_dir","%s",cnfg_dir);         
+         read_line("cnfg_dir","%s",cnfg_dir);
          loc_dir[0]='\0';
       }
 
@@ -304,12 +306,9 @@ static void read_dirs(void)
       read_line("first","%d",&first);
       read_line("last","%d",&last);
       read_line("step","%d",&step);
-      read_line("bc","%d",&bc);
 
       error_root((last<first)||(step<1)||(((last-first)%step)!=0),1,
                  "read_dirs [ms3.c]","Improper configuration range");
-      error_root((bc<0)||(bc>1),1,"read_dirs [ms3.c]",
-                 "Parameter bc must be 0 or 1");
    }
 
    MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
@@ -318,11 +317,10 @@ static void read_dirs(void)
    MPI_Bcast(dat_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   
+
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
 }
 
 
@@ -340,37 +338,50 @@ static void setup_files(void)
    error_root(name_size("%s/%s.ms3.log~",log_dir,nbase)>=NAME_SIZE,
               1,"setup_files [ms3.c]","log_dir name is too long");
    error_root(name_size("%s/%s.ms3.dat~",dat_dir,nbase)>=NAME_SIZE,
-              1,"setup_files [ms3.c]","dat_dir name is too long");   
-      
+              1,"setup_files [ms3.c]","dat_dir name is too long");
+
    sprintf(log_file,"%s/%s.ms3.log",log_dir,nbase);
-   sprintf(par_file,"%s/%s.ms3.par",dat_dir,nbase);   
+   sprintf(par_file,"%s/%s.ms3.par",dat_dir,nbase);
    sprintf(dat_file,"%s/%s.ms3.dat",dat_dir,nbase);
    sprintf(end_file,"%s/%s.ms3.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
-   sprintf(par_save,"%s~",par_file);   
+   sprintf(par_save,"%s~",par_file);
    sprintf(dat_save,"%s~",dat_file);
 }
 
 
-static void read_sf_parms(void) 
+static void read_bc_parms(void)
 {
-   double phi[4];
+   int bc;
+   double phi[2],phi_prime[2];
 
    if (my_rank==0)
    {
-      find_section("Boundary values");
-      read_dprms("phi",2,phi);
-      read_dprms("phi'",2,phi+2);
+      find_section("Boundary conditions");
+      read_line("type","%d",&bc);
+
+      phi[0]=0.0;
+      phi[1]=0.0;
+      phi_prime[0]=0.0;
+      phi_prime[1]=0.0;
+
+      if (bc==1)
+         read_dprms("phi",2,phi);
+
+      if ((bc==1)||(bc==2))
+         read_dprms("phi'",2,phi_prime);
    }
 
-   MPI_Bcast(phi,4,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   set_sf_parms(phi,phi+2);
+   bcp=set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
 
    if (append)
-      check_sf_parms(fdat);      
+      check_bc_parms(fdat);
    else
-      write_sf_parms(fdat);
+      write_bc_parms(fdat);
 }
 
 
@@ -402,24 +413,24 @@ static void read_wflow_parms(void)
                  "nstep must be a multiple of dnms");
    }
 
-   MPI_Bcast(&flint,1,MPI_INT,0,MPI_COMM_WORLD);      
-   MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
+   MPI_Bcast(&flint,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nstep,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&dnms,1,MPI_INT,0,MPI_COMM_WORLD);
 
    file_head.dn=dnms;
    file_head.nn=nstep/dnms;
    file_head.tmax=N0;
-   file_head.eps=eps;   
+   file_head.eps=eps;
 
    if (my_rank==0)
    {
       if (append)
       {
-         ir=fread(istd,sizeof(stdint_t),3,fdat);         
+         ir=fread(istd,sizeof(stdint_t),3,fdat);
          ir+=fread(dstd,sizeof(double),1,fdat);
          error_root(ir!=4,1,"read_wflow_parms [ms3.c]",
-                    "Incorrect read count");         
+                    "Incorrect read count");
 
          if (endian==BIG_ENDIAN)
          {
@@ -439,8 +450,8 @@ static void read_wflow_parms(void)
       else
       {
          istd[0]=(stdint_t)(flint);
-         istd[1]=(stdint_t)(nstep);         
-         istd[2]=(stdint_t)(dnms);         
+         istd[1]=(stdint_t)(nstep);
+         istd[2]=(stdint_t)(dnms);
          dstd[0]=eps;
 
          if (endian==BIG_ENDIAN)
@@ -449,7 +460,7 @@ static void read_wflow_parms(void)
             bswap_double(1,dstd);
          }
 
-         iw=fwrite(istd,sizeof(stdint_t),3,fdat);         
+         iw=fwrite(istd,sizeof(stdint_t),3,fdat);
          iw+=fwrite(dstd,sizeof(double),1,fdat);
          error_root(iw!=4,1,"read_wflow_parms [ms3.c]",
                     "Incorrect write count");
@@ -465,8 +476,8 @@ static void read_infile(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("STARTUP_ERROR","w",stdout);
- 
-      ifile=find_opt(argc,argv,"-i");      
+
+      ifile=find_opt(argc,argv,"-i");
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1)),1,"read_infile [ms3.c]",
@@ -475,18 +486,18 @@ static void read_infile(int argc,char *argv[])
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [ms3.c]",
                  "Machine has unknown endianness");
 
-      noexp=find_opt(argc,argv,"-noexp");      
+      noexp=find_opt(argc,argv,"-noexp");
       append=find_opt(argc,argv,"-a");
-      
+
       fin=freopen(argv[ifile+1],"r",stdin);
       error_root(fin==NULL,1,"read_infile [ms3.c]",
                  "Unable to open input file");
    }
 
-   MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);   
-   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);   
+   MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&append,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    read_dirs();
    setup_files();
 
@@ -501,8 +512,7 @@ static void read_infile(int argc,char *argv[])
                  "Unable to open parameter file");
    }
 
-   if (bc==1)
-      read_sf_parms();
+   read_bc_parms();
    read_wflow_parms();
 
    if (my_rank==0)
@@ -521,7 +531,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
    int ie,ic,isv;
    int fc,lc,dc,pc;
    int np[4],bp[4];
-   
+
    fend=fopen(log_file,"r");
    error_root(fend==NULL,1,"check_old_log [ms3.c]",
               "Unable to open log file");
@@ -532,9 +542,9 @@ static void check_old_log(int *fst,int *lst,int *stp)
    pc=0;
 
    ie=0x0;
-   ic=0;      
+   ic=0;
    isv=0;
-         
+
    while (fgets(line,NAME_SIZE,fend)!=NULL)
    {
       if (strstr(line,"process grid")!=NULL)
@@ -553,7 +563,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
       else if (strstr(line,"fully processed")!=NULL)
       {
          pc=lc;
-         
+
          if (sscanf(line,"Configuration no %d",&lc)==1)
          {
             ic+=1;
@@ -561,7 +571,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
          }
          else
             ie|=0x1;
-         
+
          if (ic==1)
             fc=lc;
          else if (ic==2)
@@ -576,7 +586,7 @@ static void check_old_log(int *fst,int *lst,int *stp)
    fclose(fend);
 
    error_root((ie&0x1)!=0x0,1,"check_old_log [ms3.c]",
-              "Incorrect read count");   
+              "Incorrect read count");
    error_root((ie&0x2)!=0x0,1,"check_old_log [ms3.c]",
               "Configuration numbers are not equally spaced");
    error_root(isv==0,1,"check_old_log [ms3.c]",
@@ -592,7 +602,7 @@ static void check_old_dat(int fst,int lst,int stp)
 {
    int ie,ic;
    int fc,lc,dc,pc;
-   
+
    fdat=fopen(dat_file,"rb");
    error_root(fdat==NULL,1,"check_old_dat [ms3.c]",
               "Unable to open data file");
@@ -612,7 +622,7 @@ static void check_old_dat(int fst,int lst,int stp)
       pc=lc;
       lc=data.nc;
       ic+=1;
-      
+
       if (ic==1)
          fc=lc;
       else if (ic==2)
@@ -620,7 +630,7 @@ static void check_old_dat(int fst,int lst,int stp)
       else if ((ic>2)&&(lc!=(pc+dc)))
          ie|=0x1;
    }
-   
+
    fclose(fdat);
 
    error_root(ic==0,1,"check_old_dat [ms3.c]",
@@ -638,7 +648,7 @@ static void check_files(void)
 
    ipgrd[0]=0;
    ipgrd[1]=0;
-   
+
    if (my_rank==0)
    {
       if (append)
@@ -673,9 +683,9 @@ static void check_files(void)
 
 static void print_info(void)
 {
-   int n;
-   long ip;   
-   
+   int n[3];
+   long ip;
+
    if (my_rank==0)
    {
       ip=ftell(flog);
@@ -683,7 +693,7 @@ static void print_info(void)
 
       if (ip==0L)
          remove("STARTUP_ERROR");
-      
+
       if (append)
          flog=freopen(log_file,"a",stdout);
       else
@@ -700,7 +710,7 @@ static void print_info(void)
          printf("--------------------------------------\n\n");
       }
 
-      printf("Program version %s\n",openQCD_RELEASE);         
+      printf("Program version %s\n",openQCD_RELEASE);
 
       if (endian==LITTLE_ENDIAN)
          printf("The machine is little endian\n");
@@ -712,36 +722,54 @@ static void print_info(void)
          printf("Configurations are read in exported file format\n\n");
 
       if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
-         printf("Process grid and process block size changed:\n");            
+         printf("Process grid and process block size changed:\n");
       else if (ipgrd[0]!=0)
          printf("Process grid changed:\n");
       else if (ipgrd[1]!=0)
          printf("Process block size changed:\n");
-      
+
       if ((append==0)||(ipgrd[0]!=0)||(ipgrd[1]!=0))
       {
          printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
-         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);         
+         printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
          printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-         printf("%dx%dx%dx%d process block size\n",
+         printf("%dx%dx%dx%d process block size\n\n",
                 NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
-
-         if (append)
-            printf("\n");
-         else
-         {
-            if (bc==0)
-               printf("Open boundary conditions\n\n");
-            else
-            {
-               printf("Schroedinger functional boundary conditions\n\n");
-               print_sf_parms();
-            }
-         }
       }
-      
+
       if (append==0)
       {
+         if (bcp.type==0)
+            printf("Open boundary conditions\n\n");
+         else if (bcp.type==1)
+         {
+            printf("SF boundary conditions\n");
+
+            n[0]=fdigits(bcp.phi[0][0]);
+            n[1]=fdigits(bcp.phi[0][1]);
+            n[2]=fdigits(bcp.phi[0][2]);
+            printf("phi = %.*f,%.*f,%.*f\n",IMAX(n[0],1),bcp.phi[0][0],
+                   IMAX(n[1],1),bcp.phi[0][1],IMAX(n[2],1),bcp.phi[0][2]);
+
+            n[0]=fdigits(bcp.phi[1][0]);
+            n[1]=fdigits(bcp.phi[1][1]);
+            n[2]=fdigits(bcp.phi[1][2]);
+            printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
+                   IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
+         }
+         else if (bcp.type==2)
+         {
+            printf("Open-SF boundary conditions\n");
+
+            n[0]=fdigits(bcp.phi[1][0]);
+            n[1]=fdigits(bcp.phi[1][1]);
+            n[2]=fdigits(bcp.phi[1][2]);
+            printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
+                   IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
+         }
+         else
+            printf("Periodic boundary conditions\n\n");
+
          printf("Wilson flow:\n");
          if (flint==0)
             printf("Euler integrator\n");
@@ -749,14 +777,14 @@ static void print_info(void)
             printf("2nd order RK integrator\n");
          else
             printf("3rd order RK integrator\n");
-         n=fdigits(file_head.eps);
-         printf("eps = %.*f\n",IMAX(n,1),file_head.eps);
+         n[0]=fdigits(file_head.eps);
+         printf("eps = %.*f\n",IMAX(n[0],1),file_head.eps);
          printf("nstep = %d\n",file_head.dn*file_head.nn);
          printf("dnms = %d\n\n",file_head.dn);
       }
 
       printf("Configurations no %d -> %d in steps of %d\n\n",
-             first,last,step);      
+             first,last,step);
       fflush(flog);
    }
 }
@@ -771,7 +799,7 @@ static void set_data(int nc)
    dn=file_head.dn;
    nn=file_head.nn;
    eps=file_head.eps;
-                  
+
    for (in=0;in<nn;in++)
    {
       Wact[in]=plaq_action_slices(data.Wsl[in]);
@@ -818,7 +846,7 @@ static void print_log(void)
 
       din=nn/10;
       if (din<1)
-         din=1;      
+         din=1;
 
       for (in=0;in<=nn;in+=din)
          printf("n = %3d, t = %.2e, Wact = %.6e, Yact = %.6e, Q = % .2e\n",
@@ -852,7 +880,7 @@ int main(int argc,char *argv[])
 {
    int nc,iend;
    double wt1,wt2,wtavg;
-   
+
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
@@ -864,15 +892,15 @@ int main(int argc,char *argv[])
    geometry();
    if (flint)
       alloc_wfd(1);
-   
-   iend=0;   
+
+   iend=0;
    wtavg=0.0;
-   
+
    for (nc=first;(iend==0)&&(nc<=last);nc+=step)
    {
       MPI_Barrier(MPI_COMM_WORLD);
       wt1=MPI_Wtime();
-      
+
       if (my_rank==0)
          printf("Configuration no %d\n",nc);
 
@@ -887,13 +915,10 @@ int main(int argc,char *argv[])
          import_cnfg(cnfg_file);
       }
 
-      if (bc==1)
-         check_sfbcd();
-      
       set_data(nc);
       save_data();
       print_log();
-      
+
       MPI_Barrier(MPI_COMM_WORLD);
       wt2=MPI_Wtime();
       wtavg+=(wt2-wt1);
@@ -905,7 +930,7 @@ int main(int argc,char *argv[])
                 nc,wt2-wt1);
          printf("(average = %.2e sec)\n\n",
                 wtavg/(double)((nc-first)/step+1));
-         fflush(flog);         
+         fflush(flog);
 
          copy_file(log_file,log_save);
          copy_file(dat_file,dat_save);
@@ -915,14 +940,14 @@ int main(int argc,char *argv[])
    }
 
    error_chk();
-      
+
    if (my_rank==0)
    {
       fflush(flog);
       copy_file(log_file,log_save);
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

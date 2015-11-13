@@ -3,7 +3,7 @@
 *
 * File mdflds.h
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -27,7 +27,6 @@ typedef struct
 /* FCOM_C */
 extern void copy_bnd_frc(void);
 extern void add_bnd_frc(void);
-extern void free_fcom_bufs(void);
 
 /* MDFLDS_C */
 extern mdflds_t *mdflds(void);

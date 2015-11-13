@@ -3,12 +3,12 @@
 *
 * File block.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Basic allocation programs for blocks of lattice points
+* Basic allocation programs for blocks of lattice points.
 *
 * The externally accessible functions are
 *
@@ -19,7 +19,7 @@
 *     of the other parameters. The single-precision gauge and SW fields are
 *     allocated if iu=1, the double-precision gauge and SW fields if iud=1,
 *     while ns and nsd are the numbers of single- and double-precision Dirac
-*     fields that are allocated. All elements of the block are properly 
+*     fields that are allocated. All elements of the block are properly
 *     initialized and the share flag b.shf is set to 0x0 (see the notes).
 *
 *   void alloc_bnd(block_t *b,int iu,int iud,int nw,int nwd)
@@ -54,7 +54,7 @@
 *   void free_blk(block_t *b)
 *     Frees the arrays in the block b and in the boundaries b.bb that were
 *     previously allocated by alloc_blk(), alloc_bnd() or clone_blk(). The
-*     boundary structures are then freed too (if they were allocated) and 
+*     boundary structures are then freed too (if they were allocated) and
 *     all entries in the block structure are set to 0 (or NULL).
 *
 *   int ipt_blk(block_t *b,int *x)
@@ -94,6 +94,7 @@
 #include <math.h>
 #include "mpi.h"
 #include "su3.h"
+#include "flags.h"
 #include "utils.h"
 #include "lattice.h"
 #include "sflds.h"
@@ -127,7 +128,7 @@ static int ins_blk(block_t *b)
       (*p).b=b;
       (*p).next=first;
       first=p;
-      
+
       return 0;
    }
    else
@@ -178,16 +179,16 @@ static void free_bnd(block_t *b)
    int shf;
    bndry_t *bb;
 
-   shf=(*b).shf;   
+   shf=(*b).shf;
    bb=(*b).bb;
 
    if (bb==NULL)
       return;
 
    if (!(shf&0x2))
-      afree((*bb).ipp);
+      free((*bb).ipp);
 
-   afree((*bb).imb);
+   free((*bb).imb);
 
    if ((!(shf&0x4))&&((*bb).u!=NULL))
       afree((*bb).u);
@@ -198,16 +199,16 @@ static void free_bnd(block_t *b)
    if ((!(shf&0x40))&&((*bb).nw>0))
    {
       afree((*bb).w[0]);
-      afree((*bb).w);
+      free((*bb).w);
    }
 
    if ((!(shf&0x80))&&((*bb).nwd>0))
    {
       afree((*bb).wd[0]);
-      afree((*bb).wd);
+      free((*bb).wd);
    }
 
-   afree((*b).bb);
+   free((*b).bb);
    (*b).bb=NULL;
 }
 
@@ -222,25 +223,25 @@ void free_blk(block_t *b)
    shf=(*b).shf;
    error(shf&0x1,1,"free_blk [block.c]",
          "Protected block");
-      
+
    free_bnd(b);
-   
-   afree((*b).bo);
+
+   free((*b).bo);
    (*b).bo=NULL;
    (*b).bs=NULL;
 
    if (!(shf&0x2))
    {
-      afree((*b).ipt);
-      afree((*b).iup);
+      free((*b).ipt);
+      free((*b).iup);
    }
 
-   afree((*b).imb);
-   
+   free((*b).imb);
+
    (*b).vol=0;
    (*b).vbb=0;
    (*b).nbp=0;
-   (*b).shf=0x0;   
+   (*b).shf=0x0;
    (*b).ipt=NULL;
    (*b).imb=NULL;
    (*b).ibp=NULL;
@@ -262,13 +263,13 @@ void free_blk(block_t *b)
    if ((!(shf&0x10))&&((*b).ns>0))
    {
       afree((*b).s[0]);
-      afree((*b).s);
+      free((*b).s);
    }
 
    if ((!(shf&0x20))&&((*b).nsd>0))
    {
       afree((*b).sd[0]);
-      afree((*b).sd);
+      free((*b).sd);
    }
 
    (*b).ns=0;
@@ -393,7 +394,7 @@ static void new_blk(block_t *b,int *bo,int *bs,
    error_root((ns<0)||(nsd<0),1,"new_blk [block.c]",
               "Improper choice of the numbers of spinor fields");
 
-   (*b).bo=amalloc(8*sizeof(*(*b).bo),3);
+   (*b).bo=malloc(8*sizeof(*(*b).bo));
    error((*b).bo==NULL,1,"new_blk [block.c]",
          "Unable to allocate size arrays");
    (*b).bs=(*b).bo+4;
@@ -408,12 +409,12 @@ static void new_blk(block_t *b,int *bo,int *bs,
    (*b).vbb=2*(bs[0]*bs[1]*bs[2]+bs[1]*bs[2]*bs[3]+
                bs[2]*bs[3]*bs[0]+bs[3]*bs[0]*bs[1]);
    (*b).nbp=0;
-   
-   if ((cpr[0]==0)&&(bo[0]==0))
+
+   if ((cpr[0]==0)&&(bo[0]==0)&&(bc_type()!=3))
       (*b).nbp+=bs[1]*bs[2]*bs[3];
-   if ((cpr[0]==(NPROC0-1))&&((bo[0]+bs[0])==L0))
+   if ((cpr[0]==(NPROC0-1))&&((bo[0]+bs[0])==L0)&&(bc_type()==0))
       (*b).nbp+=bs[1]*bs[2]*bs[3];
-   
+
    (*b).ns=ns;
    (*b).nsd=nsd;
    (*b).shf=shf;
@@ -426,16 +427,16 @@ static void new_blk(block_t *b,int *bo,int *bs,
    }
    else
    {
-      (*b).ipt=amalloc(((*b).vol+1)*sizeof(*(*b).ipt),3);
-      (*b).iup=amalloc(2*(*b).vol*sizeof(*(*b).iup),3);
+      (*b).ipt=malloc(((*b).vol+1)*sizeof(*(*b).ipt));
+      (*b).iup=malloc(2*(*b).vol*sizeof(*(*b).iup));
       error(((*b).ipt==NULL)||((*b).iup==NULL),1,
             "new_blk [block.c]","Unable to allocate the geometry arrays");
       (*b).idn=(*b).iup+(*b).vol;
    }
 
-   (*b).imb=amalloc((((*b).vol+1)+(*b).nbp)*sizeof(*(*b).imb),3); 
+   (*b).imb=malloc((((*b).vol+1)+(*b).nbp)*sizeof(*(*b).imb));
    (*b).ibp=(*b).imb+(*b).vol+1;
-   
+
    if ((shf&0x4)||(iu!=1))
    {
       (*b).u=NULL;
@@ -455,7 +456,7 @@ static void new_blk(block_t *b,int *bo,int *bs,
    {
       (*b).ud=NULL;
       (*b).swd=NULL;
-   }   
+   }
    else
    {
       (*b).ud=amalloc(4*(*b).vol*sizeof(*(*b).ud),ALIGN);
@@ -470,7 +471,7 @@ static void new_blk(block_t *b,int *bo,int *bs,
       (*b).s=NULL;
    else
    {
-      (*b).s=amalloc(ns*sizeof(*(*b).s),3);
+      (*b).s=malloc(ns*sizeof(*(*b).s));
       error((*b).s==NULL,1,"new_blk [block.c]",
             "Unable to allocate the single-precision spinor fields");
 
@@ -488,7 +489,7 @@ static void new_blk(block_t *b,int *bo,int *bs,
       (*b).sd=NULL;
    else
    {
-      (*b).sd=amalloc(nsd*sizeof(*(*b).sd),3);
+      (*b).sd=malloc(nsd*sizeof(*(*b).sd));
       error((*b).sd==NULL,1,"new_blk [block.c]",
             "Unable to allocate the double-precision spinor fields");
 
@@ -526,11 +527,11 @@ void alloc_blk(block_t *b,int *bo,int *bs,
       iprms[9]=iud;
       iprms[10]=ns;
       iprms[11]=nsd;
-      
+
       MPI_Bcast(iprms,12,MPI_INT,0,MPI_COMM_WORLD);
 
       ie=0;
-      
+
       for (mu=0;mu<4;mu++)
          if ((iprms[mu]!=bo[mu])||(iprms[4+mu]!=bs[mu]))
             ie=1;
@@ -539,11 +540,11 @@ void alloc_blk(block_t *b,int *bo,int *bs,
             (iprms[10]!=ns)||(iprms[11]!=nsd),1,"alloc_blk [block.c]",
             "Parameters are not global");
    }
-   
+
    error(iup[0][0]==0,1,"alloc_blk [block.c]",
          "The global geometry arrays are not set");
-   
-   new_blk(b,bo,bs,iu,iud,ns,nsd,0x0);   
+
+   new_blk(b,bo,bs,iu,iud,ns,nsd,0x0);
    blk_geometry(b);
    blk_imbed(b);
 }
@@ -562,15 +563,15 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
    error_root((nw<0)||(nwd<0),1,"new_bnd [block.c]",
               "Improper choice of the numbers of Weyl fields");
 
-   free_bnd(b);   
-   bb=amalloc(8*sizeof(*bb),3);
+   free_bnd(b);
+   bb=malloc(8*sizeof(*bb));
    error(bb==NULL,1,"new_bnd [block.c]",
          "Unable to allocate boundary structures");
    (*b).bb=bb;
-   
+
    vol=(*b).vol;
    bs=(*b).bs;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       bb[ifc].ifc=ifc;
@@ -580,7 +581,7 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
    }
 
    vol=(*b).vbb;
-   
+
    if (shf&0x2)
    {
       for (ifc=0;ifc<8;ifc++)
@@ -591,7 +592,7 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
    }
    else
    {
-      ipp=amalloc(2*(vol+8)*sizeof(*ipp),3);
+      ipp=malloc(2*(vol+8)*sizeof(*ipp));
       error(ipp==NULL,1,"new_bnd [block.c]",
             "Unable to allocate the geometry arrays");
       map=ipp+vol+8;
@@ -605,16 +606,16 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
       }
    }
 
-   imb=amalloc((vol+8)*sizeof(*imb),3);
+   imb=malloc((vol+8)*sizeof(*imb));
    error(imb==NULL,2,"new_bnd [block.c]",
-         "Unable to allocate the geometry arrays");   
+         "Unable to allocate the geometry arrays");
 
    for (ifc=0;ifc<8;ifc++)
    {
       bb[ifc].imb=imb;
       imb+=(bb[ifc].vol+1);
    }
-   
+
    if ((shf&0x4)||(iu!=1))
    {
       for (ifc=0;ifc<8;ifc++)
@@ -650,7 +651,7 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
       {
          bb[ifc].ud=ud;
          ud+=bb[ifc].vol;
-      }      
+      }
    }
 
    if ((shf&0x40)||(nw==0))
@@ -660,7 +661,7 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
    }
    else
    {
-      w=amalloc(8*nw*sizeof(*w),3);
+      w=malloc(8*nw*sizeof(*w));
       wb=amalloc(nw*vol*sizeof(*wb),ALIGN);
       error((w==NULL)||(wb==NULL),1,"new_bnd [block.c]",
             "Unable to allocate the single-precision Weyl fields");
@@ -687,7 +688,7 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
    }
    else
    {
-      wd=amalloc(8*nwd*sizeof(*wd),3);
+      wd=malloc(8*nwd*sizeof(*wd));
       wdb=amalloc(nwd*vol*sizeof(*wdb),ALIGN);
       error((wd==NULL)||(wdb==NULL),1,"new_bnd [block.c]",
             "Unable to allocate the double-precision Weyl fields");
@@ -718,12 +719,12 @@ void alloc_bnd(block_t *b,int iu,int iud,int nw,int nwd)
          "Block is not allocated");
    error((*b).shf&0x1,1,"alloc_bnd [block.c]",
          "Protected block");
-   
+
    if (NPROC>1)
    {
       bo=(*b).bo;
       bs=(*b).bs;
-      
+
       for (mu=0;mu<4;mu++)
       {
          iprms[mu]=bo[mu];
@@ -734,11 +735,11 @@ void alloc_bnd(block_t *b,int iu,int iud,int nw,int nwd)
       iprms[9]=iud;
       iprms[10]=nw;
       iprms[11]=nwd;
-      
+
       MPI_Bcast(iprms,12,MPI_INT,0,MPI_COMM_WORLD);
 
       ie=0;
-      
+
       for (mu=0;mu<4;mu++)
          if ((iprms[mu]!=bo[mu])||(iprms[4+mu]!=bs[mu]))
             ie=1;
@@ -747,24 +748,24 @@ void alloc_bnd(block_t *b,int iu,int iud,int nw,int nwd)
             (iprms[10]!=nw)||(iprms[11]!=nwd),1,"alloc_bnd [block.c]",
             "Parameters are not global");
    }
-   
+
    new_bnd(b,iu,iud,nw,nwd,0x0);
-   bnd_geometry(b);   
+   bnd_geometry(b);
    bnd_imbed(b);
 }
 
-   
+
 void clone_blk(block_t *b,int shf,int *bo,block_t *c)
 {
    int iprms[23],mu,ie;
    int *bbo,*bs,bshf;
    int iu,iud,ns,nsd,iub,iudb,nw,nwd;
    int ib,ifc;
-   
+
    error(fnd_blk(b)==0,1,"clone_blk [block.c]",
          "The block to be cloned is not allocated");
 
-   bbo=(*b).bo;   
+   bbo=(*b).bo;
    bs=(*b).bs;
    bshf=(*b).shf;
    iu=((*b).u!=NULL);
@@ -775,7 +776,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
    if ((*b).bb!=NULL)
    {
       iub=((*b).bb[0].u!=NULL);
-      iudb=((*b).bb[0].ud!=NULL);      
+      iudb=((*b).bb[0].ud!=NULL);
       nw=(*b).bb[0].nw;
       nwd=(*b).bb[0].nwd;
       ib=1;
@@ -809,11 +810,11 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
       iprms[20]=nwd;
       iprms[21]=ib;
       iprms[22]=shf;
-      
+
       MPI_Bcast(iprms,23,MPI_INT,0,MPI_COMM_WORLD);
 
       ie=0;
-      
+
       for (mu=0;mu<4;mu++)
       {
          if ((iprms[mu]!=bbo[mu])||
@@ -821,7 +822,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
              (iprms[8+mu]!=bo[mu]))
             ie=1;
       }
-      
+
       error((ie)||(iprms[12]!=bshf)||(iprms[13]!=iu)||(iprms[14]!=iud)||
             (iprms[15]!=ns)||(iprms[16]!=nsd)||(iprms[17]!=iub)||
             (iprms[18]!=iudb)||(iprms[19]!=nw)||(iprms[20]!=nwd)||
@@ -841,7 +842,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
               ((bshf&0x10)&&(!(shf&0x10))&&(ns>0))||
               ((bshf&0x20)&&(!(shf&0x20))&&(nsd>0)),1,
               "clone_blk [block.c]","Share flag mismatch");
-   
+
    new_blk(c,bo,bs,iu,iud,ns,nsd,shf);
 
    if (shf&0x2)
@@ -856,7 +857,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
       (*c).u=(*b).u;
       (*c).sw=(*b).sw;
    }
-   
+
    if ((shf&0x8)&&(iud!=0))
    {
       (*c).ud=(*b).ud;
@@ -870,17 +871,17 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
       (*c).sd=(*b).sd;
 
    if (!(shf&0x2))
-      blk_geometry(c);   
+      blk_geometry(c);
    blk_imbed(c);
-   
+
    if (ib)
    {
       error_root(((bshf&0x4)&&(!(shf&0x4))&&(iub!=0))||
                  ((bshf&0x8)&&(!(shf&0x8))&&(iudb!=0))||
                  ((bshf&0x40)&&(!(shf&0x40))&&(nw>0))||
                  ((bshf&0x80)&&(!(shf&0x80))&&(nwd>0)),2,
-                 "clone_blk [block.c]","Share flag mismatch");      
-      
+                 "clone_blk [block.c]","Share flag mismatch");
+
       new_bnd(c,iub,iudb,nw,nwd,shf);
 
       for (ifc=0;ifc<8;ifc++)
@@ -905,7 +906,7 @@ void clone_blk(block_t *b,int shf,int *bo,block_t *c)
       }
 
       if (!(shf&0x2))
-         bnd_geometry(c);   
+         bnd_geometry(c);
       bnd_imbed(c);
    }
 }
@@ -927,7 +928,7 @@ int ipt_blk(block_t *b,int *x)
    ix=x[2]+bs[2]*ix;
 
    n|=((x[3]<0)||(x[3]>=bs[3]));
-   ix=x[3]+bs[3]*ix;   
+   ix=x[3]+bs[3]*ix;
 
    if (n==0)
       return (*b).ipt[ix];

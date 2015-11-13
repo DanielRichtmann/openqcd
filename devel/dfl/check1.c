@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2013 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the DFL_BLOCKS grid geometry arrays
+* Check of the DFL_BLOCKS grid geometry arrays.
 *
 *******************************************************************************/
 
@@ -29,13 +29,13 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,bs[4],nbs,isw;
+   int my_rank,bc,bs[4],nbs,isw;
    int nb,nbb,*nbbe,*nbbo,*obbe,*obbo;
    int (*inn)[8],*idx,*ipp,*map;
    int ix,iy,iz,ifc,ie;
    int *bo1,*bo2;
    int l[4],mu,is;
-
+   double phi[2],phi_prime[2];
    block_t *b;
    dfl_grid_t dfl_grid;
    FILE *flog=NULL,*fin=NULL;
@@ -46,8 +46,8 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("check1.log","w",stdout);
-      fin=freopen("check1.in","r",stdin);      
-      
+      fin=freopen("check1.in","r",stdin);
+
       printf("\n");
       printf("Check of the DFL_BLOCKS grid geometry arrays\n");
       printf("--------------------------------------------\n\n");
@@ -60,11 +60,23 @@ int main(int argc,char *argv[])
       fclose(fin);
 
       printf("bs = %d %d %d %d\n\n",bs[0],bs[1],bs[2],bs[3]);
-      fflush(flog);
+
+      bc=find_opt(argc,argv,"-bc");
+
+      if (bc!=0)
+         error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>]");
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   phi[0]=0.0;
+   phi[1]=0.0;
+   phi_prime[0]=0.0;
+   phi_prime[1]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
+   print_bc_parms();
+
    geometry();
    set_dfl_parms(bs,4);
    dfl_grid=dfl_geometry();
@@ -73,13 +85,13 @@ int main(int argc,char *argv[])
    nbbo=dfl_grid.nbbo;
    obbe=dfl_grid.obbe;
    obbo=dfl_grid.obbo;
-   
+
    alloc_bgr(DFL_BLOCKS);
    b=blk_list(DFL_BLOCKS,&nbs,&isw);
 
    error((bs[0]!=(*b).bs[0])||(bs[1]!=(*b).bs[1])||(bs[2]!=(*b).bs[2])||
          (bs[3]!=(*b).bs[3])||(nb!=nbs),1,"main [check1.c]",
-         "Block sizes bs are incorrectly set or incorrect block number"); 
+         "Block sizes bs are incorrectly set or incorrect block number");
 
    ie=0;
    nbb=(nbbe[0]+nbbo[0]);
@@ -99,8 +111,8 @@ int main(int argc,char *argv[])
          ie=2;
    }
 
-   error(nbb!=dfl_grid.nbb,1,"main [check1.c]","nbb is incorrect"); 
-   error(ie==1,1,"main [check1.c]","Incorrect offsets obbe[ifc]");  
+   error(nbb!=dfl_grid.nbb,1,"main [check1.c]","nbb is incorrect");
+   error(ie==1,1,"main [check1.c]","Incorrect offsets obbe[ifc]");
    error(ie==2,1,"main [check1.c]","Incorrect offsets obbo[ifc]");
 
    inn=dfl_grid.inn;
@@ -119,11 +131,11 @@ int main(int argc,char *argv[])
             ie=1;
 
          if (inn[iy][ifc]!=(nb+ix))
-            ie=3;         
-         
+            ie=3;
+
          iz=iy;
       }
-      
+
       for (ix=obbo[ifc];ix<(obbo[ifc]+nbbo[ifc]);ix++)
       {
          iy=ipp[ix];
@@ -132,15 +144,15 @@ int main(int argc,char *argv[])
             ie=2;
 
          if (inn[iy][ifc]!=(nb+ix))
-            ie=3;         
-         
+            ie=3;
+
          iz=iy;
       }
-   }   
-   
+   }
+
    error(ie==1,1,"main [check1.c]","Incorrect ipp at even boundary points");
    error(ie==2,1,"main [check1.c]","Incorrect ipp at odd boundary points");
-   error(ie==3,1,"main [check1.c]","ipp and inn are inconsistent");   
+   error(ie==3,1,"main [check1.c]","ipp and inn are inconsistent");
 
    for (ix=0;ix<nb;ix++)
    {
@@ -152,7 +164,7 @@ int main(int argc,char *argv[])
          if (idx[ix]!=idx[ix-1]+1)
             ie=2;
       }
-      
+
       if (((ix==0)&&(isw==0))||((ix==(nb/2))&&(isw==1)))
       {
          bo1=b[idx[ix]].bo;
@@ -167,8 +179,8 @@ int main(int argc,char *argv[])
 
    error(ie==1,1,"main [check1.c]","Index array idx[ix] is not involutive");
    error(ie==2,1,"main [check1.c]","The ordering of idx[ix] is incorrect");
-   error(ie==3,1,"main [check1.c]","Index of the first block is incorrect "); 
-   
+   error(ie==3,1,"main [check1.c]","Index of the first block is incorrect ");
+
    for (ix=0;ix<nb;ix++)
    {
       for (ifc=0;ifc<8;ifc++)
@@ -191,17 +203,17 @@ int main(int argc,char *argv[])
    }
 
    error(ie==1,1,"main [check1.c]","Index inn[ix][ifc] is out of range");
-   error(ie==2,1,"main [check1.c]","Neighbouring blocks are not paired");   
+   error(ie==2,1,"main [check1.c]","Neighbouring blocks are not paired");
 
    l[0]=L0;
    l[1]=L1;
    l[2]=L2;
-   l[3]=L3;   
-   
+   l[3]=L3;
+
    for (ix=0;ix<nb;ix++)
    {
       bo1=b[idx[ix]].bo;
-      
+
       for (ifc=0;ifc<8;ifc++)
       {
          iy=inn[ix][ifc];
@@ -221,7 +233,7 @@ int main(int argc,char *argv[])
                {
                   is=2*(ifc&0x1)-1;
                   is=(bo1[mu]+is*bs[mu]+l[mu])%l[mu];
-                  
+
                   if (bo2[mu]!=is)
                      ie=1;
                }
@@ -251,7 +263,7 @@ int main(int argc,char *argv[])
                       (((ifc&0x1)==0)&&(bo2[mu]!=(l[mu]-bs[mu]))))
                      ie=3;
                }
-            }            
+            }
          }
       }
    }
@@ -261,14 +273,14 @@ int main(int argc,char *argv[])
    error(ie==2,1,"main [check1.c]",
          "Index array inn[ix][ifc] is incorrect at the boundary");
    error(ie==3,1,"main [check1.c]",
-         "Index array map[ix] is incorrect");   
-   
+         "Index array map[ix] is incorrect");
+
    if (my_rank==0)
    {
       printf("No errors detected\n\n");
       fclose(flog);
-   }   
+   }
 
-   MPI_Finalize(); 
+   MPI_Finalize();
    exit(0);
 }
