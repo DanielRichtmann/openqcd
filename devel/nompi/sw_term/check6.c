@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2005, 2009, 2010 Martin Luescher
+* Copyright (C) 2005, 2009, 2010, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -37,8 +37,10 @@ typedef union
 
 static spin_t vs ALIGNED16;
 static spin_dble_t vd ALIGNED16;
-static const weyl vs0={{{0.0f}}};
-static const weyl_dble vd0={{{0.0}}};
+static const weyl vs0={{{0.0f,0.0f},{0.0f,0.0f},{0.0f,0.0f}},
+                       {{0.0f,0.0f},{0.0f,0.0f},{0.0f,0.0f}}};
+static const weyl_dble vd0={{{0.0,0.0},{0.0,0.0},{0.0,0.0}},
+                            {{0.0,0.0},{0.0,0.0},{0.0,0.0}}};
 
 
 int main(void)
@@ -64,7 +66,7 @@ int main(void)
 
    imsb=msb+NM;
    imdb=mdb+NM;
-   
+
    rlxd_init(1,1234);
    mu=0.0123;
    md=mdb;
@@ -79,7 +81,7 @@ int main(void)
 
       for (k=0;k<6;k++)
          (*md).u[k]*=fact;
-         
+
       is[n]=(inv_pauli_dble(0.0,md,imd)|inv_pauli_dble(mu,md,imd+NM));
 
       if (is[n]==0)
@@ -106,7 +108,7 @@ int main(void)
       }
       else
          itot+=1;
-      
+
       md+=1;
       imd+=1;
    }
@@ -134,9 +136,9 @@ int main(void)
 
             mul_pauli((float)(mu),ms,&(vs.w),&(vs.w));
             mul_pauli(0.0f,ims,&(vs.w),&(vs.w));
-            mul_pauli((float)(-mu),ms,&(vs.w),&(vs.w));            
+            mul_pauli((float)(-mu),ms,&(vs.w),&(vs.w));
             mul_pauli(0.0f,ims+NM,&(vs.w),&(vs.w));
-            
+
             vs.c[k].re-=1.0f;
 
             for (l=0;l<6;l++)
@@ -147,7 +149,7 @@ int main(void)
             }
          }
       }
-      
+
       ms+=1;
       ims+=1;
    }

@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2007, 2008, 2011-2013 Martin Luescher
+* Copyright (C) 2007, 2008, 2011-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -56,7 +56,7 @@ int main(int argc,char *argv[])
    int my_rank,bc,count,nt;
    int i,nflds,ifail;
    int bs[4],Ns,nb,nbb,nv;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    double mu,wt1,wt2,wdt;
    complex **wv;
    FILE *fin=NULL,*flog=NULL;
@@ -101,8 +101,11 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.38;
+   theta[1]=-1.25;
+   theta[2]=0.54;
+   set_bc_parms(bc,1.0,1.0,0.9012,1.2034,phi,phi_prime,theta);
+   print_bc_parms(2);
 
    set_sw_parms(0.125);
    set_dfl_parms(bs,Ns);
@@ -121,7 +124,7 @@ int main(int argc,char *argv[])
    alloc_ws(Ns);
    alloc_wvd(2);
    random_ud();
-   chs_ubnd(-1);
+   set_ud_phase();
    random_basis(Ns);
 
    ifail=set_Awhat(mu);
@@ -172,7 +175,6 @@ int main(int argc,char *argv[])
       nt*=2;
    }
 
-   error_chk();
    wdt=4.0e6*wdt/(double)(nt*nflds);
 
    if (my_rank==0)

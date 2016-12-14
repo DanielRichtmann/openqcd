@@ -34,8 +34,14 @@ typedef union
 } spin2_t;
 
 static pauli mp[4] ALIGNED16;
-static spin_t s1,s2,r1,r2 ALIGNED16;
-static spin2_t sd1,sd2,rd1,rd2 ALIGNED16;
+static spin_t s1 ALIGNED16;
+static spin_t s2 ALIGNED16;
+static spin_t r1 ALIGNED16;
+static spin_t r2 ALIGNED16;
+static spin2_t sd1 ALIGNED16;
+static spin2_t sd2 ALIGNED16;
+static spin2_t rd1 ALIGNED16;
+static spin2_t rd2 ALIGNED16;
 
 
 int main(void)
@@ -55,7 +61,7 @@ int main(void)
 #endif
 
    printf("Measurement made with all data in cache\n\n");
-   
+
    rlxs_init(0,23456);
 
    for (n=0;n<4;n++)
@@ -111,7 +117,7 @@ int main(void)
 
    printf("Time per call of mul_pauli2():\n");
    printf("%.4f usec (%d Mflops [%d bit arithmetic])\n\n",
-          dt,(int)(552.0/dt),(int)(sizeof(spinor)/3));   
+          dt,(int)(552.0/dt),(int)(sizeof(spinor)/3));
 
    exit(0);
 }

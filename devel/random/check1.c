@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2013 Martin Luescher
+* Copyright (C) 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -33,13 +33,13 @@ int main(int argc,char *argv[])
 {
    int my_rank,tag,k,ie,ied;
    FILE *flog=NULL;
-   
+
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   
+
    if (my_rank==0)
    {
-      flog=freopen("check1.log","w",stdout);      
+      flog=freopen("check1.log","w",stdout);
 
       printf("\n");
       printf("Check of import/export functions for the ranlux generators\n");
@@ -50,19 +50,19 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
-   start_ranlux(0,1234); 
+   start_ranlux(0,1234);
    ranlxs(r,NRAN);
    ranlxd(rd,NRAN);
    tag=98029;
 
    export_ranlux(tag,"check1.dat");
    ranlxs(r,NRAN);
-   ranlxd(rd,NRAN);   
+   ranlxd(rd,NRAN);
 
    k=import_ranlux("check1.dat");
    error (k!=tag,1,"main [check1.c]",
           "Import_ranlux() returns incorrect tag");
-   
+
    ranlxs(r+NRAN,NRAN);
    ranlxd(rd+NRAN,NRAN);
 
@@ -72,20 +72,19 @@ int main(int argc,char *argv[])
    for (k=0;k<NRAN;k++)
    {
       ie|=(r[k]!=r[NRAN+k]);
-      ied|=(rd[k]!=rd[NRAN+k]);      
+      ied|=(rd[k]!=rd[NRAN+k]);
    }
 
-   error_chk();
    error((ie!=0)||(ied!=0),1,"main [check1.c]",
          "Export/import of the generator states failed");
-   
+
    if (my_rank==0)
    {
       remove("check1.dat");
       printf("No errors detected --- all is fine\n\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();  
+
+   MPI_Finalize();
    exit(0);
 }

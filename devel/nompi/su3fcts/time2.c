@@ -3,7 +3,7 @@
 *
 * File time2.c
 *
-* Copyright (C) 2005, 2008, 2009, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2008, 2009, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -16,12 +16,13 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#include "su3.h"
 #include "random.h"
 #include "su3fcts.h"
 
 static su3_dble u[4] ALIGNED16;
-static su3_vector_dble s[8],r[8],t[8] ALIGNED16;
+static su3_vector_dble s[8] ALIGNED16;
+static su3_vector_dble r[8] ALIGNED16;
+static su3_vector_dble t[8] ALIGNED16;
 
 #if (defined x64)
 #if (defined AVX)
@@ -141,13 +142,17 @@ int main(void)
    printf("-------------------------------------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n");
+#else
    printf("Using AVX instructions\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");
-   
+
    rlxd_init(1,123456);
 
    for (k=0;k<4;k++)
@@ -155,15 +160,15 @@ int main(void)
 
    gauss_dble((double*)(s),48);
    gauss_dble((double*)(r),48);
-   gauss_dble((double*)(t),48);      
-   
+   gauss_dble((double*)(t),48);
+
 #if (defined x64)
 
    n=(int)(1.0e6);
    dt=0.0;
 
    while (dt<2.0)
-   {    
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          fast_multiply(u,s,r);
@@ -174,14 +179,14 @@ int main(void)
 
    dt*=1.0e6/(double)(4*n);
 
-   printf("The time per v=U*w is     %4.3f micro sec",dt);
+   printf("The time per v=U*w is     %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
    n=(int)(1.0e6);
    dt=0.0;
 
    while (dt<2.0)
-   {    
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          fast_inverse_multiply(u,s,r);
@@ -189,10 +194,10 @@ int main(void)
       dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
       n*=2;
    }
-   
+
    dt*=1.0e6/(double)(4*n);
 
-   printf("The time per v=U^dag*w is %4.3f micro sec",dt);
+   printf("The time per v=U^dag*w is %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
 #endif
@@ -201,7 +206,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          slow_multiply(u,s,t);
@@ -209,11 +214,11 @@ int main(void)
       dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
       n*=2;
    }
-   
+
    dt*=1.0e6/(double)(4*n);
 
    printf("Using x87 FPU instructions:\n");
-   printf("The time per v=U*w is     %4.3f micro sec",dt);
+   printf("The time per v=U*w is     %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
 #if (defined x64)
@@ -237,7 +242,7 @@ int main(void)
 #else
    printf("||U*w_SSE-U*w_FPU||<= %.1e*||w||\n",delta);
 #endif
-   
+
    fast_inverse_multiply(u,s,r);
    slow_inverse_multiply(u,s,t);
    delta=0.0;
@@ -251,13 +256,13 @@ int main(void)
       if (diff>delta)
          delta=diff;
    }
-   
+
 #if (defined AVX)
    printf("||U^dag*w_AVX-U^dag*w_FPU||<= %.1e*||w||\n",delta);
 #else
    printf("||U^dag*w_SSE-U^dag*w_FPU||<= %.1e*||w||\n",delta);
 #endif
 #endif
-   
+
    exit(0);
 }

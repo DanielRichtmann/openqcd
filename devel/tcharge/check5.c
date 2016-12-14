@@ -3,7 +3,7 @@
 *
 * File check5.c
 *
-* Copyright (C) 2010, 2013 Martin Luescher
+* Copyright (C) 2010, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -47,7 +47,7 @@ static double afld(int *x,int mu)
    xt[1]=(double)(safe_mod(x[1],N1));
    xt[2]=(double)(safe_mod(x[2],N2));
    xt[3]=(double)(safe_mod(x[3],N3));
-   
+
    phi=0.0;
 
    for (nu=0;nu<mu;nu++)
@@ -58,7 +58,7 @@ static double afld(int *x,int mu)
    if (safe_mod(x[mu],np[mu])==(np[mu]-1))
    {
       for (nu=(mu+1);nu<4;nu++)
-         phi-=inp[nu]*mt[mu][nu]*xt[nu];      
+         phi-=inp[nu]*mt[mu][nu]*xt[nu];
    }
 
    return twopi*phi;
@@ -71,7 +71,7 @@ static void ftplaq(int *x,int mu,int nu,double *ftp)
    bc_parms_t bcp;
 
    bcp=bc_parms();
-   
+
    if ((x[0]==0)&&(mu==0)&&(bc==1))
    {
       sm=afld(x,mu);
@@ -116,7 +116,7 @@ static void ftplaq(int *x,int mu,int nu,double *ftp)
 
    ftp[0]=sin(om[0]);
    ftp[1]=sin(om[1]);
-   ftp[2]=sin(om[2]);   
+   ftp[2]=sin(om[2]);
 }
 
 
@@ -136,7 +136,7 @@ static double Abnd(void)
          x[0]=1;
       else
          x[0]=N0-1;
-      
+
       if (((ib==0)&&(bc==1)&&(cpr[0]==0))||
           ((ib==1)&&((bc==1)||(bc==2))&&(cpr[0]==(NPROC0-1))))
       {
@@ -165,7 +165,7 @@ static double Abnd(void)
 
                         ft1=0.25*(r0[0]+r1[0]+r2[0]+r3[0]);
                         ft2=0.25*(r0[1]+r1[1]+r2[1]+r3[1]);
-                        ft3=0.25*(r0[2]+r1[2]+r2[2]+r3[2]);                  
+                        ft3=0.25*(r0[2]+r1[2]+r2[2]+r3[2]);
 
                         tr=(ft1+ft2+ft3)/3.0;
                         ft1-=tr;
@@ -180,7 +180,7 @@ static double Abnd(void)
          }
       }
    }
-   
+
    if (NPROC>1)
    {
       MPI_Reduce(&aloc,&aall,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
@@ -211,13 +211,13 @@ static double Amt(void)
       for (nu=0;nu<mu;nu++)
       {
          phi=2.0*pi*mt[mu][nu]/(xl[mu]*xl[nu]);
-         
+
          ft1=sin(phi);
          ft2=ft1;
          ft3=-sin(2.0*phi);
 
          tr=(ft1+ft2+ft3)/3.0;
-         
+
          ft1-=tr;
          ft2-=tr;
          ft3-=tr;
@@ -241,7 +241,7 @@ static double Amt(void)
    else
       sm*=(double)(N0*N1)*(double)(N2*N3);
 
-   return sm; 
+   return sm;
 }
 
 
@@ -252,18 +252,18 @@ static void choose_mt(void)
 
    ranlxd(r,6);
    MPI_Bcast(r,6,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
+
    mt[0][1]=(double)((int)(3.0*r[0])-1);
    mt[0][2]=(double)((int)(3.0*r[1])-1);
    mt[0][3]=(double)((int)(3.0*r[2])-1);
    mt[1][2]=(double)((int)(3.0*r[3])-1);
    mt[1][3]=(double)((int)(3.0*r[4])-1);
-   mt[2][3]=(double)((int)(3.0*r[5])-1);   
+   mt[2][3]=(double)((int)(3.0*r[5])-1);
 
    for (mu=0;mu<4;mu++)
    {
       mt[mu][mu]=0.0;
-            
+
       for (nu=0;nu<mu;nu++)
          mt[mu][nu]=-mt[nu][mu];
    }
@@ -279,7 +279,7 @@ static void set_ud(void)
    su3_dble *udb,*u;
 
    udb=udfld();
-   
+
    for (x0=0;x0<L0;x0++)
    {
       for (x1=0;x1<L1;x1++)
@@ -295,8 +295,8 @@ static void set_ud(void)
                   x[0]=bo[0]+x0;
                   x[1]=bo[1]+x1;
                   x[2]=bo[2]+x2;
-                  x[3]=bo[3]+x3;                  
-                  
+                  x[3]=bo[3]+x3;
+
                   u=udb+8*(ix-(VOLUME/2));
 
                   for (ifc=0;ifc<8;ifc++)
@@ -308,14 +308,14 @@ static void set_ud(void)
 
                      if (ifc&0x1)
                         x[ifc/2]+=1;
-                     
-                     (*u)=ud0;                     
+
+                     (*u)=ud0;
                      (*u).c11.re=cos(phi);
                      (*u).c11.im=sin(phi);
                      (*u).c22.re=(*u).c11.re;
                      (*u).c22.im=(*u).c11.im;
                      (*u).c33.re=cos(-2.0*phi);
-                     (*u).c33.im=sin(-2.0*phi); 
+                     (*u).c33.im=sin(-2.0*phi);
                      u+=1;
                   }
                }
@@ -332,7 +332,7 @@ static void set_ud(void)
 int main(int argc,char *argv[])
 {
    int my_rank,i;
-   double phi[2],phi_prime[2];   
+   double phi[2],phi_prime[2],theta[3];
    double A1,A2,d,dmax;
    FILE *flog=NULL;
 
@@ -362,14 +362,17 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime);
-   print_bc_parms();       
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
 
    start_ranlux(0,123);
    geometry();
 
    twopi=8.0*atan(1.0);
-   
+
    np[0]=N0;
    np[1]=N1;
    np[2]=N2;
@@ -379,14 +382,14 @@ int main(int argc,char *argv[])
    bo[1]=cpr[1]*L1;
    bo[2]=cpr[2]*L2;
    bo[3]=cpr[3]*L3;
-   
+
    inp[0]=1.0/(double)(np[0]);
    inp[1]=1.0/(double)(np[1]);
    inp[2]=1.0/(double)(np[2]);
-   inp[3]=1.0/(double)(np[3]);    
-   
+   inp[3]=1.0/(double)(np[3]);
+
    dmax=0.0;
-   
+
    for (i=0;i<10;i++)
    {
       choose_mt();
@@ -402,8 +405,6 @@ int main(int argc,char *argv[])
       if (d>dmax)
          dmax=d;
    }
-
-   error_chk();
 
    if (my_rank==0)
    {

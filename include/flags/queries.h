@@ -3,7 +3,7 @@
 *
 * File flags/queries.h
 *
-* Copyright (C) 2009, 2010, 2011, 2012 Martin Luescher
+* Copyright (C) 2009-2012, 2016 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -78,12 +78,17 @@ static int QueryAwhatUp2date(void)
    return ((lat.ud>0)&&(lat.awh==lat.ud));
 }
 
+static int QueryUdPhaseSet(void)
+{
+   return (lat.phase==1);
+}
+
 static void set_queries(void)
 {
-   query_fcts[(int)(U_MATCH_UD)]=QueryUMatchUd;   
+   query_fcts[(int)(U_MATCH_UD)]=QueryUMatchUd;
    query_fcts[(int)(UDBUF_UP2DATE)]=QueryUdbufUp2date;
    query_fcts[(int)(BSTAP_UP2DATE)]=QueryBstapUp2date;
-   query_fcts[(int)(FTS_UP2DATE)]=QueryFtsUp2date;   
+   query_fcts[(int)(FTS_UP2DATE)]=QueryFtsUp2date;
    query_fcts[(int)(SW_UP2DATE)]=QuerySwUp2date;
    query_fcts[(int)(SW_E_INVERTED)]=QuerySwEInverted;
    query_fcts[(int)(SW_O_INVERTED)]=QuerySwOInverted;
@@ -92,6 +97,7 @@ static void set_queries(void)
    query_fcts[(int)(SWD_O_INVERTED)]=QuerySwdOInverted;
    query_fcts[(int)(AW_UP2DATE)]=QueryAwUp2date;
    query_fcts[(int)(AWHAT_UP2DATE)]=QueryAwhatUp2date;
+   query_fcts[(int)(UD_PHASE_SET)]=QueryUdPhaseSet;
 }
 
 #endif

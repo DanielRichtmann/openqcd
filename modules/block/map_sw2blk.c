@@ -3,7 +3,7 @@
 *
 * File map_sw2blk.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -58,7 +58,7 @@
 #include "block.h"
 #include "global.h"
 
-pauli_dble m[2] ALIGNED16;
+static pauli_dble ms[2] ALIGNED16;
 
 
 static int cp_swd2sw(block_t *b,ptset_t set)
@@ -77,12 +77,12 @@ static int cp_swd2sw(block_t *b,ptset_t set)
    {
       p=swd+2*(*imb);
       imb+=1;
-      
+
       if ((set==ALL_PTS)||(set==EVEN_PTS))
       {
-         ifail|=inv_pauli_dble(0.0,p,m);
-         ifail|=inv_pauli_dble(0.0,p+1,m+1);
-         assign_pauli(2,m,pb);
+         ifail|=inv_pauli_dble(0.0,p,ms);
+         ifail|=inv_pauli_dble(0.0,p+1,ms+1);
+         assign_pauli(2,ms,pb);
       }
       else
          assign_pauli(2,p,pb);
@@ -94,12 +94,12 @@ static int cp_swd2sw(block_t *b,ptset_t set)
    {
       p=swd+2*(*imb);
       imb+=1;
-      
+
       if ((set==ALL_PTS)||(set==ODD_PTS))
       {
-         ifail|=inv_pauli_dble(0.0,p,m);
-         ifail|=inv_pauli_dble(0.0,p+1,m+1);
-         assign_pauli(2,m,pb);
+         ifail|=inv_pauli_dble(0.0,p,ms);
+         ifail|=inv_pauli_dble(0.0,p+1,ms+1);
+         assign_pauli(2,ms,pb);
       }
       else
          assign_pauli(2,p,pb);
@@ -123,7 +123,7 @@ int assign_swd2swbgr(blk_grid_t grid,ptset_t set)
       MPI_Bcast(iprms,2,MPI_INT,0,MPI_COMM_WORLD);
 
       error((iprms[0]!=(int)(grid))||(iprms[1]!=(int)(set)),1,
-            "assign_swd2swbgr [map_sw2blk.c]","Parameters are not global");   
+            "assign_swd2swbgr [map_sw2blk.c]","Parameters are not global");
    }
 
    b=blk_list(grid,&nb,&isw);
@@ -144,18 +144,18 @@ int assign_swd2swbgr(blk_grid_t grid,ptset_t set)
 
    ie=query_flags(SWD_E_INVERTED);
    io=query_flags(SWD_O_INVERTED);
-   
+
    error_root(((ie)&&((set==ALL_PTS)||(set==EVEN_PTS)))||
               ((io)&&((set==ALL_PTS)||(set==ODD_PTS))),1,
               "assign_swd2swbgr [map_sw2blk.c]",
-              "Attempt to invert the SW field a second time");   
+              "Attempt to invert the SW field a second time");
 
    bm=b+nb;
    ifail=0;
-   
+
    for (;b<bm;b++)
       ifail|=cp_swd2sw(b,set);
-   
+
    set_grid_flags(grid,ASSIGNED_SWD2SWBGR);
 
    if ((set==ALL_PTS)||(set==EVEN_PTS))
@@ -166,10 +166,10 @@ int assign_swd2swbgr(blk_grid_t grid,ptset_t set)
    if (set!=NO_PTS)
    {
       n=ifail;
-      MPI_Reduce(&n,&ifail,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD); 
+      MPI_Reduce(&n,&ifail,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD);
       MPI_Bcast(&ifail,1,MPI_INT,0,MPI_COMM_WORLD);
    }
-   
+
    return ifail;
 }
 
@@ -189,7 +189,7 @@ static int cp_swd2swd(block_t *b,ptset_t set)
    {
       p=swd+2*(*imb);
       imb+=1;
-      
+
       if ((set==ALL_PTS)||(set==EVEN_PTS))
       {
          ifail|=inv_pauli_dble(0.0,p,pb);
@@ -198,7 +198,7 @@ static int cp_swd2swd(block_t *b,ptset_t set)
       else
       {
          pb[0]=p[0];
-         pb[1]=p[1];         
+         pb[1]=p[1];
       }
    }
 
@@ -208,7 +208,7 @@ static int cp_swd2swd(block_t *b,ptset_t set)
    {
       p=swd+2*(*imb);
       imb+=1;
-      
+
       if ((set==ALL_PTS)||(set==ODD_PTS))
       {
          ifail|=inv_pauli_dble(0.0,p,pb);
@@ -248,7 +248,7 @@ int assign_swd2swdblk(blk_grid_t grid,int n,ptset_t set)
 
    ie=query_flags(SWD_E_INVERTED);
    io=query_flags(SWD_O_INVERTED);
-   
+
    if (((ie)&&((set==ALL_PTS)||(set==EVEN_PTS)))||
        ((io)&&((set==ALL_PTS)||(set==ODD_PTS))))
    {

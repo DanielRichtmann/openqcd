@@ -78,8 +78,13 @@ static stdint_t *state;
 
 static int check_machine(void)
 {
-   int ie;
-   
+   int np,ie;
+
+   MPI_Comm_size(MPI_COMM_WORLD,&np);
+
+   error_root(np!=NPROC,1,"check_machine [ranlux.c]",
+              "Actual number of processes does not match NPROC");
+
    error_root(sizeof(stdint_t)!=4,1,"check_machine [ranlux.c]",
               "Size of a stdint_t integer is not 4");
 
@@ -98,11 +103,11 @@ static int alloc_state(void)
    nlxs=rlxs_size();
    nlxd=rlxd_size();
    n=nlxs+nlxd;
-   
+
    if (rlxs_state==NULL)
    {
       rlxs_state=malloc(n*sizeof(int));
-      rlxd_state=rlxs_state+nlxs;      
+      rlxd_state=rlxs_state+nlxs;
       state=malloc(n*sizeof(stdint_t));
       error((rlxs_state==NULL)||(state==NULL),1,"alloc_state [ranlux.c]",
             "Unable to allocate state arrays");
@@ -119,10 +124,10 @@ static int get_ip(int n)
    np[3]=n%NPROC3;
    n/=NPROC3;
    np[2]=n%NPROC2;
-   n/=NPROC2;      
+   n/=NPROC2;
    np[1]=n%NPROC1;
    n/=NPROC1;
-   np[0]=n;   
+   np[0]=n;
 
    return ipr_global(np);
 }
@@ -153,11 +158,11 @@ void start_ranlux(int level,int seed)
       iprms[1]=seed;
 
       MPI_Bcast(iprms,2,MPI_INT,0,MPI_COMM_WORLD);
-   
+
       error((iprms[0]!=level)||(iprms[1]!=seed),1,
             "start_ranlux [ranlux.c]","Input parameters are not global");
    }
-   
+
    max_seed=INT_MAX/NPROC;
 
    error_root((level<0)||(level>1)||(seed<1)||(seed>max_seed),1,
@@ -169,13 +174,11 @@ void start_ranlux(int level,int seed)
    for (n=0;n<NPROC;n++)
    {
       if (get_ip(n)==my_rank)
-         loc_seed=seed+n*max_seed;         
+         loc_seed=seed+n*max_seed;
    }
 
    rlxs_init(level,loc_seed);
    rlxd_init(level+1,loc_seed);
-
-   error_chk();
 }
 
 
@@ -187,7 +190,7 @@ void export_ranlux(int tag,char *out)
    stdint_t lsize[9];
    MPI_Status stat;
    FILE *fout=NULL;
-   
+
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    dmy=1;
@@ -196,7 +199,7 @@ void export_ranlux(int tag,char *out)
    iw=0;
    ie=check_machine();
    ns=alloc_state();
-   
+
    if (my_rank==0)
    {
       fout=fopen(out,"wb");
@@ -208,33 +211,33 @@ void export_ranlux(int tag,char *out)
       lsize[2]=(stdint_t)(NPROC1);
       lsize[3]=(stdint_t)(NPROC2);
       lsize[4]=(stdint_t)(NPROC3);
-      
+
       lsize[5]=(stdint_t)(L0);
       lsize[6]=(stdint_t)(L1);
       lsize[7]=(stdint_t)(L2);
       lsize[8]=(stdint_t)(L3);
-      
+
       if (ie==BIG_ENDIAN)
          bswap_int(9,lsize);
-      
+
       iw+=fwrite(lsize,sizeof(stdint_t),9,fout);
-   }   
+   }
 
    for (n=0;n<NPROC;n++)
    {
       ip=get_ip(n);
-      
+
       if (ip>0)
       {
          if (my_rank==0)
          {
-            MPI_Send(&dmy,1,MPI_INT,ip,tag0,MPI_COMM_WORLD);                  
+            MPI_Send(&dmy,1,MPI_INT,ip,tag0,MPI_COMM_WORLD);
             MPI_Recv(rlxs_state,ns,MPI_INT,ip,tag1,MPI_COMM_WORLD,&stat);
          }
          else if (my_rank==ip)
          {
             get_state();
-            MPI_Recv(&dmy,1,MPI_INT,0,tag0,MPI_COMM_WORLD,&stat);               
+            MPI_Recv(&dmy,1,MPI_INT,0,tag0,MPI_COMM_WORLD,&stat);
             MPI_Send(rlxs_state,ns,MPI_INT,0,tag1,MPI_COMM_WORLD);
          }
       }
@@ -249,12 +252,10 @@ void export_ranlux(int tag,char *out)
          if (ie==BIG_ENDIAN)
             bswap_int(ns,state);
 
-         iw+=fwrite(state,sizeof(stdint_t),ns,fout);         
+         iw+=fwrite(state,sizeof(stdint_t),ns,fout);
       }
    }
 
-   error_chk();
-   
    if (my_rank==0)
    {
       error_root(iw!=(9+NPROC*ns),1,"export_ranlux [ranlux.c]",
@@ -272,7 +273,7 @@ int import_ranlux(char *in)
    stdint_t lsize[9];
    MPI_Status stat;
    FILE *fin=NULL;
-   
+
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    dmy=1;
@@ -281,15 +282,15 @@ int import_ranlux(char *in)
    ir=0;
    ie=check_machine();
    ns=alloc_state();
-   
+
    if (my_rank==0)
    {
       fin=fopen(in,"rb");
       error_root(fin==NULL,1,"import_ranlux [ranlux.c]",
                  "Unable to open input file");
-      
-      ir+=fread(lsize,sizeof(stdint_t),9,fin);      
-      
+
+      ir+=fread(lsize,sizeof(stdint_t),9,fin);
+
       if (ie==BIG_ENDIAN)
          bswap_int(9,lsize);
 
@@ -298,7 +299,7 @@ int import_ranlux(char *in)
       n|=(lsize[2]!=(stdint_t)(NPROC1));
       n|=(lsize[3]!=(stdint_t)(NPROC2));
       n|=(lsize[4]!=(stdint_t)(NPROC3));
-      
+
       n|=(lsize[5]!=(stdint_t)(L0));
       n|=(lsize[6]!=(stdint_t)(L1));
       n|=(lsize[7]!=(stdint_t)(L2));
@@ -306,7 +307,7 @@ int import_ranlux(char *in)
 
       error_root(n!=0,1,"import_ranlux [ranlux.c]",
                  "Lattice size or process grid mismatch");
-   }   
+   }
 
    for (n=0;n<NPROC;n++)
    {
@@ -318,22 +319,22 @@ int import_ranlux(char *in)
 
          if (ie==BIG_ENDIAN)
             bswap_int(ns,state);
-                  
+
          for (k=0;k<ns;k++)
             rlxs_state[k]=(int)(state[k]);
       }
-               
+
       if (ip>0)
       {
          if (my_rank==0)
          {
             MPI_Send(rlxs_state,ns,MPI_INT,ip,tag1,MPI_COMM_WORLD);
-            MPI_Recv(&dmy,1,MPI_INT,ip,tag0,MPI_COMM_WORLD,&stat);               
+            MPI_Recv(&dmy,1,MPI_INT,ip,tag0,MPI_COMM_WORLD,&stat);
          }
          else if (my_rank==ip)
          {
             MPI_Recv(rlxs_state,ns,MPI_INT,0,tag1,MPI_COMM_WORLD,&stat);
-            MPI_Send(&dmy,1,MPI_INT,0,tag0,MPI_COMM_WORLD);                  
+            MPI_Send(&dmy,1,MPI_INT,0,tag0,MPI_COMM_WORLD);
             reset_state();
          }
       }
@@ -341,8 +342,6 @@ int import_ranlux(char *in)
          reset_state();
    }
 
-   error_chk();   
-   
    if (my_rank==0)
    {
       n=(int)(lsize[0]);

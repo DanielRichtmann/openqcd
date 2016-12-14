@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2011-2013 Martin Luescher
+* Copyright (C) 2011-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -39,7 +39,7 @@ int main(int argc,char *argv[])
    int nb,isw,ie,itm;
    int bs[4],n,k,vol,volh;
    float mu,res0,res[8],res_max[8];
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    spinor **ps;
    block_t *b;
    tm_parms_t tm;
@@ -82,8 +82,11 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.34;
+   theta[1]=-1.25;
+   theta[2]=0.58;
+   set_bc_parms(bc,1.0,1.0,0.9012,1.2034,phi,phi_prime,theta);
+   print_bc_parms(2);
 
    start_ranlux(0,1234);
    geometry();
@@ -101,7 +104,7 @@ int main(int argc,char *argv[])
          set_tm_parms(1);
 
       random_ud();
-      chs_ubnd(-1);
+      set_ud_phase();
       sw_term(NO_PTS);
       assign_ud2ubgr(SAP_BLOCKS);
       assign_swd2swbgr(SAP_BLOCKS,NO_PTS);
@@ -139,8 +142,6 @@ int main(int argc,char *argv[])
                res_max[k]=res[k];
          }
       }
-
-      error_chk();
 
       if (NPROC>1)
       {
@@ -194,8 +195,6 @@ int main(int argc,char *argv[])
                res_max[k]=res[k];
          }
       }
-
-      error_chk();
 
       if (NPROC>1)
       {

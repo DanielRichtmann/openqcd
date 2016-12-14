@@ -3,7 +3,7 @@
 *
 * File time5.c
 *
-* Copyright (C) 2009, 2011, 2013 Filippo Palombi, Martin Luescher
+* Copyright (C) 2009, 2011, 2013, 2016 Filippo Palombi, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -18,14 +18,12 @@
 #include <time.h>
 #include <float.h>
 #include "utils.h"
-#include "su3.h"
 #include "random.h"
 #include "su3fcts.h"
 
 static double mu[3];
 static su3_alg_dble *X;
 static su3_dble *r,*u,*v,*w,*uu;
-static const su3_dble u0={{0.0}};
 static ch_drv0_t *sp;
 static ch_drv1_t *sg;
 static ch_drv2_t *sf;
@@ -70,15 +68,15 @@ static void random_X(void)
             break;
       }
 
-      (*u)=u0;
+      cm3x3_zero(1,u);
       (*u).c11.im=mu[0];
       (*u).c22.im=mu[1];
       (*u).c33.im=mu[2];
 
-      random_su3_dble(r);         
+      random_su3_dble(r);
       su3xsu3(r,u,w);
       su3xsu3dag(w,r,u);
-   
+
       X[i].c1=((*u).c11.im-(*u).c22.im)/3.0;
       X[i].c2=((*u).c11.im-(*u).c33.im)/3.0;
       X[i].c3=(*u).c12.re;
@@ -126,7 +124,7 @@ static int find_N(void)
       r/=(double)(i);
 
    i+=7;
-   
+
    return i+(i%2);
 }
 
@@ -139,13 +137,17 @@ int main(void)
    printf("\n");
    printf("Timing of chexp_drv*(), ch2mat() and expXsu3()\n");
    printf("----------------------------------------------\n\n");
-   
+
 #if (defined AVX)
-   printf("Using AVX and SSE3 instructions\n");
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n");
+#else
+   printf("Using AVX instructions\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n");
 #endif
-   
+
    printf("Measurement made with all data in cache\n\n");
 
    alloc_Xu();
@@ -172,8 +174,8 @@ int main(void)
    dt*=(1.0e6/(double)(n));
 
    printf("Time per call of chexp_drv0():\n");
-   printf("%.4f micro sec (%d Mflops [%d bit arithmetic])\n\n",
-          dt,(int)((double)(76+(ns-6)*7)/dt),(int)(sizeof(spinor_dble)/3));
+   printf("%4.3f nsec [%d Mflops]\n\n",
+          1.0e3*dt,(int)((double)(76+(ns-6)*7)/dt));
 
    n=(int)(1.0e6);
    dt=0.0;
@@ -194,8 +196,8 @@ int main(void)
    dt*=(1.0e6/(double)(n));
 
    printf("Time per call of chexp_drv1():\n");
-   printf("%.4f micro sec (%d Mflops [%d bit arithmetic])\n\n",
-          dt,(int)((double)(82+(ns-3)*15)/dt),(int)(sizeof(spinor_dble)/3));   
+   printf("%4.3f nsec [%d Mflops])\n\n",
+          1.0e3*dt,(int)((double)(82+(ns-3)*15)/dt));
 
    n=(int)(1.0e6);
    dt=0.0;
@@ -216,8 +218,8 @@ int main(void)
    dt*=(1.0e6/(double)(n));
 
    printf("Time per call of chexp_drv2():\n");
-   printf("%.4f micro sec (%d Mflops [%d bit arithmetic])\n\n",
-          dt,(int)((double)(106+ns*25)/dt),(int)(sizeof(spinor_dble)/3));
+   printf("%4.3f nsec [%d Mflops])\n\n",
+          1.0e3*dt,(int)((double)(106+ns*25)/dt));
 
    n=(int)(1.0e6);
    dt=0.0;
@@ -238,11 +240,8 @@ int main(void)
    dt*=(1.0e6/(double)(n));
 
    printf("Time per call of ch2mat():\n");
-   printf("%.4f micro sec (%d Mflops [%d bit arithmetic])\n\n",
-          dt,(int)(212.0/dt),(int)(sizeof(spinor_dble)/3));     
-
-   printf("Time per call of expXsu3() [%d bit arithmetic]:\n",
-	  (int)(sizeof(spinor_dble)/3));
+   printf("%4.3f nsec [%d Mflops])\n\n",1.0e3*dt,(int)(212.0/dt));
+   printf("Time per call of expXsu3():\n");
 
    for (k=0;k<8;k++)
    {
@@ -254,24 +253,22 @@ int main(void)
 
       while (dt<1.5)
       {
-	 t1=(double)clock();
-	 for (count=0;count<n;count++)
-	 {
-	    expXsu3(eps,X,uu);
-	    expXsu3(eps,X,uu+1);
-	 }
-	 t2=(double)clock();
-	 dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
-	 n*=2;
+         t1=(double)clock();
+         for (count=0;count<n;count++)
+         {
+            expXsu3(eps,X,uu);
+            expXsu3(eps,X,uu+1);
+         }
+         t2=(double)clock();
+         dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
+         n*=2;
       }
 
       dt*=(1.0e6/(double)(n));
-
       nop=8+76+(ns-6)*7+212+192*(nsplt+1);
 
-      printf("no. splits: %2d,  %.4f micro sec (%d Mflops)\n",
-	     nsplt,dt,(int)(nop/dt));     
-
+      printf("no. splits: %2d,  %4.3f nsec [%d Mflops]\n",
+             nsplt,1.0e3*dt,(int)(nop/dt));
    }
 
    printf("\n");

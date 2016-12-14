@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2009-2013 Martin Luescher
+* Copyright (C) 2009-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -81,7 +81,7 @@ static void send_gbuf(void)
    MPI_Status stat;
 
    np=cpr[0]+cpr[1]+cpr[2]+cpr[3];
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       nbf=18*nfc[ifc];
@@ -119,11 +119,11 @@ static void random_g(void)
    unity.c22.re=1.0;
    unity.c33.re=1.0;
    gx=g;
-   
+
    for (ix=0;ix<VOLUME;ix++)
    {
       t=global_time(ix);
-      
+
       if ((t>0)||(bc!=1))
          random_su3_dble(gx);
       else
@@ -172,7 +172,7 @@ static void transform_ud(void)
          }
 
          u+=1;
-         
+
          for (ifc=2;ifc<8;ifc++)
          {
             if (bc!=1)
@@ -190,7 +190,7 @@ static void transform_ud(void)
                   su3xsu3(g+ix,&wd,u);
                }
             }
-               
+
             u+=1;
          }
       }
@@ -207,7 +207,7 @@ static void transform_ud(void)
             su3xsu3(g+ix,u,&wd);
             (*u)=wd;
          }
-            
+
          u+=1;
 
          for (ifc=1;ifc<8;ifc++)
@@ -224,9 +224,9 @@ static void transform_ud(void)
                su3xsu3dag(u,g+iy,&wd);
                su3xsu3(g+ix,&wd,u);
             }
-            
+
             u+=1;
-         }         
+         }
       }
       else
       {
@@ -244,7 +244,7 @@ static void transform_ud(void)
                su3xsu3dag(u,g+iy,&wd);
                su3xsu3(g+ix,&wd,u);
             }
-            
+
             u+=1;
          }
       }
@@ -278,10 +278,10 @@ static double cmp_ud(su3_dble *u,su3_dble *v)
    r[14]=(*u).c32.re-(*v).c32.re;
    r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
-   r[17]=(*u).c33.im-(*v).c33.im;   
+   r[17]=(*u).c33.im-(*v).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i+=2)
    {
       dev=r[i]*r[i]+r[i+1]*r[i+1];
@@ -301,7 +301,7 @@ static double max_dev_ud(su3_dble *v)
    u=udfld();
    um=u+4*VOLUME;
    dmax=0.0;
-   
+
    for (;u<um;u++)
    {
       d=cmp_ud(u,v);
@@ -316,9 +316,9 @@ static double max_dev_ud(su3_dble *v)
    {
       d=dmax;
       MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return sqrt(dmax);
 }
 
@@ -326,7 +326,8 @@ static double max_dev_ud(su3_dble *v)
 int main(int argc,char *argv[])
 {
    int my_rank,n;
-   double phi[2],phi_prime[2],eps,dev;
+   double phi[2],phi_prime[2],theta[3];
+   double eps,dev;
    su3_dble *udb,**usv;
    FILE *flog=NULL,*fin=NULL;
 
@@ -337,7 +338,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check2.log","w",stdout);
       fin=freopen("check2.in","r",stdin);
-      
+
       printf("\n");
       printf("Gauge covariance of the Wilson flow\n");
       printf("-----------------------------------\n\n");
@@ -347,7 +348,7 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
       read_line("n","%d\n",&n);
-      read_line("eps","%lf",&eps);      
+      read_line("eps","%lf",&eps);
       fclose(fin);
 
       printf("n = %d\n",n);
@@ -363,14 +364,17 @@ int main(int argc,char *argv[])
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,0.973,1.127,1.0,1.0,phi,phi_prime);
-   print_bc_parms(); 
-   
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,0.973,1.127,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
+
    start_ranlux(0,1234);
    geometry();
    alloc_wud(2);
@@ -385,27 +389,26 @@ int main(int argc,char *argv[])
 
    error((g==NULL)||((BNDRY>0)&&(gbuf==NULL)),1,"main [check2.c]",
          "Unable to allocate auxiliary arrays");
-   
+
    random_ud();
    random_g();
    cm3x3_assign(4*VOLUME,udb,usv[0]);
    fwd_euler(n,eps);
    transform_ud();
-   cm3x3_assign(4*VOLUME,udb,usv[1]);   
+   cm3x3_assign(4*VOLUME,udb,usv[1]);
    cm3x3_assign(4*VOLUME,usv[0],udb);
    set_flags(UPDATED_UD);
-   transform_ud();   
+   transform_ud();
    fwd_euler(n,eps);
 
    dev=max_dev_ud(usv[1]);
-   error_chk();
 
    if (my_rank==0)
    {
       printf("Maximal absolute deviation of U(x,mu) = %.1e\n\n",dev);
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

@@ -71,7 +71,7 @@ static double max_dev(su3_dble *u,su3_dble *v)
 
    nrm=0.0;
    dmax=0.0;
-   
+
    for (i=0;i<18;i++)
    {
       nrm+=r[i]*r[i];
@@ -116,19 +116,19 @@ static void X2u(u3_alg_dble *X,su3_dble *u)
    (*u).c33.im= (*X).c3;
 
    (*u).c12.re= (*X).c4;
-   (*u).c12.im= (*X).c5;   
+   (*u).c12.im= (*X).c5;
    (*u).c21.re=-(*X).c4;
-   (*u).c21.im= (*X).c5;   
+   (*u).c21.im= (*X).c5;
 
    (*u).c13.re= (*X).c6;
-   (*u).c13.im= (*X).c7;   
+   (*u).c13.im= (*X).c7;
    (*u).c31.re=-(*X).c6;
-   (*u).c31.im= (*X).c7;   
-   
+   (*u).c31.im= (*X).c7;
+
    (*u).c23.re= (*X).c8;
-   (*u).c23.im= (*X).c9;   
+   (*u).c23.im= (*X).c9;
    (*u).c32.re=-(*X).c8;
-   (*u).c32.im= (*X).c9;   
+   (*u).c32.im= (*X).c9;
 }
 
 
@@ -137,17 +137,21 @@ int main(void)
    double d1,d2,d3,d4;
    su3_dble *u,*v,*w1,*w2;
    u3_alg_dble *X;
-   
+
    printf("\n");
    printf("Check of su3xsu3, su3dagxsu3, ...\n");
    printf("---------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n\n");
+#else
    printf("Using AVX instructions\n\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
-   
+
    u=amalloc(4*sizeof(su3_dble),4);
    X=amalloc(sizeof(u3_alg_dble),3);
    error((u==NULL)||(X==NULL),1,"main [check1.c]",
@@ -156,9 +160,9 @@ int main(void)
    v=u+1;
    w1=u+2;
    w2=u+3;
-   
+
    rlxd_init(1,23456);
-   
+
    random_su3_dble(u);
    random_su3_dble(v);
    su3xsu3(u,v,w1);
@@ -191,10 +195,10 @@ int main(void)
    _su3_times_su3(*w2,*u,*v);
    d4=max_dev(w1,w2);
 
-   printf("su3xsu3:       %.2e\n",d1);   
+   printf("su3xsu3:       %.2e\n",d1);
    printf("su3dagxsu3:    %.2e\n",d2);
    printf("su3xsu3dag:    %.2e\n",d3);
-   printf("su3dagxsu3dag: %.2e\n",d4);      
+   printf("su3dagxsu3dag: %.2e\n",d4);
 
    random_su3_dble(u);
    random_u3alg(X);
@@ -227,11 +231,11 @@ int main(void)
    *v=*w2;
    _su3_times_su3(*w2,*u,*v);
    d4=max_dev(w1,w2);
-   
-   printf("su3xu3alg:     %.2e\n",d1);   
+
+   printf("su3xu3alg:     %.2e\n",d1);
    printf("su3dagxu3alg:  %.2e\n",d2);
    printf("u3algxsu3:     %.2e\n",d3);
-   printf("u3algxsu3dag:  %.2e\n\n",d4);      
+   printf("u3algxsu3dag:  %.2e\n\n",d4);
 
    exit(0);
 }

@@ -3,7 +3,7 @@
 *
 * File check7.c
 *
-* Copyright (C) 2009, 2011 Martin Luescher, Filippo Palombi
+* Copyright (C) 2009, 2011, 2016 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "su3.h"
 #include "utils.h"
 #include "random.h"
 #include "su3fcts.h"
@@ -26,7 +25,6 @@
 static double mu[3],t,d,eps;
 static su3_alg_dble *X;
 static su3_dble *r,*u,*w,*y,*z;
-static const su3_dble u0={{0.0}};
 
 
 static void alloc_Xu(void)
@@ -59,8 +57,8 @@ static void random_Xu(void)
 
    t=0.5*(mu[0]*mu[0]+mu[1]*mu[1]+mu[2]*mu[2]);
    d=mu[0]*mu[1]*mu[2];
-   
-   (*u)=u0;
+
+   cm3x3_zero(1,u);
    (*u).c11.im=mu[0];
    (*u).c22.im=mu[1];
    (*u).c33.im=mu[2];
@@ -81,7 +79,7 @@ static void random_Xu(void)
    ranlxd(&eps,1);
    eps*=20.0;
 
-   (*u)=u0;
+   cm3x3_zero(1,u);
    (*u).c11.re=cos(eps*mu[0]);
    (*u).c22.re=cos(eps*mu[1]);
    (*u).c33.re=cos(eps*mu[2]);
@@ -121,10 +119,10 @@ static double dev_yw(void)
    r[14]=(*y).c32.re-(*w).c32.re;
    r[15]=(*y).c32.im-(*w).c32.im;
    r[16]=(*y).c33.re-(*w).c33.re;
-   r[17]=(*y).c33.im-(*w).c33.im;   
+   r[17]=(*y).c33.im-(*w).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i++)
    {
       dev=fabs(r[i]);
@@ -152,7 +150,7 @@ int main(void)
    alloc_Xu();
 
    dmax=0.0;
-   
+
    for (i=0;i<NTEST;i++)
    {
       random_Xu();

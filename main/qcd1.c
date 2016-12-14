@@ -3,7 +3,7 @@
 *
 * File qcd1.c
 *
-* Copyright (C) 2011-2013 Martin Luescher
+* Copyright (C) 2011-2013, 2016 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -471,7 +471,7 @@ static void read_bc_parms(void)
 {
    int bc;
    double cG,cG_prime,cF,cF_prime;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
 
    if (my_rank==0)
    {
@@ -504,6 +504,8 @@ static void read_bc_parms(void)
          read_line("cG'","%lf",&cG_prime);
          read_line("cF'","%lf",&cF_prime);
       }
+
+      read_dprms("theta",3,theta);
    }
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -513,8 +515,9 @@ static void read_bc_parms(void)
    MPI_Bcast(&cG_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(theta,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime);
+   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime,theta);
 
    if (append)
       check_bc_parms(fdat);
@@ -1372,6 +1375,29 @@ static void check_files(int *nl,int *icnfg)
 }
 
 
+static void init_rng(int icnfg)
+{
+   int ic;
+
+   if (append)
+   {
+      if (cnfg[strlen(cnfg)-1]!='*')
+      {
+         if (norng)
+            start_ranlux(level,seed^(icnfg-1));
+         else
+         {
+            ic=import_ranlux(rng_file);
+            error_root(ic!=(icnfg-1),1,"init_rng [qcd1.c]",
+                       "Configuration number mismatch (*.rng file)");
+         }
+      }
+   }
+   else
+      start_ranlux(level,seed);
+}
+
+
 static void init_ud(void)
 {
    char *p;
@@ -1394,29 +1420,6 @@ static void init_ud(void)
    }
    else
       random_ud();
-}
-
-
-static void init_rng(int icnfg)
-{
-   int ic;
-
-   if (append)
-   {
-      if (cnfg[strlen(cnfg)-1]!='*')
-      {
-         if (norng)
-            start_ranlux(level,seed^(icnfg-1));
-         else
-         {
-            ic=import_ranlux(rng_file);
-            error_root(ic!=(icnfg-1),1,"init_rng [qcd1.c]",
-                       "Configuration number mismatch (*.rng file)");
-         }
-      }
-   }
-   else
-      start_ranlux(level,seed);
 }
 
 
@@ -1537,7 +1540,7 @@ static void print_info(int icnfg)
       if (append==0)
       {
          print_lat_parms();
-         print_bc_parms();
+         print_bc_parms(3);
       }
 
       printf("Random number generator:\n");
@@ -1699,9 +1702,11 @@ static void save_cnfg(int icnfg)
 {
    int ie;
 
-   ie=check_bc(0.0)^0x1;
-   ie|=chs_ubnd(1);
-   error_root(ie!=0,1,"save_cnfg [qcd1.c]","Unexpected boundary values");
+   ie=query_flags(UD_PHASE_SET);
+   if (ie==0)
+      ie=check_bc(0.0)^0x1;
+   error_root(ie!=0,1,"save_cnfg [qcd1.c]",
+              "Phase-modified field or unexpected boundary values");
 
    if (noloc==0)
    {
@@ -1805,8 +1810,8 @@ int main(int argc,char *argv[])
    set_mdsteps();
    setup_counters();
    setup_chrono();
-   init_ud();
    init_rng(icnfg);
+   init_ud();
 
    if (bc_type()==0)
       npl=(double)(6*(N0-1)*N1)*(double)(N2*N3);
@@ -1880,7 +1885,6 @@ int main(int argc,char *argv[])
          save_cnfg(icnfg);
          export_ranlux(icnfg,rng_file);
          check_endflag(&iend);
-         error_chk();
 
          if (my_rank==0)
          {

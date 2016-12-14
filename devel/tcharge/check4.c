@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2010, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -80,7 +80,7 @@ static void send_gbuf(void)
    MPI_Status stat;
 
    np=cpr[0]+cpr[1]+cpr[2]+cpr[3];
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       nbf=18*nfc[ifc];
@@ -118,11 +118,11 @@ static void random_g(void)
    unity.c22.re=1.0;
    unity.c33.re=1.0;
    gx=g;
-   
+
    for (ix=0;ix<VOLUME;ix++)
    {
       t=global_time(ix);
-      
+
       if ((t>0)||(bc!=1))
          random_su3_dble(gx);
       else
@@ -171,7 +171,7 @@ static void transform_ud(void)
          }
 
          u+=1;
-         
+
          for (ifc=2;ifc<8;ifc++)
          {
             if (bc!=1)
@@ -189,7 +189,7 @@ static void transform_ud(void)
                   su3xsu3(g+ix,&wd,u);
                }
             }
-               
+
             u+=1;
          }
       }
@@ -206,7 +206,7 @@ static void transform_ud(void)
             su3xsu3(g+ix,u,&wd);
             (*u)=wd;
          }
-            
+
          u+=1;
 
          for (ifc=1;ifc<8;ifc++)
@@ -223,9 +223,9 @@ static void transform_ud(void)
                su3xsu3dag(u,g+iy,&wd);
                su3xsu3(g+ix,&wd,u);
             }
-            
+
             u+=1;
-         }         
+         }
       }
       else
       {
@@ -243,7 +243,7 @@ static void transform_ud(void)
                su3xsu3dag(u,g+iy,&wd);
                su3xsu3(g+ix,&wd,u);
             }
-            
+
             u+=1;
          }
       }
@@ -279,7 +279,7 @@ static void random_vec(int *svec)
 int main(int argc,char *argv[])
 {
    int my_rank,i,s[4];
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    double d,dmax1,dmax2;
    double A1,A2,a1,a2;
    FILE *flog=NULL;
@@ -310,8 +310,11 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms(); 
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
 
    start_ranlux(0,12345);
    geometry();
@@ -330,10 +333,10 @@ int main(int argc,char *argv[])
    for (i=0;i<8;i++)
    {
       random_ud();
-         
+
       A1=ym_action();
       random_vec(s);
-      if (bc!=3)      
+      if (bc!=3)
          s[0]=0;
       shift_ud(s);
       A2=ym_action();
@@ -345,11 +348,11 @@ int main(int argc,char *argv[])
       random_g();
       transform_ud();
       A2=ym_action();
-      
+
       d=fabs(A1-A2)/A1;
       if (d>dmax2)
          dmax2=d;
-      
+
       a1=A1;
       a2=A2;
 
@@ -359,13 +362,12 @@ int main(int argc,char *argv[])
       error((a1!=A1)||(a2!=A2),1,"main [check4.c]",
             "Action is not globally the same");
    }
-   
-   error_chk();
+
    print_flags();
-   
+
    if (my_rank==0)
    {
-      printf("Translation invariance = %.2e\n",dmax1);      
+      printf("Translation invariance = %.2e\n",dmax1);
       printf("Gauge invariance = %.2e\n\n",dmax2);
       fclose(flog);
    }

@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2010-2013 Martin Luescher
+* Copyright (C) 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "flags.h"
 #include "random.h"
 #include "su3fcts.h"
@@ -36,9 +35,10 @@
 #define N2 (NPROC2*L2)
 #define N3 (NPROC3*L3)
 
-static const su3_alg_dble fr0={0.0};
 static su3_alg_dble XX ALIGNED16;
-static su3_dble mm,uu,vv ALIGNED16;
+static su3_dble mm ALIGNED16;
+static su3_dble uu ALIGNED16;
+static su3_dble vv ALIGNED16;
 
 
 static double cmp_ud(su3_dble *u,su3_dble *v)
@@ -65,10 +65,10 @@ static double cmp_ud(su3_dble *u,su3_dble *v)
    r[14]=(*u).c32.re-(*v).c32.re;
    r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
-   r[17]=(*u).c33.im-(*v).c33.im;   
+   r[17]=(*u).c33.im-(*v).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i+=2)
    {
       dev=r[i]*r[i]+r[i+1]*r[i+1];
@@ -88,7 +88,7 @@ static double max_dev_ud(su3_dble *v)
    u=udfld();
    um=u+4*VOLUME;
    dmax=0.0;
-   
+
    for (;u<um;u++)
    {
       d=cmp_ud(u,v);
@@ -103,9 +103,9 @@ static double max_dev_ud(su3_dble *v)
    {
       d=dmax;
       MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return dmax;
 }
 
@@ -120,12 +120,12 @@ static double cmp_fd(su3_alg_dble *f,su3_alg_dble *g)
    r[2]=(*f).c3-(*g).c3;
    r[3]=(*f).c4-(*g).c4;
    r[4]=(*f).c5-(*g).c5;
-   r[5]=(*f).c6-(*g).c6;   
-   r[6]=(*f).c7-(*g).c7;   
+   r[5]=(*f).c6-(*g).c6;
+   r[6]=(*f).c7-(*g).c7;
    r[7]=(*f).c8-(*g).c8;
-   
+
    dmax=0.0;
-   
+
    for (i=0;i<8;i++)
    {
       dev=fabs(r[i]);
@@ -147,7 +147,7 @@ static double max_dev_frc(su3_alg_dble *g)
    f=(*mdfs).frc;
    fm=f+4*VOLUME;
    dmax=0.0;
-   
+
    for (;f<fm;f++)
    {
       d=cmp_fd(f,g);
@@ -162,9 +162,9 @@ static double max_dev_frc(su3_alg_dble *g)
    {
       d=dmax;
       MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return dmax;
 }
 
@@ -180,7 +180,7 @@ static int is_zero(su3_alg_dble *X)
    ie&=((*X).c5==0.0);
    ie&=((*X).c6==0.0);
    ie&=((*X).c7==0.0);
-   ie&=((*X).c8==0.0);   
+   ie&=((*X).c8==0.0);
 
    return ie;
 }
@@ -226,7 +226,7 @@ static int check_bnd_fld(su3_alg_dble *fld)
       else if (bc==1)
       {
          ie|=is_zero(f);
-         ie|=is_zero(f+1);         
+         ie|=is_zero(f+1);
 
          for (ifc=2;ifc<8;ifc++)
             ie|=(is_zero(f+ifc)^0x1);
@@ -245,7 +245,7 @@ static int check_bnd_fld(su3_alg_dble *fld)
 static int ofs(int ix,int mu)
 {
    int iy;
-   
+
    if (ix<(VOLUME/2))
    {
       iy=iup[ix][mu];
@@ -279,12 +279,12 @@ static double chkfrc(void)
             for (x3=1;x3<(L3-2);x3++)
             {
                ix=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
-               
+
                for (mu=0;mu<4;mu++)
                {
                   cm3x3_zero(1,&mm);
                   iy=iup[ix][mu];
-                  
+
                   for (nu=0;nu<4;nu++)
                   {
                      if (nu!=mu)
@@ -304,13 +304,13 @@ static double chkfrc(void)
                      }
                   }
 
-                  prod2su3alg(udb+ofs(ix,mu),&mm,&XX);                  
+                  prod2su3alg(udb+ofs(ix,mu),&mm,&XX);
 
                   if (ix<(VOLUME/2))
                      frc=(*mdfs).frc+8*(iy-(VOLUME/2))+2*mu+1;
                   else
                      frc=(*mdfs).frc+8*(ix-(VOLUME/2))+2*mu;
-                     
+
                   d=cmp_fd(&XX,frc);
 
                   if (d>dmax)
@@ -325,9 +325,9 @@ static double chkfrc(void)
    {
       d=dmax;
       MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
+
    return dmax;
 }
 
@@ -357,12 +357,12 @@ static void scale_bnd_frc(su3_alg_dble *frc)
    }
 }
 
-   
+
 int main(int argc,char *argv[])
 {
    int my_rank,bc,n,k,ie;
-   double eps,nplaq,phi[2],phi_prime[2];
-   double act0,act1,dev0,dev1;
+   double phi[2],phi_prime[2],theta[3];
+   double eps,nplaq,act0,act1,dev0,dev1;
    su3_dble *udb,*u,*um,**usv;
    su3_alg_dble *frc,**fsv;
    mdflds_t *mdfs;
@@ -375,7 +375,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check1.log","w",stdout);
       fin=freopen("check1.in","r",stdin);
-      
+
       printf("\n");
       printf("Basic checks on the implementation of the Wilson flow\n");
       printf("-----------------------------------------------------\n\n");
@@ -385,7 +385,7 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
       read_line("n","%d\n",&n);
-      read_line("eps","%lf",&eps);      
+      read_line("eps","%lf",&eps);
       fclose(fin);
 
       printf("n = %d\n",n);
@@ -401,7 +401,7 @@ int main(int argc,char *argv[])
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    set_lat_parms(6.0,1.0,0,NULL,1.0);
    print_lat_parms();
 
@@ -409,8 +409,11 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms(); 
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
 
    start_ranlux(0,1234);
    geometry();
@@ -425,7 +428,7 @@ int main(int argc,char *argv[])
       nplaq=(double)(6*N0-6)*(double)(N1*N2*N3);
    else
       nplaq=(double)(6*N0)*(double)(N1*N2*N3);
-   
+
    random_ud();
    act0=action0(1);
    act1=3.0*nplaq-plaq_wsum_dble(1);
@@ -439,8 +442,8 @@ int main(int argc,char *argv[])
    ie=check_bnd_fld((*mdfs).frc);
    error(ie!=0,1,"main [check1.c]",
          "Force vanishes on an incorrect subset of links");
-   dev0=max_dev_frc(fsv[0]);   
-   
+   dev0=max_dev_frc(fsv[0]);
+
    if (my_rank==0)
    {
       printf("Random gauge field:\n");
@@ -452,7 +455,7 @@ int main(int argc,char *argv[])
    random_ud();
    cm3x3_assign(4*VOLUME,udb,usv[0]);
    plaq_frc();
-   assign_alg2alg(4*VOLUME,(*mdfs).frc,fsv[0]);   
+   assign_alg2alg(4*VOLUME,(*mdfs).frc,fsv[0]);
    dev0=chkfrc();
    fwd_euler(1,eps);
    frc=fsv[0];
@@ -462,12 +465,12 @@ int main(int argc,char *argv[])
 
    for (;u<um;u++)
    {
-      if (is_zero(frc)==0)      
+      if (is_zero(frc)==0)
          expXsu3(eps,frc,u);
       frc+=1;
    }
 
-   set_flags(UPDATED_UD);   
+   set_flags(UPDATED_UD);
    dev1=max_dev_ud(usv[0]);
 
    if (my_rank==0)
@@ -493,16 +496,15 @@ int main(int argc,char *argv[])
             "main [check1.c]","The Wilson action is not monotonic");
 
       act0=act1;
-      
+
       if (my_rank==0)
          printf("k = %2d: %.8e\n",k,2.0*act0/nplaq);
-   }         
-      
+   }
+
    ie=check_bc(0.0);
    error_root(ie!=1,1,"main [check3.c]",
               "Boundary values of the gauge field are not preserved");
-   error_chk();
-   
+
    if (my_rank==0)
    {
       printf("\n");
@@ -510,15 +512,15 @@ int main(int argc,char *argv[])
       fflush(stdout);
    }
 
-   start_ranlux(0,1234);   
+   start_ranlux(0,1234);
    random_ud();
    fwd_euler(n,eps);
    ie=check_bc(0.0);
    error_root(ie!=1,1,"main [check3.c]",
               "Boundary values of the gauge field are not preserved");
-   cm3x3_assign(4*VOLUME,udb,usv[0]);   
-      
-   start_ranlux(0,1234);   
+   cm3x3_assign(4*VOLUME,udb,usv[0]);
+
+   start_ranlux(0,1234);
    random_ud();
    fwd_rk2(n,eps);
    ie=check_bc(0.0);
@@ -531,22 +533,21 @@ int main(int argc,char *argv[])
       printf("Comparison of fwd_euler() and fwd_rk2(): |dU| = %.1e\n",
              dev0);
 
-   start_ranlux(0,1234);   
+   start_ranlux(0,1234);
    random_ud();
    fwd_rk3(n,eps);
    ie=check_bc(0.0);
    error_root(ie!=1,1,"main [check3.c]",
               "Boundary values of the gauge field are not preserved");
    dev0=max_dev_ud(usv[0]);
-   error_chk();
-   
+
    if (my_rank==0)
    {
       printf("Comparison of fwd_rk2() and fwd_rk3():   |dU| = %.1e\n\n",
              dev0);
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

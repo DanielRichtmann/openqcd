@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -36,12 +36,17 @@ typedef union
 } vec_t;
 
 static int pln[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
-static const su3_vector_dble vd0={{0.0}};
-static const spinor_dble sd0={{{0.0}}};
-
+static const su3_vector_dble vd0={{0.0,0.0},{0.0,0.0},{0.0,0.0}};
+static const spinor_dble sd0={{{0.0,0.0},{0.0,0.0},{0.0,0.0}},
+                              {{0.0,0.0},{0.0,0.0},{0.0,0.0}},
+                              {{0.0,0.0},{0.0,0.0},{0.0,0.0}},
+                              {{0.0,0.0},{0.0,0.0},{0.0,0.0}}};
 static su3_dble Q ALIGNED16;
-static spin_t s1,s2,s3,s4 ALIGNED16;
-static pauli_dble m[2] ALIGNED16; 
+static spin_t s1 ALIGNED16;
+static spin_t s2 ALIGNED16;
+static spin_t s3 ALIGNED16;
+static spin_t s4 ALIGNED16;
+static pauli_dble m[2] ALIGNED16;
 
 
 static su3_vector_dble mul_cplx(complex_dble z,su3_vector_dble s)
@@ -170,7 +175,7 @@ static spinor_dble mul_Fhat(su3_dble Q,spinor_dble s)
    _su3_multiply(r.c1,F,s.c1);
    _su3_multiply(r.c2,F,s.c2);
    _su3_multiply(r.c3,F,s.c3);
-   _su3_multiply(r.c4,F,s.c4);      
+   _su3_multiply(r.c4,F,s.c4);
 
    return r;
 }
@@ -215,7 +220,7 @@ int main(void)
    complex_dble z;
    vec_t v1,v2,v3;
    u3_alg_dble X[6];
-   
+
    printf("\n");
    printf("Check of det2xt and prod2xt\n");
    printf("---------------------------\n\n");
@@ -225,12 +230,12 @@ int main(void)
    ranlxd(v1.r,6);
    ranlxd(v2.r,6);
    ranlxd(v3.r,6);
-   
+
    ranlxd(s1.r,24);
    ranlxd(s2.r,24);
    ranlxd(s3.r,24);
    ranlxd(s4.r,24);
-   
+
    ranlxd(m[0].u,36);
    ranlxd(m[1].u,36);
 
@@ -289,7 +294,7 @@ int main(void)
       mu=pln[n][0];
       nu=pln[n][1];
 
-      random_su3_dble(&Q);         
+      random_su3_dble(&Q);
       z.im=0.0;
 
       s3.s=mul_sigma(mu,nu,s2.s);
@@ -299,8 +304,8 @@ int main(void)
       z.im =_vector_prod_im(s1.s.c1,s3.s.c1);
       z.im+=_vector_prod_im(s1.s.c2,s3.s.c2);
       z.im+=_vector_prod_im(s1.s.c3,s3.s.c3);
-      z.im+=_vector_prod_im(s1.s.c4,s3.s.c4);         
-         
+      z.im+=_vector_prod_im(s1.s.c4,s3.s.c4);
+
       z.re=0.0;
 
       for (i=0;i<3;i++)

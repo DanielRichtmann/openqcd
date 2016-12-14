@@ -3,8 +3,8 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2007, 2009-2013 Martin Luescher, Filippo Palombi
-*                                     Stefan Schaefer
+* Copyright (C) 2005, 2007, 2009-2013, Martin Luescher, Filippo Palombi
+*               2016                   Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -79,7 +79,7 @@ static void read_bc_parms(void)
 {
    int bc;
    double cG,cG_prime,cF,cF_prime;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
 
    find_section("Boundary conditions");
    read_line("type","%d",&bc);
@@ -111,6 +111,8 @@ static void read_bc_parms(void)
       read_line("cF'","%lf",&cF_prime);
    }
 
+   read_dprms("theta",3,theta);
+
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(phi,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(phi_prime,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -118,8 +120,9 @@ static void read_bc_parms(void)
    MPI_Bcast(&cG_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cF,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(theta,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime);
+   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime,theta);
 }
 
 
@@ -453,7 +456,7 @@ static void start_hmc(double *act0,su3_dble *uold)
 
    udb=udfld();
    cm3x3_assign(4*VOLUME,udb,uold);
-   chs_ubnd(-1);
+   set_ud_phase();
    random_mom();
 
    dfl=dfl_parms();
@@ -579,7 +582,7 @@ static void end_hmc(double *act1)
    }
 
    act1[0]=momentum_action(0);
-   chs_ubnd(1);
+   unset_ud_phase();
 }
 
 
@@ -607,7 +610,7 @@ static void flip_mom(void)
       (*mom).c8=-(*mom).c8;
    }
 
-   chs_ubnd(-1);
+   set_ud_phase();
    dfl=dfl_parms();
 
    if (dfl.Ns)
@@ -761,7 +764,7 @@ int main(int argc,char *argv[])
    error(act0==NULL,1,"main [check2.c]","Unable to allocate action arrays");
 
    print_lat_parms();
-   print_bc_parms();
+   print_bc_parms(3);
    print_hmc_parms();
    print_action_parms();
    print_rat_parms();
@@ -861,7 +864,6 @@ int main(int argc,char *argv[])
 
       dH=fabs(sm1[1]);
       dud=max_dev_ud(usv[0]);
-      error_chk();
 
       if (my_rank==0)
       {

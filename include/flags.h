@@ -3,7 +3,7 @@
 *
 * File flags.h
 *
-* Copyright (C) 2009-2014 Martin Luescher
+* Copyright (C) 2009-2014, 2016 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -27,6 +27,7 @@ typedef enum
    ASSIGNED_U2UBGR,ASSIGNED_UD2UBGR,ASSIGNED_UD2UDBGR,
    ASSIGNED_SWD2SWBGR,ASSIGNED_SWD2SWDBGR,
    ERASED_AW,ERASED_AWHAT,COMPUTED_AW,COMPUTED_AWHAT,
+   SET_UD_PHASE,UNSET_UD_PHASE,
    EVENTS
 } event_t;
 
@@ -36,7 +37,7 @@ typedef enum
    FTS_UP2DATE,UBGR_MATCH_UD,UDBGR_MATCH_UD,
    SW_UP2DATE,SW_E_INVERTED,SW_O_INVERTED,
    SWD_UP2DATE,SWD_E_INVERTED,SWD_O_INVERTED,
-   AW_UP2DATE,AWHAT_UP2DATE,
+   AW_UP2DATE,AWHAT_UP2DATE,UD_PHASE_SET,
    QUERIES
 } query_t;
 
@@ -85,6 +86,7 @@ typedef struct
    int type;
    double cG[2],cF[2];
    double phi[2][3];
+   double theta[3];
 } bc_parms_t;
 
 typedef struct
@@ -250,9 +252,10 @@ extern void check_lat_parms(FILE *fdat);
 extern bc_parms_t set_bc_parms(int type,
                                double cG,double cG_prime,
                                double cF,double cF_prime,
-                               double *phi,double *phi_prime);
+                               double *phi,double *phi_prime,
+                               double *theta);
 extern bc_parms_t bc_parms(void);
-extern void print_bc_parms(void);
+extern void print_bc_parms(int ipr);
 extern void write_bc_parms(FILE *fdat);
 extern void check_bc_parms(FILE *fdat);
 extern double sea_quark_mass(int im0);

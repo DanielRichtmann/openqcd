@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -22,18 +22,22 @@
 #include "sw_term.h"
 #include "forces.h"
 
+#define _re(z,w) ((z).re*(w).re+(z).im*(w).im)
+#define _im(z,w) ((z).im*(w).re-(z).re*(w).im)
+
 typedef union
 {
    su3_dble u;
    complex_dble c[9];
 } umat_t;
 
-static const su3_dble ud0={{0.0}};
-static su3_dble u,v ALIGNED16;
-static spinor_dble rx,ry,sx,sy,sw ALIGNED16;
-
-#define _re(z,w) ((z).re*(w).re+(z).im*(w).im)
-#define _im(z,w) ((z).im*(w).re-(z).re*(w).im)
+static su3_dble u ALIGNED16;
+static su3_dble v ALIGNED16;
+static spinor_dble rx ALIGNED16;
+static spinor_dble ry ALIGNED16;
+static spinor_dble sx ALIGNED16;
+static spinor_dble sy ALIGNED16;
+static spinor_dble sw ALIGNED16;
 
 
 static su3_vector_dble mul_cplx(complex_dble z,su3_vector_dble s)
@@ -108,25 +112,25 @@ static spinor_dble mul_gamma(int mu,spinor_dble s)
 static void add_tensor(su3_vector_dble *r,su3_vector_dble *s,su3_dble *p)
 {
    (*p).c11.re+=_re((*r).c1,(*s).c1);
-   (*p).c11.im+=_im((*r).c1,(*s).c1);   
+   (*p).c11.im+=_im((*r).c1,(*s).c1);
    (*p).c12.re+=_re((*r).c1,(*s).c2);
-   (*p).c12.im+=_im((*r).c1,(*s).c2);   
+   (*p).c12.im+=_im((*r).c1,(*s).c2);
    (*p).c13.re+=_re((*r).c1,(*s).c3);
-   (*p).c13.im+=_im((*r).c1,(*s).c3);   
+   (*p).c13.im+=_im((*r).c1,(*s).c3);
 
    (*p).c21.re+=_re((*r).c2,(*s).c1);
-   (*p).c21.im+=_im((*r).c2,(*s).c1);   
+   (*p).c21.im+=_im((*r).c2,(*s).c1);
    (*p).c22.re+=_re((*r).c2,(*s).c2);
-   (*p).c22.im+=_im((*r).c2,(*s).c2);   
+   (*p).c22.im+=_im((*r).c2,(*s).c2);
    (*p).c23.re+=_re((*r).c2,(*s).c3);
-   (*p).c23.im+=_im((*r).c2,(*s).c3);   
+   (*p).c23.im+=_im((*r).c2,(*s).c3);
 
    (*p).c31.re+=_re((*r).c3,(*s).c1);
-   (*p).c31.im+=_im((*r).c3,(*s).c1);   
+   (*p).c31.im+=_im((*r).c3,(*s).c1);
    (*p).c32.re+=_re((*r).c3,(*s).c2);
-   (*p).c32.im+=_im((*r).c3,(*s).c2);   
+   (*p).c32.im+=_im((*r).c3,(*s).c2);
    (*p).c33.re+=_re((*r).c3,(*s).c3);
-   (*p).c33.im+=_im((*r).c3,(*s).c3);   
+   (*p).c33.im+=_im((*r).c3,(*s).c3);
 }
 
 
@@ -135,13 +139,13 @@ static double max_dev(su3_dble *u,su3_dble *v)
    int i;
    double nrm,dev;
    umat_t uu,uv;
-   
+
    uu.u=(*u);
    uv.u=(*v);
 
    nrm=0.0;
    dev=0.0;
-   
+
    for (i=0;i<9;i++)
    {
       nrm+=uu.c[i].re*uu.c[i].re+uu.c[i].im*uu.c[i].im;
@@ -157,7 +161,7 @@ static double max_dev(su3_dble *u,su3_dble *v)
 int main(void)
 {
    int mu;
-   
+
    printf("\n");
    printf("Check of prod2xv\n");
    printf("-----------------\n\n");
@@ -167,16 +171,16 @@ int main(void)
    gauss_dble((double*)(&rx),24);
    gauss_dble((double*)(&ry),24);
    gauss_dble((double*)(&sx),24);
-   gauss_dble((double*)(&sy),24);   
-   
+   gauss_dble((double*)(&sy),24);
+
    for (mu=0;mu<4;mu++)
    {
       prod2xv[mu](&rx,&ry,&sx,&sy,&u);
-      v=ud0;
+      cm3x3_zero(1,&v);
 
       sw=mul_gamma(mu,ry);
-      _vector_sub(sw.c1,ry.c1,sw.c1); 
-      _vector_sub(sw.c2,ry.c2,sw.c2);       
+      _vector_sub(sw.c1,ry.c1,sw.c1);
+      _vector_sub(sw.c2,ry.c2,sw.c2);
       _vector_sub(sw.c3,ry.c3,sw.c3);
       _vector_sub(sw.c4,ry.c4,sw.c4);
       sw=mul_gamma(5,sw);
@@ -187,8 +191,8 @@ int main(void)
       add_tensor(&sw.c4,&sx.c4,&v);
 
       sw=mul_gamma(mu,sy);
-      _vector_sub(sw.c1,sy.c1,sw.c1); 
-      _vector_sub(sw.c2,sy.c2,sw.c2);       
+      _vector_sub(sw.c1,sy.c1,sw.c1);
+      _vector_sub(sw.c2,sy.c2,sw.c2);
       _vector_sub(sw.c3,sy.c3,sw.c3);
       _vector_sub(sw.c4,sy.c4,sw.c4);
       sw=mul_gamma(5,sw);

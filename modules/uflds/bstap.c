@@ -3,7 +3,7 @@
 *
 * File bstap.c
 *
-* Copyright (C) 2012, 2013 Martin Luescher
+* Copyright (C) 2012, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -20,11 +20,11 @@
 *   void set_bstap(void)
 *     Computes the boundary staples and copies them to the neighbouring
 *     MPI processes (see doc/gauge_actions.pdf).
-*     
+*
 * Notes:
 *
 * The boundary staple field has size 3*BNDRY and is logically divided into
-* face segments. For the face with index ifc, the associated segment is 
+* face segments. For the face with index ifc, the associated segment is
 * at offset ofs[ifc] from the base address, where
 *
 *   ofs[0]=0
@@ -43,7 +43,7 @@
 * at the boundaries of the lattice to zero.
 *
 * All these programs act globally and must be called on all MPI processes
-* simultaneously. 
+* simultaneously.
 *
 *******************************************************************************/
 
@@ -53,7 +53,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "su3fcts.h"
 #include "flags.h"
 #include "utils.h"
@@ -63,7 +62,6 @@
 
 static const int plns[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
 static int bc,np,nfc[8],ofs[8],hofs[8],tags[8],nmu[8];
-static const su3_dble ud0={{0.0}};
 static su3_dble wd ALIGNED16;
 static su3_dble *hdb=NULL;
 
@@ -74,15 +72,15 @@ static void set_ofs(void)
 
    bc=bc_type();
    np=(cpr[0]+cpr[1]+cpr[2]+cpr[3])&0x1;
-   
+
    nfc[0]=FACE0/2;
    nfc[1]=FACE0/2;
    nfc[2]=FACE1/2;
-   nfc[3]=FACE1/2;   
+   nfc[3]=FACE1/2;
    nfc[4]=FACE2/2;
    nfc[5]=FACE2/2;
    nfc[6]=FACE3/2;
-   nfc[7]=FACE3/2;   
+   nfc[7]=FACE3/2;
 
    ofs[0]=0;
    ofs[1]=ofs[0]+(FACE0/2);
@@ -91,8 +89,8 @@ static void set_ofs(void)
    ofs[4]=ofs[3]+(FACE1/2);
    ofs[5]=ofs[4]+(FACE2/2);
    ofs[6]=ofs[5]+(FACE2/2);
-   ofs[7]=ofs[6]+(FACE3/2);   
-   
+   ofs[7]=ofs[6]+(FACE3/2);
+
    hofs[0]=0;
    hofs[1]=hofs[0]+3*FACE0;
    hofs[2]=hofs[1]+3*FACE0;
@@ -112,12 +110,11 @@ static void set_ofs(void)
 
 static void alloc_hdb(void)
 {
-   int ifc,n,ib;
-   su3_dble unity;
+   int ifc,n;
 
    error(iup[0][0]==0,1,"alloc_hdb [bstap.c]",
          "Geometry arrays are not set");
-   
+
    set_ofs();
    n=0;
 
@@ -131,14 +128,7 @@ static void alloc_hdb(void)
    hdb=amalloc(n*sizeof(*hdb),ALIGN);
    error(hdb==NULL,1,"alloc_hdb [bstap.c]",
          "Unable to allocate the boundary staple field");
-
-   unity=ud0;
-   unity.c11.re=1.0;
-   unity.c22.re=1.0;
-   unity.c33.re=1.0;
-
-   for (ib=0;ib<n;ib++)
-      hdb[ib]=unity;
+   cm3x3_unity(n,hdb);
 }
 
 
@@ -178,7 +168,7 @@ static void get_ofs(int mu,int nu,int ix,int *ip)
    }
 }
 
-  
+
 static void get_staples(int ifc)
 {
    int ib,ix,mu,nu,k,ip[4];
@@ -211,12 +201,12 @@ static void get_staples(int ifc)
          else
          {
             if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))
-            {            
+            {
                su3xsu3(udb+ip[0],udb+ip[1],&wd);
                su3dagxsu3(udb+ip[2],&wd,sbuf);
             }
          }
-         
+
          sbuf+=1;
       }
    }
@@ -225,7 +215,7 @@ static void get_staples(int ifc)
 
 static void send_staples(int ifc,int tag)
 {
-   int saddr,raddr,nbf,ib;
+   int saddr,raddr,nbf;
    su3_dble *sbuf,*rbuf;
    MPI_Status stat;
 
@@ -250,10 +240,7 @@ static void send_staples(int ifc,int tag)
       }
    }
    else
-   {
-      for (ib=0;ib<(3*FACE0);ib++)
-         rbuf[ib]=ud0;
-   }
+      cm3x3_zero(3*FACE0,rbuf);
 }
 
 

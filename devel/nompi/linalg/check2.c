@@ -117,7 +117,7 @@ static void mdag(int n,complex_dble *a,complex_dble *b)
       for (j=0;j<n;j++)
       {
          b[i*n+j].re=a[j*n+i].re;
-         b[i*n+j].im=-a[j*n+i].im;          
+         b[i*n+j].im=-a[j*n+i].im;
       }
    }
 }
@@ -141,7 +141,7 @@ static void mmul(int n,complex_dble *a,complex_dble *b,complex_dble *c)
          }
 
          c[i*n+j]=z;
-          
+
       }
    }
 }
@@ -170,7 +170,7 @@ static double vdev(int n,complex_dble *v,complex_dble *w)
    double d,dmax;
 
    dmax=0.0;
-   
+
    for (i=0;i<n;i++)
    {
       d=fabs(v[i].re-w[i].re)+fabs(v[i].im-w[i].im);
@@ -188,7 +188,7 @@ static double mdev(int n,complex_dble *a,complex_dble *b)
    double d,dmax;
 
    dmax=0.0;
-   
+
    for (i=0;i<n;i++)
    {
       for (j=0;j<n;j++)
@@ -234,7 +234,7 @@ static void rmat(int n,complex_dble *a)
 static void vec2vec(int n,complex_dble *v,complex_dble *w)
 {
    int i;
-   
+
    for (i=0;i<n;i++)
       w[i]=v[i];
 }
@@ -243,7 +243,7 @@ static void vec2vec(int n,complex_dble *v,complex_dble *w)
 static void mat2mat(int n,complex_dble *a,complex_dble *b)
 {
    int i,j;
-   
+
    for (i=0;i<n;i++)
    {
       for (j=0;j<n;j++)
@@ -259,17 +259,21 @@ int main(void)
    double k1,k2,kmax;
    complex_dble *a1,*b1,*c1,*v1,*w1;
    complex_dble *a2,*b2,*c2,*v2,*w2;
-   
+
    printf("\n");
    printf("Check of cmat_vec_dble, cmat_add_dble, ...\n");
    printf("------------------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n\n");
+#else
    printf("Using AVX instructions\n\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
-   
+
    a1=amalloc(2*NMAX*(3*NMAX+2)*sizeof(*a1),6);
    error(a1==NULL,1,"main [check2.c]","Unable to allocate auxiliary arrays");
 
@@ -291,7 +295,7 @@ int main(void)
    d6=0.0;
    d7=0.0;
    kmax=0.0;
-   
+
    for (n=1;n<=NMAX;n++)
    {
       rvec(n,v1);
@@ -324,7 +328,7 @@ int main(void)
          d1=d;
 
       error((mdev(n,a1,a2)!=0.0)||(vdev(n,v1,v2)!=0.0),1,"main [check2.c]",
-            "cmat_vec_assign_dble: input values have changed");      
+            "cmat_vec_assign_dble: input values have changed");
 
       rmat(n,a1);
       rmat(n,b1);
@@ -332,7 +336,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_add_dble(n,a1,b1,c1);
       madd(n,a2,b2,c2);
 
@@ -349,7 +353,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_sub_dble(n,a1,b1,c1);
       msub(n,a2,b2,c2);
 
@@ -358,7 +362,7 @@ int main(void)
          d3=d;
 
       error((mdev(n,a1,a2)!=0.0)||(mdev(n,b1,b2)!=0.0),1,"main [check2.c]",
-            "cmat_sub_dble: input values have changed");      
+            "cmat_sub_dble: input values have changed");
 
       rmat(n,a1);
       rmat(n,b1);
@@ -366,7 +370,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_mul_dble(n,a1,b1,c1);
       mmul(n,a2,b2,c2);
 
@@ -375,13 +379,13 @@ int main(void)
          d4=d;
 
       error((mdev(n,a1,a2)!=0.0)||(mdev(n,b1,b2)!=0.0),1,"main [check2.c]",
-            "cmat_mul_dble: input values have changed");      
+            "cmat_mul_dble: input values have changed");
 
       rmat(n,a1);
       rmat(n,b1);
       mat2mat(n,a1,a2);
       rmat(n,b2);
-      
+
       cmat_dag_dble(n,a1,b1);
       mdag(n,a2,b2);
 
@@ -390,14 +394,14 @@ int main(void)
          d5=d;
 
       error(mdev(n,a1,a2)!=0.0,1,"main [check2.c]",
-            "cmat_dag_dble: input values have changed");      
-      
+            "cmat_dag_dble: input values have changed");
+
       rmat(n,a1);
       rmat(n,b1);
       mat2mat(n,a1,a2);
       rmat(n,b2);
       rmat(n,c2);
-      
+
       ie=cmat_inv_dble(n,a1,b1,&k1);
       mmul(n,a2,b1,b2);
       mmul(n,a2,b2,c2);
@@ -415,22 +419,22 @@ int main(void)
          d7=d;
 
       error(ie!=0,1,"main [check2.c]",
-            "cmat_inv_dble: singular matrix encountered"); 
-      
+            "cmat_inv_dble: singular matrix encountered");
+
       error(mdev(n,a1,a2)!=0.0,1,"main [check2.c]",
-            "cmat_inv_dble: input values have changed");      
+            "cmat_inv_dble: input values have changed");
    }
 
    printf("Consider matrices of size up to %dx%d\n\n",NMAX,NMAX);
-   
+
    printf("The maximal observed deviations are:\n\n");
-   printf("cmat_vec_dble:     %.1e\n",d1);   
+   printf("cmat_vec_dble:     %.1e\n",d1);
    printf("cmat_add_dble:     %.1e\n",d2);
    printf("cmat_sub_dble:     %.1e\n",d3);
    printf("cmat_mul_dble:     %.1e\n",d4);
    printf("cmat_dag_dble:     %.1e\n",d5);
    printf("cmat_inv_dble:     %.1e,  condition number:  max=%.1e, dev=%.1e\n\n",
           d6,kmax,d7);
-   
+
    exit(0);
 }

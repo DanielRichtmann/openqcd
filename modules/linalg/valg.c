@@ -56,9 +56,10 @@
 #include "mpi.h"
 #include "utils.h"
 #include "linalg.h"
+#include "vflds.h"
 #include "global.h"
 
-static int nrot=0,ifail=0;
+static int nrot=0;
 static complex *psi;
 
 
@@ -66,17 +67,12 @@ static void alloc_wrotate(int n)
 {
    if (nrot>0)
       afree(psi);
-   
-   psi=amalloc(n*sizeof(*psi),ALIGN);
 
-   if (psi==NULL)
-   {
-      error_loc(1,1,"alloc_wrotate [valg.c]","Unable to allocate workspace");
-      nrot=0;
-      ifail=1;      
-   }
-   else
-      nrot=n;
+   psi=amalloc(n*sizeof(*psi),ALIGN);
+   error_loc(psi==NULL,1,"alloc_wrotate [valg.c]",
+             "Unable to allocate workspace");
+   nrot=n;
+   set_v2zero(n,psi);
 }
 
 
@@ -84,7 +80,7 @@ complex vprod(int n,int icom,complex *v,complex *w)
 {
    complex z,*vm;
    complex_dble vd,wd;
-  
+
    vd.re=0.0;
    vd.im=0.0;
    vm=v+n;
@@ -104,13 +100,13 @@ complex vprod(int n,int icom,complex *v,complex *w)
    else
    {
       MPI_Reduce(&vd.re,&wd.re,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&wd.re,2,MPI_DOUBLE,0,MPI_COMM_WORLD);     
+      MPI_Bcast(&wd.re,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
       z.re=(float)(wd.re);
       z.im=(float)(wd.im);
    }
-   
-   return z;  
+
+   return z;
 }
 
 
@@ -141,7 +137,7 @@ void mulc_vadd(int n,complex *v,complex *w,complex z)
    complex *vm;
 
    vm=v+n;
-   
+
    for (;v<vm;v++)
    {
       (*v).re+=(z.re*(*w).re-z.im*(*w).im);
@@ -158,20 +154,20 @@ void vproject(int n,int icom,complex *v,complex *w)
    z=vprod(n,icom,w,v);
    z.re=-z.re;
    z.im=-z.im;
-   mulc_vadd(n,v,w,z);   
+   mulc_vadd(n,v,w,z);
 }
 
 
 void vscale(int n,float r,complex *v)
 {
    complex *vm;
-   
+
    vm=v+n;
-   
+
    for (;v<vm;v++)
    {
       (*v).re*=r;
-      (*v).im*=r;      
+      (*v).im*=r;
    }
 }
 
@@ -183,13 +179,11 @@ float vnormalize(int n,int icom,complex *v)
    r=vnorm_square(n,icom,v);
    r=(float)(sqrt((double)(r)));
 
-   if (r==0.0f)
-   {
-      error_loc(1,1,"vnormalize [valg.c]","Vector field has vanishing norm");
-      return 0.0f;
-   }
-
-   vscale(n,1.0f/r,v);
+   if (r!=0.0f)
+      vscale(n,1.0f/r,v);
+   else
+      error_loc(1,1,"vnormalize [valg.c]",
+                "Vector field has vanishing norm");
 
    return r;
 }
@@ -200,36 +194,33 @@ void vrotate(int n,int nv,complex **pv,complex *a)
    int i,k,j;
    complex s,*z,*vj;
 
-   if ((nv>nrot)&&(ifail==0))
+   if (nv>nrot)
       alloc_wrotate(nv);
 
-   if ((nv>0)&&(ifail==0))
+   for (i=0;i<n;i++)
    {
-      for (i=0;i<n;i++)
+      for (k=0;k<nv;k++)
       {
-         for (k=0;k<nv;k++)  
-         {
-            s.re=0.0f;
-            s.im=0.0f;
-            z=a+k;
-     
-            for (j=0;j<nv;j++)
-            {
-               vj=pv[j]+i;
-               s.re+=((*z).re*(*vj).re-(*z).im*(*vj).im);
-               s.im+=((*z).re*(*vj).im+(*z).im*(*vj).re);
-               z+=nv;               
-            }
+         s.re=0.0f;
+         s.im=0.0f;
+         z=a+k;
 
-            psi[k].re=s.re;
-            psi[k].im=s.im;
+         for (j=0;j<nv;j++)
+         {
+            vj=pv[j]+i;
+            s.re+=((*z).re*(*vj).re-(*z).im*(*vj).im);
+            s.im+=((*z).re*(*vj).im+(*z).im*(*vj).re);
+            z+=nv;
          }
 
-         for (k=0;k<nv;k++)
-         {
-            pv[k][i].re=psi[k].re;
-            pv[k][i].im=psi[k].im;
-         }
+         psi[k].re=s.re;
+         psi[k].im=s.im;
+      }
+
+      for (k=0;k<nv;k++)
+      {
+         pv[k][i].re=psi[k].re;
+         pv[k][i].im=psi[k].im;
       }
    }
 }

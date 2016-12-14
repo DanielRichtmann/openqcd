@@ -18,19 +18,19 @@
 *
 *   void bswap_int(int n,void *a)
 *     Inverts the byte order of the array elements a[0],..,a[n-1]
-*     assuming these are 4 byte long 
+*     assuming these are 4 byte long
 *
 *   void bswap_double(int n,void *a)
 *     Inverts the byte order of the array elements a[0],..,a[n-1]
-*     assuming these are 8 byte long 
+*     assuming these are 8 byte long
 *
 * Notes:
 *
 * The integer types that are guaranteed to be 4 byte long are stdint_t
-* and stduint_t. These are defined in the header file misc.h.
+* and stduint_t. These are defined in the header file utils.h.
 *
 * On machines complying with the IEEE-754 standard, double precision
-* floating-point numbers are 8 byte long. When the header file misc.h
+* floating-point numbers are 8 byte long. When the header file utils.h
 * is read, the compiler checks whether the machine complies with the
 * standard.
 
@@ -77,7 +77,7 @@ void bswap_int(int n,void *a)
 
       bas=ba[2];
       ba[2]=ba[1];
-      ba[1]=bas;      
+      ba[1]=bas;
    }
 }
 
@@ -97,11 +97,11 @@ void bswap_double(int n,void *a)
 
       bas=ba[6];
       ba[6]=ba[1];
-      ba[1]=bas;      
+      ba[1]=bas;
 
       bas=ba[5];
       ba[5]=ba[2];
-      ba[2]=bas;      
+      ba[2]=bas;
 
       bas=ba[4];
       ba[4]=ba[3];

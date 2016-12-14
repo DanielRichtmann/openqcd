@@ -3,7 +3,7 @@
 *
 * File ftcom.c
 *
-* Copyright (C) 2011, 2013 Martin Luescher
+* Copyright (C) 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -51,7 +51,6 @@
 #include "global.h"
 
 static const int plns[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
-static const u3_alg_dble ft0={0.0};
 static u3_alg_dble *ftbuf;
 static ftidx_t *idx=NULL;
 
@@ -59,7 +58,7 @@ static ftidx_t *idx=NULL;
 static void alloc_ftbuf(void)
 {
    int n,nft,nbf;
-   
+
    idx=ftidx();
    nbf=0;
 
@@ -68,7 +67,7 @@ static void alloc_ftbuf(void)
       nft=idx[n].nft[0];
       if (nft>nbf)
          nbf=nft;
-      
+
       nft=idx[n].nft[1];
       if (nft>nbf)
          nbf=nft;
@@ -141,7 +140,7 @@ static void fwd_send(int n,int dir,u3_alg_dble *ft)
       }
       else
       {
-         if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))         
+         if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))
             MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
          if ((mu>0)||(cpr[0]>0)||(bc==3))
             MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
@@ -156,7 +155,7 @@ void copy_bnd_ft(int n,u3_alg_dble *ft)
    {
       if (idx==NULL)
          alloc_ftbuf();
-      
+
       pack_buf(n,1,ft);
       fwd_send(n,1,ft);
       pack_buf(n,0,ft);
@@ -197,7 +196,7 @@ static void bck_send(int n,int dir,u3_alg_dble *ft)
       }
       else
       {
-         if ((mu>0)||(cpr[0]>0)||(bc==3))         
+         if ((mu>0)||(cpr[0]>0)||(bc==3))
             MPI_Recv(rbuf,nbf,MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&stat);
          if ((mu>0)||(cpr[0]<(NPROC0-1))||(bc==3))
             MPI_Send(sbuf,nbf,MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD);
@@ -217,7 +216,7 @@ static void unpack_buf(int n,int dir,u3_alg_dble *ft)
    if (nft>0)
    {
       bc=bc_type();
-      mu=plns[n][dir];   
+      mu=plns[n][dir];
 
       if ((mu>0)||(cpr[0]>0)||(bc==3))
       {
@@ -237,8 +236,8 @@ static void unpack_buf(int n,int dir,u3_alg_dble *ft)
             (*f).c6+=(*fb).c6;
             (*f).c7+=(*fb).c7;
             (*f).c8+=(*fb).c8;
-            (*f).c9+=(*fb).c9;      
-      
+            (*f).c9+=(*fb).c9;
+
             fb+=1;
          }
       }
@@ -251,8 +250,8 @@ void add_bnd_ft(int n,u3_alg_dble *ft)
    if (NPROC>1)
    {
       if (idx==NULL)
-         alloc_ftbuf();         
-   
+         alloc_ftbuf();
+
       bck_send(n,0,ft);
       unpack_buf(n,0,ft);
       bck_send(n,1,ft);

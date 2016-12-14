@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2009, 2011 Martin Luescher
+* Copyright (C) 2005, 2009, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -36,13 +36,20 @@ typedef union
 
 #if (defined AVX)
 static pauli_dble mp ALIGNED32;
-static spin_t s1,s2,r1,r2 ALIGNED32;
+static spin_t s1 ALIGNED32;
+static spin_t s2 ALIGNED32;
+static spin_t r1 ALIGNED32;
+static spin_t r2 ALIGNED32;
 static mat_t mv ALIGNED32;
 #else
 static pauli_dble mp ALIGNED16;
-static spin_t s1,s2,r1,r2 ALIGNED16;
+static spin_t s1 ALIGNED16;
+static spin_t s2 ALIGNED16;
+static spin_t r1 ALIGNED16;
+static spin_t r2 ALIGNED16;
 static mat_t mv ALIGNED16;
 #endif
+
 
 static void cpvec(int n,complex_dble *s,complex_dble *r)
 {
@@ -102,7 +109,7 @@ int main(void)
    }
 
    k=6;
-   
+
    for (i=0;i<6;i++)
    {
       mp.u[i]=mv.c[6*i+i].re;
@@ -120,8 +127,8 @@ int main(void)
    mul_pauli_dble(mu,&mp,&(s1.w),&(r1.w));
 
    error(diffvec(6,s1.c,s2.c),1,"main [check2.c]",
-         "mul_pauli_dble() modifies the source spinor"); 
-   
+         "mul_pauli_dble() modifies the source spinor");
+
    cmat_vec_dble(6,mv.c,s2.c,r2.c);
 
    for (i=0;i<6;i++)
@@ -129,9 +136,9 @@ int main(void)
       r2.c[i].re-=mu*s2.c[i].im;
       r2.c[i].im+=mu*s2.c[i].re;
    }
-   
+
    printf("r1: result, r2: expected result\n\n");
-   
+
    for (i=0;i<2;i++)
    {
       for (j=0;j<3;j++)
@@ -153,10 +160,10 @@ int main(void)
    }
 
    printf("Maximal absolute deviation = %.1e\n",dmax);
-   
+
    mul_pauli_dble(mu,&mp,&(s1.w),&(s1.w));
    error(diffvec(6,s1.c,r1.c),1,"main [check2.c]",
-         "mul_pauli_dble() is incorrect when r=s");    
+         "mul_pauli_dble() is incorrect when r=s");
    printf("Works correctly if input and output spinors coincide\n\n");
 
    exit(0);

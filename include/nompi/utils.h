@@ -32,7 +32,7 @@ typedef unsigned int stduint_t;
 typedef long int stdint_t;
 typedef unsigned long int stduint_t;
 #else
-#error : There is no four-byte integer type on this machine 
+#error : There is no four-byte integer type on this machine
 #endif
 
 #undef UNKNOWN_ENDIAN
@@ -73,7 +73,7 @@ extern void *amalloc(size_t size,int p);
 extern void afree(void *addr);
 extern void error(int test,int no,char *name,char *format,...);
 extern void error_root(int test,int no,char *name,char *format,...);
-extern int error_loc(int test,int no,char *name,char *format,...);
+extern void error_loc(int test,int no,char *name,char *format,...);
 extern void message(char *format,...);
 
 #endif

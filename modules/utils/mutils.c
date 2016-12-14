@@ -3,7 +3,7 @@
 *
 * File mutils.c
 *
-* Copyright (C) 2005, 2007, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2007, 2008, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -50,7 +50,7 @@
 *     with an error message if no such line is found or if there are
 *     several of them. The program returns the offset of the line from
 *     the beginning of the file and positions the file pointer to the
-*     next line. On processes other than 0, the program does nothing 
+*     next line. On processes other than 0, the program does nothing
 *     and returns -1L.
 *
 *   long read_line(char *tag,char *format,...)
@@ -69,7 +69,7 @@
 *     that line after the tag. Tokens are separated by white space (blanks,
 *     tabs or newline characters) and comments (text beginning with #) are
 *     ignored. On exit, the file pointer is positioned at the next line. If
-*     called on other processes, the program does nothing and returns 0.  
+*     called on other processes, the program does nothing and returns 0.
 *
 *   void read_iprms(char *tag,int n,int *iprms)
 *     On process 0, this program finds and reads a line from stdin, exactly
@@ -87,20 +87,18 @@
 *     occurs if less than n values are found on the line. The values must be
 *     separated by white space (blanks, tabs or newline characters). On exit,
 *     the file pointer is positioned at the next line. When called on other
-*     processes, the program does nothing. 
+*     processes, the program does nothing.
 *
-*   int copy_file(char *in,char *out)
-*     Copies the file "in" to the file "out" in binary mode. The return
-*     value is 0 if no I/O error is detected and 1 otherwise, in which
-*     case the error can also be detected by the error_chk() [utils.c]
-*     function.
+*   void copy_file(char *in,char *out)
+*     Copies the file "in" to the file "out" in binary mode. An error occurs
+*     if the file copy is not successful.
 *
 * Notes:
 *
 * Except for check_dir(), the programs in this module do not involve any
 * communications and can be called locally.
 *
-* The programs find_section() and read_line() serve to read structured 
+* The programs find_section() and read_line() serve to read structured
 * input parameter files (such as the *.in in the directory main; see
 * main/README.infiles).
 *
@@ -170,7 +168,7 @@ int fdigits(double x)
 
    if (x==0.0)
       return 0;
-   
+
    y=fabs(x);
    z=DBL_EPSILON*y;
    m=floor(log10(y+z));
@@ -191,7 +189,7 @@ int fdigits(double x)
 
    return n;
 }
-   
+
 
 void check_dir(char* dir)
 {
@@ -219,11 +217,9 @@ void check_dir(char* dir)
    nc=sprintf(text,"Unable to access directory ");
    strncpy(text+nc,dir,512-nc);
    text[511]='\0';
-   
    error_loc(tmp==NULL,1,"check_dir [mutils.c]",text);
-   error_chk();
-
    fclose(tmp);
+
    if (n==1)
       remove(tmp_file);
    free(tmp_file);
@@ -277,12 +273,12 @@ int name_size(char *format,...)
 
    if (my_rank==0)
    {
-      va_start(args,format);      
+      va_start(args,format);
       pc=format;
       nlen=strlen(format);
       ie=0;
       n=0;
-      
+
       for (;;)
       {
          pp=strchr(pc,'%');
@@ -291,7 +287,7 @@ int name_size(char *format,...)
             break;
 
          pc=pp+1;
-         
+
          if (pc[0]=='s')
             nlen+=(strlen(va_arg(args,char*))-2);
          else if (pc[0]=='d')
@@ -306,10 +302,10 @@ int name_size(char *format,...)
                ie=1;
                break;
             }
-            
+
             sprintf(inum,".%df",n);
             pp=strstr(pc,inum);
-            
+
             if (pp!=pc)
             {
                ie=2;
@@ -342,10 +338,10 @@ static int cmp_text(char *text1,char *text2)
 {
    size_t n1,n2;
    char *p1,*p2;
-   
+
    p1=text1;
    p2=text2;
-   
+
    while (1)
    {
       p1+=strspn(p1," \t\n");
@@ -375,13 +371,13 @@ static char *get_line(void)
    if (s!=NULL)
    {
       error_root(strlen(line)==NAME_SIZE,1,"get_line [mutils.c]",
-                 "Input line is longer than NAME_SIZE-1");   
+                 "Input line is longer than NAME_SIZE-1");
 
       c=strchr(line,'#');
       if (c!=NULL)
          c[0]='\0';
    }
-   
+
    return s;
 }
 
@@ -400,17 +396,17 @@ long find_section(char *title)
       sofs=-1L;
       ofs=ftell(stdin);
       s=get_line();
-      
+
       while (s!=NULL)
       {
          pl=strchr(line,'[');
          pr=strchr(line,']');
-         
+
          if ((pl==(line+strspn(line," \t")))&&(pr>pl))
          {
             pl+=1;
             pr[0]='\0';
-            
+
             if (cmp_text(pl,title)==1)
             {
                error_root(sofs>=0L,1,"find_section [mutils.c]",
@@ -418,7 +414,7 @@ long find_section(char *title)
                sofs=ofs;
             }
          }
-         
+
          ofs=ftell(stdin);
          s=get_line();
       }
@@ -429,7 +425,7 @@ long find_section(char *title)
       error_root(ie!=0,1,"find_section [mutils.c]",
                  "Unable to go to section [%s]",title);
       get_line();
-      
+
       return sofs;
    }
    else
@@ -455,17 +451,17 @@ static long find_tag(char *tag)
    char *s,*pl,*pr;
 
    ie=0;
-   tofs=-1L;   
+   tofs=-1L;
    lofs=ftell(stdin);
    rewind(stdin);
    ofs=ftell(stdin);
    s=get_line();
-   
+
    while (s!=NULL)
    {
       pl=strchr(line,'[');
       pr=strchr(line,']');
-         
+
       if ((pl==(line+strspn(line," \t")))&&(pr>pl))
       {
          if (ofs<lofs)
@@ -481,7 +477,7 @@ static long find_tag(char *tag)
          pl=line+strspn(line," \t");
          pr=pl+strcspn(pl," \t\n");
          pr[0]='\0';
-         
+
          if (strcmp(pl,tag)==0)
          {
             if (tofs!=-1L)
@@ -494,9 +490,9 @@ static long find_tag(char *tag)
       s=get_line();
    }
 
-   error_root(tofs==-1L,1,"find_tag [mutils.c]","Tag %s not found",tag);   
+   error_root(tofs==-1L,1,"find_tag [mutils.c]","Tag %s not found",tag);
    error_root(ie!=0,1,"find_tag [mutils.c]",
-              "Tag %s occurs more than once in the current section",tag);   
+              "Tag %s occurs more than once in the current section",tag);
 
    ie=fseek(stdin,tofs,SEEK_SET);
    error_root(ie!=0,1,"find_tag [mutils.c]",
@@ -518,11 +514,11 @@ long read_line(char *tag,char *format,...)
    if (my_rank==0)
    {
       check_tag(tag);
-      
+
       if (tag[0]!='\0')
       {
          tofs=find_tag(tag);
-         get_line();   
+         get_line();
          pl=line+strspn(line," \t");
          pl+=strcspn(pl," \t\n");
       }
@@ -535,8 +531,8 @@ long read_line(char *tag,char *format,...)
          tofs=ftell(stdin);
          pl=get_line();
       }
-      
-      va_start(args,format);      
+
+      va_start(args,format);
 
       for (p=format;;)
       {
@@ -561,7 +557,7 @@ long read_line(char *tag,char *format,...)
             error_root(1,1,"read_line [mutils.c]",
                        "Incorrect format string %s on line with tag %s",
                        format,tag);
-         
+
          error_root(ic!=1,1,"read_line [mutils.c]",
                     "Missing data item(s) on line with tag %s",tag);
 
@@ -602,14 +598,14 @@ int count_tokens(char *tag)
 
       s+=strspn(s," \t\n");
       n=0;
-      
+
       while (s[0]!='\0')
       {
-         n+=1;      
-         s+=strcspn(s," \t\n");      
+         n+=1;
+         s+=strcspn(s," \t\n");
          s+=strspn(s," \t\n");
       }
-   
+
       return n;
    }
    else
@@ -636,11 +632,11 @@ void read_iprms(char *tag,int n,int *iprms)
          s+=strcspn(s," \t\n");
       }
       else
-         s=get_line();   
+         s=get_line();
 
       s+=strspn(s," \t\n");
       nc=0;
-      
+
       while ((s[0]!='\0')&&(nc<n))
       {
          ic=sscanf(s,"%d",&i);
@@ -648,8 +644,8 @@ void read_iprms(char *tag,int n,int *iprms)
          if (ic==1)
          {
             iprms[nc]=i;
-            nc+=1;      
-            s+=strcspn(s," \t\n");      
+            nc+=1;
+            s+=strcspn(s," \t\n");
             s+=strspn(s," \t\n");
          }
          else
@@ -681,11 +677,11 @@ void read_dprms(char *tag,int n,double *dprms)
          s+=strcspn(s," \t\n");
       }
       else
-         s=get_line();   
+         s=get_line();
 
       s+=strspn(s," \t\n");
       nc=0;
-      
+
       while ((s[0]!='\0')&&(nc<n))
       {
          ic=sscanf(s,"%lf",&d);
@@ -693,8 +689,8 @@ void read_dprms(char *tag,int n,double *dprms)
          if (ic==1)
          {
             dprms[nc]=d;
-            nc+=1;      
-            s+=strcspn(s," \t\n");      
+            nc+=1;
+            s+=strcspn(s," \t\n");
             s+=strspn(s," \t\n");
          }
          else
@@ -706,27 +702,16 @@ void read_dprms(char *tag,int n,double *dprms)
 }
 
 
-int copy_file(char *in,char *out)
+void copy_file(char *in,char *out)
 {
    int c;
    FILE *fin,*fout;
 
    fin=fopen(in,"rb");
-
-   if (fin==NULL)
-   {
-      error_loc(1,1,"copy_file [mutils.c]","Unable to open input file");
-      return 1;
-   }
+   error_loc(fin==NULL,1,"copy_file [mutils.c]","Unable to open input file");
 
    fout=fopen(out,"wb");
-
-   if (fout==NULL)
-   {
-      error_loc(1,1,"copy_file [mutils.c]","Unable to open output file");
-      fclose(fin);
-      return 1;
-   }
+   error_loc(fout==NULL,1,"copy_file [mutils.c]","Unable to open output file");
 
    c=getc(fin);
 
@@ -740,15 +725,7 @@ int copy_file(char *in,char *out)
    {
       fclose(fin);
       fclose(fout);
-      return 0;
    }
    else
-   {
       error_loc(1,1,"copy_file [mutils.c]","Read or write error");
-      fclose(fin);
-      fclose(fout);
-      return 1;
-   }
 }
-
-

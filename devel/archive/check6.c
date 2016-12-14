@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2007, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2007, 2008, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -39,7 +39,7 @@ static void ptfld(int k)
    y0=L0*cpr[0];
    y1=L1*cpr[1];
    y2=L2*cpr[2];
-   y3=L3*cpr[3];   
+   y3=L3*cpr[3];
 
    for (x0=0;x0<L0;x0++)
    {
@@ -51,12 +51,12 @@ static void ptfld(int k)
             {
                ix=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
                s=psd[k]+ix;
-               
+
                (*s)=sd0;
                (*s).c1.c1.re=(double)(y0+x0);
                (*s).c2.c1.re=(double)(y1+x1);
                (*s).c3.c1.re=(double)(y2+x2);
-               (*s).c4.c1.re=(double)(y3+x3);               
+               (*s).c4.c1.re=(double)(y3+x3);
             }
          }
       }
@@ -78,7 +78,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check6.log","w",stdout);
       fin=freopen("check6.in","r",stdin);
-      
+
       printf("\n");
       printf("Importing a previously exported spinor field\n");
       printf("--------------------------------------------\n\n");
@@ -97,17 +97,15 @@ int main(int argc,char *argv[])
    psd=reserve_wsd(2);
    ptfld(0);
 
-   check_dir_root(sfld_dir);   
+   check_dir_root(sfld_dir);
    nsize=name_size("%s/testsfld",sfld_dir);
    error_root(nsize>=NAME_SIZE,1,"main [check6.c]","sfld_dir name is too long");
-   sprintf(name,"%s/testsfld",sfld_dir);          
+   sprintf(name,"%s/testsfld",sfld_dir);
 
    import_sfld(name,psd[1]);
 
    mulr_spinor_add_dble(VOLUME,psd[0],psd[1],-1.0);
    d=norm_square_dble(VOLUME,1,psd[0]);
-      
-   error_chk();
 
    if (my_rank==0)
    {
@@ -115,7 +113,7 @@ int main(int argc,char *argv[])
              "%s\n\n",name);
       printf("Deviation = %.1e ",sqrt(d));
       printf("(should be exactly equal to 0.0)\n\n");
-      remove(name);      
+      remove(name);
       fclose(flog);
    }
 

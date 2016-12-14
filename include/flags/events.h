@@ -3,7 +3,7 @@
 *
 * File flags/events.h
 *
-* Copyright (C) 2009, 2010, 2012 Martin Luescher
+* Copyright (C) 2009, 2010, 2012, 2016 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -113,10 +113,20 @@ static void LatComputedAwhat(void)
    lat.awh=lat.ud;
 }
 
+static void LatSetUdPhase(void)
+{
+   lat.phase=1;
+}
+
+static void LatUnsetUdPhase(void)
+{
+   lat.phase=0;
+}
+
 static void set_events(void)
 {
-   event_fcts[(int)(UPDATED_U)]=LatUpdatedU;    
-   event_fcts[(int)(UPDATED_UD)]=LatUpdatedUd;  
+   event_fcts[(int)(UPDATED_U)]=LatUpdatedU;
+   event_fcts[(int)(UPDATED_UD)]=LatUpdatedUd;
    event_fcts[(int)(ASSIGNED_UD2U)]=LatAssignedUd2u;
    event_fcts[(int)(COPIED_BND_UD)]=LatCopiedBndUd;
    event_fcts[(int)(SET_BSTAP)]=LatSetBstap;
@@ -132,6 +142,8 @@ static void set_events(void)
    event_fcts[(int)(ERASED_AWHAT)]=LatErasedAwhat;
    event_fcts[(int)(COMPUTED_AW)]=LatComputedAw;
    event_fcts[(int)(COMPUTED_AWHAT)]=LatComputedAwhat;
+   event_fcts[(int)(SET_UD_PHASE)]=LatSetUdPhase;
+   event_fcts[(int)(UNSET_UD_PHASE)]=LatUnsetUdPhase;
 }
 
 #endif

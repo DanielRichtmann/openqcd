@@ -26,7 +26,6 @@
 static double mu[3],t,d;
 static su3_alg_dble *X;
 static su3_dble *r,*u,*v,*w;
-static const su3_dble u0={{0.0}};
 static ch_drv0_t *sp;
 
 
@@ -60,8 +59,8 @@ static void random_Xu(void)
 
    t=0.5*(mu[0]*mu[0]+mu[1]*mu[1]+mu[2]*mu[2]);
    d=mu[0]*mu[1]*mu[2];
-   
-   (*u)=u0;
+
+   cm3x3_zero(1,u);
    (*u).c11.im=mu[0];
    (*u).c22.im=mu[1];
    (*u).c33.im=mu[2];
@@ -69,7 +68,7 @@ static void random_Xu(void)
    random_su3_dble(r);
    su3xsu3(r,u,w);
    su3xsu3dag(w,r,u);
-   
+
    (*X).c1=((*u).c11.im-(*u).c22.im)/3.0;
    (*X).c2=((*u).c11.im-(*u).c33.im)/3.0;
    (*X).c3=(*u).c12.re;
@@ -79,7 +78,7 @@ static void random_Xu(void)
    (*X).c7=(*u).c23.re;
    (*X).c8=(*u).c23.im;
 
-   (*u)=u0;
+   cm3x3_zero(1,u);
    (*u).c11.re=cos(mu[0]);
    (*u).c22.re=cos(mu[1]);
    (*u).c33.re=cos(mu[2]);
@@ -116,10 +115,10 @@ static double dev_uv(void)
    r[14]=(*u).c32.re-(*v).c32.re;
    r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
-   r[17]=(*u).c33.im-(*v).c33.im;   
+   r[17]=(*u).c33.im-(*v).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i++)
    {
       dev=fabs(r[i]);
@@ -149,7 +148,7 @@ int main(void)
    dmax1=0.0;
    dmax2=0.0;
    dmax3=0.0;
-   
+
    for (i=0;i<NTEST;i++)
    {
       random_Xu();
@@ -169,8 +168,8 @@ int main(void)
          dmax3=dev;
    }
 
-   printf ("Maximal deviation of t      = %.1e\n",dmax1);      
-   printf ("Maximal deviation of d      = %.1e\n",dmax2);   
+   printf ("Maximal deviation of t      = %.1e\n",dmax1);
+   printf ("Maximal deviation of d      = %.1e\n",dmax2);
    printf ("Maximal deviation of exp(X) = %.1e\n\n",dmax3);
 
    exit(0);

@@ -33,13 +33,17 @@ int main(void)
    printf("-------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n\n");
+#else
    printf("Using AVX instructions\n\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");
-   
+
    printf("Matrix size: ");
    ir=scanf(" %d",&nm);
 
@@ -51,7 +55,7 @@ int main(void)
 
    rlxs_init(0,23456);
    ranlxs((float*)(a),6*nm*nm+4*nm);
-   
+
    b=a+nm*nm;
    c=b+nm*nm;
    v=c+nm*nm;
@@ -61,7 +65,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          cmat_vec(nm,a,v,w);
@@ -81,7 +85,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          cmat_mul(nm,a,b,c);
@@ -94,7 +98,7 @@ int main(void)
 
    printf("Time per call of cmat_mul():\n");
    printf("%.2e micro sec (%d Mflops)\n\n",
-          dt,(int)((double)(nm*nm*(6+(nm-1)*8))/dt));   
+          dt,(int)((double)(nm*nm*(6+(nm-1)*8))/dt));
 
    exit(0);
 }

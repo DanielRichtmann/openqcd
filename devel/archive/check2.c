@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2007, 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2007, 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -54,7 +54,7 @@ static int cmp_ud(su3_dble *u,su3_dble *v)
    it|=((*u).c32.im!=(*v).c32.im);
    it|=((*u).c33.re!=(*v).c33.re);
    it|=((*u).c33.im!=(*v).c33.im);
-   
+
    return it;
 }
 
@@ -67,7 +67,7 @@ static int check_ud(su3_dble *usv)
    u=udfld();
    um=u+4*VOLUME;
    it=0;
-   
+
    for (;u<um;u++)
    {
       it|=cmp_ud(u,usv);
@@ -81,7 +81,7 @@ static int check_ud(su3_dble *usv)
 int main(int argc,char *argv[])
 {
    int my_rank,bc,nsize,ie;
-   double phi[2],phi_prime[2];   
+   double phi[2],phi_prime[2],theta[3];
    su3_dble *udb,**usv;
    char cnfg_dir[NAME_SIZE],cnfg[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
@@ -93,7 +93,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check2.log","w",stdout);
       fin=freopen("check2.in","r",stdin);
-      
+
       printf("\n");
       printf("Exporting and importing gauge configurations\n");
       printf("--------------------------------------------\n\n");
@@ -114,19 +114,22 @@ int main(int argc,char *argv[])
 
    MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.5;
+   theta[1]=1.0;
+   theta[2]=-0.5;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(1);
 
    start_ranlux(0,123456);
    geometry();
    alloc_wud(1);
-   
-   check_dir_root(cnfg_dir);   
+
+   check_dir_root(cnfg_dir);
    nsize=name_size("%s/testcnfg",cnfg_dir);
    error_root(nsize>=NAME_SIZE,1,"main [check2.c]","cnfg_dir name is too long");
 
@@ -145,18 +148,17 @@ int main(int argc,char *argv[])
 
    sprintf(cnfg,"%s/testcnfg",cnfg_dir);
    export_cnfg(cnfg);
-   
+
    random_ud();
    import_cnfg(cnfg);
-   error_chk();
 
    ie=(check_bc(0.0)^0x1);
    ie|=check_ud(usv[0]);
    error(ie!=0,1,"main [check2.c]","The gauge field is not properly restored");
-   print_flags();      
-   
+   print_flags();
+
    if (my_rank==0)
-   {   
+   {
       printf("No errors detected --- the fields are correctly exported\n\n");
       fclose(flog);
    }

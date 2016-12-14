@@ -3,12 +3,12 @@
 *
 * File su3prod.c
 *
-* Copyright (C) 2005, 2009, 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2009-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Products of double-precision 3x3 matrices
+* Products of double-precision 3x3 matrices.
 *
 * The externally accessible functions are
 *
@@ -42,10 +42,10 @@
 *     the real part of tr{w}.
 *
 *   void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
-*     Computes the product w=u*v and assigns w-w^dag to X. 
+*     Computes the product w=u*v and assigns w-w^dag to X.
 *
 *   void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
-*     Replaces X by u*X*u^dag. The matrix u must be unitary but its 
+*     Replaces X by u*X*u^dag. The matrix u must be unitary but its
 *     determinant may be different from 1.
 *
 * Notes:
@@ -64,7 +64,7 @@
 *
 * The type su3_alg_dble [which represents elements of the Lie algebra of SU(3)]
 * is described in the file linalg/liealg.c.
-* 
+*
 * If SSE2 or AVX instructions are used, all su3_dble and su3_alg_dble matrices
 * are assumed to be aligned to 16 byte boundaries.
 *
@@ -88,7 +88,7 @@ static double tr ALIGNED8;
 
 static void su3xsu3vec(su3_dble *u)
 {
-   _sse_su3_multiply_dble(*u);
+   _avx_su3_multiply_dble(*u);
 }
 
 
@@ -100,7 +100,7 @@ static void su3xsu3vec_pair(su3_dble *u)
 
 static void su3dagxsu3vec(su3_dble *u)
 {
-   _sse_su3_inverse_multiply_dble(*u);
+   _avx_su3_inverse_multiply_dble(*u);
 }
 
 
@@ -145,11 +145,9 @@ void su3xsu3(su3_dble *u,su3_dble *v,su3_dble *w)
                          "=m" ((*w).c22),
                          "=m" ((*w).c32));
 
-   _avx_zeroupper();
-   
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2"
                          :
                          :
                          "m" ((*v).c13),
@@ -160,13 +158,15 @@ void su3xsu3(su3_dble *u,su3_dble *v,su3_dble *w)
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*w).c13),
                          "=m" ((*w).c23),
                          "=m" ((*w).c33));
+
+   _avx_zeroupper();
 }
 
 
@@ -205,11 +205,9 @@ void su3dagxsu3(su3_dble *u,su3_dble *v,su3_dble *w)
                          "=m" ((*w).c22),
                          "=m" ((*w).c32));
 
-   _avx_zeroupper();
-   
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2"
                          :
                          :
                          "m" ((*v).c13),
@@ -220,39 +218,40 @@ void su3dagxsu3(su3_dble *u,su3_dble *v,su3_dble *w)
 
    su3dagxsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*w).c13),
                          "=m" ((*w).c23),
                          "=m" ((*w).c33));
+
+   _avx_zeroupper();
 }
 
 
 void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 {
-   __asm__ __volatile__ ("vbroadcastf128 %0, %%ymm3 \n\t"
-                         "vmovapd %1, %%xmm0 \n\t"
-                         "vmovapd %2, %%xmm1 \n\t"
-                         "vmovapd %3, %%xmm2 \n\t"
-                         "vinsertf128 $0x1, %4, %%ymm0, %%ymm0 \n\t"
-                         "vinsertf128 $0x1, %5, %%ymm1, %%ymm1 \n\t"
-                         "vinsertf128 $0x1, %6, %%ymm2, %%ymm2 \n\t"
-                         "vmulpd %%ymm3, %%ymm0, %%ymm0 \n\t"
-                         "vmulpd %%ymm3, %%ymm1, %%ymm1 \n\t"
-                         "vmulpd %%ymm3, %%ymm2, %%ymm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2 \n\t"
+                         "vinsertf128 $0x1, %3, %%ymm0, %%ymm0 \n\t"
+                         "vinsertf128 $0x1, %4, %%ymm1, %%ymm1 \n\t"
+                         "vinsertf128 $0x1, %5, %%ymm2, %%ymm2 \n\t"
+                         "vmulpd %6, %%ymm0, %%ymm0 \n\t"
+                         "vmulpd %6, %%ymm1, %%ymm1 \n\t"
+                         "vmulpd %6, %%ymm2, %%ymm2"
                          :
                          :
-                         "m" (_sse_sgn2_dble),
                          "m" ((*v).c11),
                          "m" ((*v).c12),
                          "m" ((*v).c13),
                          "m" ((*v).c21),
                          "m" ((*v).c22),
-                         "m" ((*v).c23)
+                         "m" ((*v).c23),
+                         "m" (_avx_sgn24_dble)
                          :
-                         "xmm0", "xmm1", "xmm2", "xmm3");
+                         "xmm0", "xmm1", "xmm2");
 
    su3xsu3vec_pair(u);
 
@@ -269,15 +268,13 @@ void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
                          "=m" ((*w).c12),
                          "=m" ((*w).c22),
                          "=m" ((*w).c32));
-   
-   _avx_zeroupper();
 
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2 \n\t"
-                         "mulpd %3, %%xmm0 \n\t"
-                         "mulpd %3, %%xmm1 \n\t"
-                         "mulpd %3, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2 \n\t"
+                         "vmulpd %3, %%xmm0, %%xmm0 \n\t"
+                         "vmulpd %3, %%xmm1, %%xmm1 \n\t"
+                         "vmulpd %3, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*v).c31),
@@ -289,40 +286,41 @@ void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*w).c13),
                          "=m" ((*w).c23),
                          "=m" ((*w).c33));
+
+   _avx_zeroupper();
 }
 
 
 void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 {
-   __asm__ __volatile__ ("vbroadcastf128 %0, %%ymm3 \n\t"
-                         "vmovapd %1, %%xmm0 \n\t"
-                         "vmovapd %2, %%xmm1 \n\t"
-                         "vmovapd %3, %%xmm2 \n\t"
-                         "vinsertf128 $0x1, %4, %%ymm0, %%ymm0 \n\t"
-                         "vinsertf128 $0x1, %5, %%ymm1, %%ymm1 \n\t"
-                         "vinsertf128 $0x1, %6, %%ymm2, %%ymm2 \n\t"
-                         "vmulpd %%ymm3, %%ymm0, %%ymm0 \n\t"
-                         "vmulpd %%ymm3, %%ymm1, %%ymm1 \n\t"
-                         "vmulpd %%ymm3, %%ymm2, %%ymm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2 \n\t"
+                         "vinsertf128 $0x1, %3, %%ymm0, %%ymm0 \n\t"
+                         "vinsertf128 $0x1, %4, %%ymm1, %%ymm1 \n\t"
+                         "vinsertf128 $0x1, %5, %%ymm2, %%ymm2 \n\t"
+                         "vmulpd %6, %%ymm0, %%ymm0 \n\t"
+                         "vmulpd %6, %%ymm1, %%ymm1 \n\t"
+                         "vmulpd %6, %%ymm2, %%ymm2"
                          :
                          :
-                         "m" (_sse_sgn2_dble),
                          "m" ((*v).c11),
                          "m" ((*v).c12),
                          "m" ((*v).c13),
                          "m" ((*v).c21),
                          "m" ((*v).c22),
-                         "m" ((*v).c23)
+                         "m" ((*v).c23),
+                         "m" (_avx_sgn24_dble)
                          :
-                         "xmm0", "xmm1", "xmm2", "xmm3");
-   
+                         "xmm0", "xmm1", "xmm2");
+
    su3dagxsu3vec_pair(u);
 
    __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
@@ -338,15 +336,13 @@ void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
                          "=m" ((*w).c12),
                          "=m" ((*w).c22),
                          "=m" ((*w).c32));
-   
-   _avx_zeroupper();
 
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2 \n\t"
-                         "mulpd %3, %%xmm0 \n\t"
-                         "mulpd %3, %%xmm1 \n\t"
-                         "mulpd %3, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2 \n\t"
+                         "vmulpd %3, %%xmm0, %%xmm0 \n\t"
+                         "vmulpd %3, %%xmm1, %%xmm1 \n\t"
+                         "vmulpd %3, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*v).c31),
@@ -358,13 +354,15 @@ void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 
    su3dagxsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*w).c13),
                          "=m" ((*w).c23),
                          "=m" ((*w).c33));
+
+   _avx_zeroupper();
 }
 
 
@@ -412,12 +410,10 @@ void su3xu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "=m" ((*v).c22),
                          "=m" ((*v).c32));
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movupd %0, %%xmm0 \n\t"
-                         "movupd %2, %%xmm1 \n\t"
-                         "xorpd %%xmm2, %%xmm2\n\t"
-                         "movhpd %4, %%xmm2"
+   __asm__ __volatile__ ("vxorpd %%xmm2, %%xmm2, %%xmm2\n\t"
+                         "vmovupd %0, %%xmm0 \n\t"
+                         "vmovupd %2, %%xmm1 \n\t"
+                         "vmovhpd %4, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*X).c6),
@@ -426,17 +422,19 @@ void su3xu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*v).c13),
                          "=m" ((*v).c23),
                          "=m" ((*v).c33));
+
+   _avx_zeroupper();
 }
 
 
@@ -484,12 +482,10 @@ void su3dagxu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "=m" ((*v).c22),
                          "=m" ((*v).c32));
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movupd %0, %%xmm0 \n\t"
-                         "movupd %2, %%xmm1 \n\t"
-                         "xorpd %%xmm2, %%xmm2\n\t"
-                         "movhpd %4, %%xmm2"
+   __asm__ __volatile__ ("vxorpd %%xmm2, %%xmm2, %%xmm2\n\t"
+                         "vmovupd %0, %%xmm0 \n\t"
+                         "vmovupd %2, %%xmm1 \n\t"
+                         "vmovhpd %4, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*X).c6),
@@ -498,17 +494,19 @@ void su3dagxu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3dagxsu3vec(u);
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*v).c13),
                          "=m" ((*v).c23),
                          "=m" ((*v).c33));
+
+   _avx_zeroupper();
 }
 
 
@@ -551,7 +549,7 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "vmovapd %%xmm5, %2 \n\t"
                          "vextractf128 $0x1, %%ymm3, %3 \n\t"
                          "vextractf128 $0x1, %%ymm4, %4 \n\t"
-                         "vextractf128 $0x1, %%ymm5, %5"                         
+                         "vextractf128 $0x1, %%ymm5, %5"
                          :
                          "=m" ((*v).c11),
                          "=m" ((*v).c12),
@@ -563,30 +561,28 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          :
                          "xmm0", "xmm3", "xmm4", "xmm5");
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movupd %0, %%xmm0 \n\t"
-                         "movupd %2, %%xmm1 \n\t"
-                         "xorpd %%xmm2, %%xmm2\n\t"
-                         "movhpd %4, %%xmm2"
+   __asm__ __volatile__ ("vxorpd %%xmm2, %%xmm2, %%xmm2\n\t"
+                         "vmovupd %0, %%xmm0 \n\t"
+                         "vmovupd %2, %%xmm1 \n\t"
+                         "vmovhpd %4, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3dagxsu3vec(u);
 
-   __asm__ __volatile__ ("mulpd %3, %%xmm3\n\t"
-                         "mulpd %3, %%xmm4\n\t"
-                         "mulpd %3, %%xmm5\n\t"
-                         "movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmulpd %3, %%xmm3, %%xmm3\n\t"
+                         "vmulpd %3, %%xmm4, %%xmm4\n\t"
+                         "vmulpd %3, %%xmm5, %%xmm5\n\t"
+                         "vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*v).c31),
                          "=m" ((*v).c32),
@@ -595,6 +591,8 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm3", "xmm4", "xmm5");
+
+   _avx_zeroupper();
 }
 
 
@@ -637,7 +635,7 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "vmovapd %%xmm5, %2 \n\t"
                          "vextractf128 $0x1, %%ymm3, %3 \n\t"
                          "vextractf128 $0x1, %%ymm4, %4 \n\t"
-                         "vextractf128 $0x1, %%ymm5, %5"                         
+                         "vextractf128 $0x1, %%ymm5, %5"
                          :
                          "=m" ((*v).c11),
                          "=m" ((*v).c12),
@@ -649,30 +647,28 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          :
                          "xmm0", "xmm3", "xmm4", "xmm5");
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movupd %0, %%xmm0 \n\t"
-                         "movupd %2, %%xmm1 \n\t"
-                         "xorpd %%xmm2, %%xmm2\n\t"
-                         "movhpd %4, %%xmm2"
+   __asm__ __volatile__ ("vxorpd %%xmm2, %%xmm2, %%xmm2\n\t"
+                         "vmovupd %0, %%xmm0 \n\t"
+                         "vmovupd %2, %%xmm1 \n\t"
+                         "vmovhpd %4, %%xmm2, %%xmm2"
                          :
                          :
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("mulpd %3, %%xmm3\n\t"
-                         "mulpd %3, %%xmm4\n\t"
-                         "mulpd %3, %%xmm5\n\t"
-                         "movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %1 \n\t"
-                         "movapd %%xmm5, %2"
+   __asm__ __volatile__ ("vmulpd %3, %%xmm3, %%xmm3\n\t"
+                         "vmulpd %3, %%xmm4, %%xmm4\n\t"
+                         "vmulpd %3, %%xmm5, %%xmm5\n\t"
+                         "vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %1 \n\t"
+                         "vmovapd %%xmm5, %2"
                          :
                          "=m" ((*v).c31),
                          "=m" ((*v).c32),
@@ -681,6 +677,8 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm3", "xmm4", "xmm5");
+
+   _avx_zeroupper();
 }
 
 
@@ -707,12 +705,12 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
 
    __asm__ __volatile__ ("vmovapd %%xmm5, %0 \n\t"
                          "vextractf128 $0x1, %%ymm3, %%xmm6 \n\t"
-                         "vextractf128 $0x1, %%ymm4, %%xmm7 \n\t"    
+                         "vextractf128 $0x1, %%ymm4, %%xmm7 \n\t"
                          "vextractf128 $0x1, %%ymm5, %2 \n\t"
                          "vaddsubpd %%xmm4, %%xmm6, %%xmm6"
                          :
                          "=m" ((*X).c5),
-                         "=m" ((*X).c6),                         
+                         "=m" ((*X).c6),
                          "=m" ((*X).c7),
                          "=m" ((*X).c8)
                          :
@@ -721,53 +719,42 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
 
    __asm__ __volatile__ ("vmovhpd %%xmm3, %0 \n\t"
                          "vmovhpd %%xmm7, %1 \n\t"
-                         "vaddsd %%xmm7, %%xmm3, %%xmm3 \n\t"
-                         "vmulpd %5, %%xmm6, %%xmm6 \n\t"
-                         "vmovlpd %%xmm3, %2 \n\t"
-                         "vmovapd %%xmm6, %3"
+                         "vaddsd %%xmm7, %%xmm3, %%xmm15 \n\t"
+                         "vmulpd %4, %%xmm6, %%xmm6 \n\t"
+                         "vmovapd %%xmm6, %2"
                          :
                          "=m" ((*X).c1),
                          "=m" ((*X).c2),
-                         "=m" (tr),
                          "=m" ((*X).c3),
                          "=m" ((*X).c4)
                          :
                          "m" (c0)
                          :
-                         "xmm3", "xmm6");
+                         "xmm6", "xmm15");
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2"
                          :
                          :
                          "m" ((*v).c13),
                          "m" ((*v).c23),
                          "m" ((*v).c33)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("addsd %1, %%xmm5\n\t"
-                         "movlpd %%xmm5, %0"
-                         :
-                         "=m" (tr)
-                         :
-                         "m" (tr)
-                         :
-                         "xmm5");
-   
-   __asm__ __volatile__ ("addsubpd %0, %%xmm3 \n\t"
-                         "addsubpd %2, %%xmm4 \n\t"
-                         "movlpd %4, %%xmm5 \n\t"
-                         "movddup %5, %%xmm6 \n\t"
-                         "mulpd %6, %%xmm3 \n\t"
-                         "subpd %%xmm6, %%xmm5 \n\t"
-                         "mulpd %6, %%xmm4 \n\t"
-                         "mulpd %7, %%xmm5"
+   __asm__ __volatile__ ("vaddsd %%xmm15, %%xmm5, %%xmm5\n\t"
+                         "vmovapd %%xmm5, %%xmm15 \n\t"
+                         "vaddsubpd %0, %%xmm3, %%xmm3 \n\t"
+                         "vaddsubpd %2, %%xmm4, %%xmm4 \n\t"
+                         "vmovlpd %4, %%xmm5, %%xmm5 \n\t"
+                         "vmovddup %5, %%xmm6 \n\t"
+                         "vmulpd %6, %%xmm3, %%xmm3 \n\t"
+                         "vsubpd %%xmm6, %%xmm5, %%xmm5 \n\t"
+                         "vmulpd %6, %%xmm4, %%xmm4 \n\t"
+                         "vmulpd %7, %%xmm5, %%xmm5"
                          :
                          :
                          "m" ((*X).c5),
@@ -775,21 +762,27 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          "m" ((*X).c7),
                          "m" ((*X).c8),
                          "m" ((*X).c2),
-                         "m" ((*X).c1),                         
+                         "m" ((*X).c1),
                          "m" (c0),
                          "m" (c1)
                          :
-                         "xmm3", "xmm4", "xmm5", "xmm6");
+                         "xmm3", "xmm4", "xmm5", "xmm6",
+                         "xmm15");
 
-   __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
-                         "movapd %%xmm4, %2 \n\t"
-                         "movapd %%xmm5, %4"
+   __asm__ __volatile__ ("vmovapd %%xmm3, %0 \n\t"
+                         "vmovapd %%xmm4, %2 \n\t"
+                         "vmovapd %%xmm5, %4 \n\t"
+                         "vmovlpd %%xmm15, %6"
                          :
                          "=m" ((*X).c5),
                          "=m" ((*X).c6),
                          "=m" ((*X).c7),
-                         "=m" ((*X).c8),                         
-                         "=m" ((*X).c1));
+                         "=m" ((*X).c8),
+                         "=m" ((*X).c1),
+                         "=m" ((*X).c2),
+                         "=m" (tr));
+
+   _avx_zeroupper();
 
    return tr;
 }
@@ -818,21 +811,21 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
 
    __asm__ __volatile__ ("vmovupd %%xmm5, %0 \n\t"
                          "vextractf128 $0x1, %%ymm3, %%xmm6 \n\t"
-                         "vextractf128 $0x1, %%ymm4, %%xmm7 \n\t"    
+                         "vextractf128 $0x1, %%ymm4, %%xmm7 \n\t"
                          "vextractf128 $0x1, %%ymm5, %2 \n\t"
                          "vaddsubpd %%xmm4, %%xmm6, %%xmm6 \n\t"
                          "vaddsubpd %%xmm3, %%xmm3, %%xmm3 \n\t"
                          "vaddsubpd %%xmm7, %%xmm7, %%xmm7"
                          :
                          "=m" ((*X).c6),
-                         "=m" ((*X).c7),                         
+                         "=m" ((*X).c7),
                          "=m" ((*X).c8),
                          "=m" ((*X).c9)
                          :
                          :
                          "xmm3", "xmm6", "xmm7");
 
-   __asm__ __volatile__ ("vmovupd %%xmm6, %0 \n\t"      
+   __asm__ __volatile__ ("vmovupd %%xmm6, %0 \n\t"
                          "vmovhpd %%xmm3, %2 \n\t"
                          "vmovhpd %%xmm7, %3"
                          :
@@ -841,26 +834,24 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "=m" ((*X).c1),
                          "=m" ((*X).c2));
 
-   _avx_zeroupper();
-
-   __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
-                         "movapd %1, %%xmm1 \n\t"
-                         "movapd %2, %%xmm2"
+   __asm__ __volatile__ ("vmovapd %0, %%xmm0 \n\t"
+                         "vmovapd %1, %%xmm1 \n\t"
+                         "vmovapd %2, %%xmm2"
                          :
                          :
                          "m" ((*v).c13),
                          "m" ((*v).c23),
                          "m" ((*v).c33)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
 
    su3xsu3vec(u);
 
-   __asm__ __volatile__ ("movupd %0, %%xmm0 \n\t"
-                         "movupd %2, %%xmm1 \n\t"
-                         "addsubpd %%xmm5, %%xmm5 \n\t"
-                         "addsubpd %%xmm0, %%xmm3 \n\t"
-                         "addsubpd %%xmm1, %%xmm4"
+   __asm__ __volatile__ ("vmovupd %0, %%xmm0 \n\t"
+                         "vmovupd %2, %%xmm1 \n\t"
+                         "vaddsubpd %%xmm5, %%xmm5, %%xmm5 \n\t"
+                         "vaddsubpd %%xmm0, %%xmm3, %%xmm3 \n\t"
+                         "vaddsubpd %%xmm1, %%xmm4, %%xmm4"
                          :
                          :
                          "m" ((*X).c6),
@@ -871,15 +862,17 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "xmm0", "xmm1", "xmm3",
                          "xmm4", "xmm5");
 
-   __asm__ __volatile__ ("movhpd %%xmm5, %0 \n\t"
-                         "movupd %%xmm3, %1 \n\t"
-                         "movupd %%xmm4, %3"
+   __asm__ __volatile__ ("vmovhpd %%xmm5, %0 \n\t"
+                         "vmovupd %%xmm3, %1 \n\t"
+                         "vmovupd %%xmm4, %3"
                          :
                          "=m" ((*X).c3),
                          "=m" ((*X).c6),
                          "=m" ((*X).c7),
-                         "=m" ((*X).c8),                         
+                         "=m" ((*X).c8),
                          "=m" ((*X).c9));
+
+   _avx_zeroupper();
 }
 
 
@@ -894,13 +887,13 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          :
                          :
                          "m" ((*X).c1),
-                         "m" ((*X).c2),                         
+                         "m" ((*X).c2),
                          "m" ((*X).c3),
-                         "m" ((*X).c4),                         
+                         "m" ((*X).c4),
                          "m" ((*X).c5),
-                         "m" ((*X).c6),                         
+                         "m" ((*X).c6),
                          "m" ((*X).c7),
-                         "m" ((*X).c8)                         
+                         "m" ((*X).c8)
                          :
                          "xmm0", "xmm1", "xmm2",
                          "xmm3", "xmm4", "xmm5");
@@ -999,7 +992,7 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          "=m" ((*X).c7),
                          "=m" ((*X).c8),
                          "=m" ((*X).c1),
-                         "=m" ((*X).c2)                         
+                         "=m" ((*X).c2)
                          :
                          "m" (c1.c1)
                          :
@@ -1354,7 +1347,7 @@ void su3xu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "m" ((*X).c8),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
    __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
                          "movapd %%xmm4, %1 \n\t"
@@ -1401,10 +1394,10 @@ void su3dagxu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          :
                          :
                          "m" ((*X).c4),
-                         "m" ((*X).c5),                         
+                         "m" ((*X).c5),
                          "m" ((*X).c2),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm0", "xmm1", "xmm2");
@@ -1427,10 +1420,10 @@ void su3dagxu3alg(su3_dble *u,u3_alg_dble *X,su3_dble *v)
                          "m" ((*X).c6),
                          "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3dagxsu3vec(u);
    __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
                          "movapd %%xmm4, %1 \n\t"
@@ -1456,7 +1449,7 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "m" ((*X).c4),
                          "m" ((*X).c5),
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm0", "xmm1", "xmm2");
@@ -1487,7 +1480,7 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "m" ((*X).c5),
                          "m" ((*X).c2),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm0", "xmm1", "xmm2");
@@ -1514,12 +1507,12 @@ void u3algxsu3(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          :
                          :
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3dagxsu3vec(u);
    __asm__ __volatile__ ("mulpd %3, %%xmm3\n\t"
                          "mulpd %3, %%xmm4\n\t"
@@ -1552,7 +1545,7 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          "m" ((*X).c4),
                          "m" ((*X).c5),
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm0", "xmm1", "xmm2");
@@ -1580,10 +1573,10 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          :
                          :
                          "m" ((*X).c4),
-                         "m" ((*X).c5),                         
+                         "m" ((*X).c5),
                          "m" ((*X).c2),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm0", "xmm1", "xmm2");
@@ -1610,12 +1603,12 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
                          :
                          :
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9),                         
+                         "m" ((*X).c9),
                          "m" ((*X).c3)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
    __asm__ __volatile__ ("mulpd %3, %%xmm3\n\t"
                          "mulpd %3, %%xmm4\n\t"
@@ -1647,10 +1640,8 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          :
                          "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
-   __asm__ __volatile__ ("movlpd %%xmm3, %0"
-                         :
-                         "=m" (tr));
-   __asm__ __volatile__ ("mulpd %6, %%xmm4 \n\t"
+   __asm__ __volatile__ ("movsd %%xmm3, %%xmm15 \n\t"
+                         "mulpd %6, %%xmm4 \n\t"
                          "mulpd %6, %%xmm5 \n\t"
                          "movhpd %%xmm3, %0 \n\t"
                          "movhpd %%xmm3, %1 \n\t"
@@ -1660,13 +1651,13 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          "=m" ((*X).c1),
                          "=m" ((*X).c2),
                          "=m" ((*X).c3),
-                         "=m" ((*X).c4),                         
+                         "=m" ((*X).c4),
                          "=m" ((*X).c5),
-                         "=m" ((*X).c6)                         
+                         "=m" ((*X).c6)
                          :
                          "m" (_sse_sgn1_dble)
                          :
-                         "xmm4", "xmm5");
+                         "xmm4", "xmm5", "xmm15");
 
    __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
                          "movapd %1, %%xmm1 \n\t"
@@ -1677,17 +1668,11 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          "m" ((*v).c22),
                          "m" ((*v).c32)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
-   __asm__ __volatile__ ("addsd %1, %%xmm4\n\t"
-                         "movlpd %%xmm4, %0"
-                         :
-                         "=m" (tr)
-                         :
-                         "m" (tr)
-                         :
-                         "xmm4");
-   __asm__ __volatile__ ("addpd %0, %%xmm3 \n\t"
+   __asm__ __volatile__ ("addsd %%xmm15, %%xmm4\n\t"
+                         "movsd %%xmm4, %%xmm15 \n\t"
+                         "addpd %0, %%xmm3 \n\t"
                          "shufpd $0x1, %%xmm4, %%xmm4 \n\t"
                          "mulpd %2, %%xmm3 \n\t"
                          "subsd %3, %%xmm4 \n\t"
@@ -1696,24 +1681,24 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          :
                          :
                          "m" ((*X).c3),
-                         "m" ((*X).c4),                         
+                         "m" ((*X).c4),
                          "m" (c0),
                          "m" ((*X).c1),
                          "m" (_sse_sgn1_dble),
                          "m" (c1)
                          :
-                         "xmm3", "xmm4", "xmm5");
+                         "xmm3", "xmm4", "xmm5", "xmm15");
 
    __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
                          "movlpd %%xmm4, %2 \n\t"
                          "movapd %%xmm5, %3"
                          :
                          "=m" ((*X).c3),
-                         "=m" ((*X).c4),                         
+                         "=m" ((*X).c4),
                          "=m" ((*X).c1),
                          "=m" ((*X).c7),
                          "=m" ((*X).c8));
-   
+
    __asm__ __volatile__ ("movapd %0, %%xmm0 \n\t"
                          "movapd %1, %%xmm1 \n\t"
                          "movapd %2, %%xmm2"
@@ -1723,17 +1708,11 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          "m" ((*v).c23),
                          "m" ((*v).c33)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
-   __asm__ __volatile__ ("addsd %1, %%xmm5\n\t"
-                         "movlpd %%xmm5, %0"
-                         :
-                         "=m" (tr)
-                         :
-                         "m" (tr)
-                         :
-                         "xmm5");
-   __asm__ __volatile__ ("addpd %0, %%xmm3 \n\t"
+   __asm__ __volatile__ ("addsd %%xmm15, %%xmm5 \n\t"
+                         "movsd %%xmm5, %%xmm15 \n\t"
+                         "addpd %0, %%xmm3 \n\t"
                          "addpd %2, %%xmm4 \n\t"
                          "shufpd $0x1, %%xmm5, %%xmm5 \n\t"
                          "mulpd %4, %%xmm3 \n\t"
@@ -1745,22 +1724,24 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
                          "m" ((*X).c5),
                          "m" ((*X).c6),
                          "m" ((*X).c7),
-                         "m" ((*X).c8),                         
+                         "m" ((*X).c8),
                          "m" (c0),
                          "m" ((*X).c2),
                          "m" (c1)
                          :
-                         "xmm3", "xmm4", "xmm5");
+                         "xmm3", "xmm4", "xmm5", "xmm15");
 
    __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
                          "movapd %%xmm4, %2 \n\t"
-                         "movlpd %%xmm5, %4"
+                         "movlpd %%xmm5, %4 \n\t"
+                         "movlpd %%xmm15, %5"
                          :
                          "=m" ((*X).c5),
                          "=m" ((*X).c6),
                          "=m" ((*X).c7),
-                         "=m" ((*X).c8),                         
-                         "=m" ((*X).c2));
+                         "=m" ((*X).c8),
+                         "=m" ((*X).c2),
+                         "=m" (tr));
 
    return tr;
 }
@@ -1788,13 +1769,13 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "m" (_sse_sgn1_dble)
                          :
                          "xmm3", "xmm4", "xmm5");
-   
+
    __asm__ __volatile__ ("movupd %%xmm4, %0 \n\t"
                          "movupd %%xmm5, %2 \n\t"
                          "movlpd %%xmm3, %4"
                          :
                          "=m" ((*X).c4),
-                         "=m" ((*X).c5),                         
+                         "=m" ((*X).c5),
                          "=m" ((*X).c6),
                          "=m" ((*X).c7),
                          "=m" ((*X).c1));
@@ -1808,7 +1789,7 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "m" ((*v).c22),
                          "m" ((*v).c32)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
    __asm__ __volatile__ ("movupd %0, %%xmm6 \n\t"
                          "shufpd $0x1, %%xmm4, %%xmm4 \n\t"
@@ -1843,7 +1824,7 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "m" ((*v).c23),
                          "m" ((*v).c33)
                          :
-                         "xmm0", "xmm1", "xmm2");   
+                         "xmm0", "xmm1", "xmm2");
    su3xsu3vec(u);
    __asm__ __volatile__ ("movupd %0, %%xmm6 \n\t"
                          "movupd %2, %%xmm7 \n\t"
@@ -1854,9 +1835,9 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          :
                          :
                          "m" ((*X).c6),
-                         "m" ((*X).c7),                         
+                         "m" ((*X).c7),
                          "m" ((*X).c8),
-                         "m" ((*X).c9)                         
+                         "m" ((*X).c9)
                          :
                          "xmm3", "xmm4", "xmm5",
                          "xmm6", "xmm7");
@@ -1868,7 +1849,7 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
                          "=m" ((*X).c6),
                          "=m" ((*X).c7),
                          "=m" ((*X).c8),
-                         "=m" ((*X).c9),                      
+                         "=m" ((*X).c9),
                          "=m" ((*X).c3));
 }
 
@@ -1884,13 +1865,13 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          :
                          :
                          "m" ((*X).c1),
-                         "m" ((*X).c2),                         
+                         "m" ((*X).c2),
                          "m" ((*X).c3),
-                         "m" ((*X).c4),                         
+                         "m" ((*X).c4),
                          "m" ((*X).c5),
-                         "m" ((*X).c6),                         
+                         "m" ((*X).c6),
                          "m" ((*X).c7),
-                         "m" ((*X).c8)                         
+                         "m" ((*X).c8)
                          :
                          "xmm0", "xmm1", "xmm2", "xmm3",
                          "xmm5", "xmm7");
@@ -1900,7 +1881,7 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          "movapd %%xmm7, %2 \n\t"
                          "mulpd %6, %%xmm3 \n\t"
                          "mulpd %6, %%xmm5 \n\t"
-                         "mulpd %6, %%xmm7 \n\t"                         
+                         "mulpd %6, %%xmm7 \n\t"
                          "movapd %%xmm3, %3 \n\t"
                          "movapd %%xmm5, %4 \n\t"
                          "movapd %%xmm7, %5"
@@ -1926,7 +1907,7 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          "movhpd %%xmm0, %2 \n\t"
                          "movlpd %%xmm3, %3 \n\t"
                          "movlpd %%xmm3, %4 \n\t"
-                         "movlpd %%xmm3, %5"                         
+                         "movlpd %%xmm3, %5"
                          :
                          "=m" (uX.c11.im),
                          "=m" (uX.c22.im),
@@ -2002,16 +1983,16 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
    __asm__ __volatile__ ("movapd %%xmm3, %0 \n\t"
                          "unpckhpd %%xmm4, %%xmm4 \n\t"
                          "mulpd %2, %%xmm5 \n\t"
-                         "mulpd %3, %%xmm4 \n\t"                         
+                         "mulpd %3, %%xmm4 \n\t"
                          "subpd %4, %%xmm4"
                          :
                          "=m" ((*X).c3),
                          "=m" ((*X).c4)
                          :
                          "m" (_sse_sgn1_dble),
-                         "m" (_sse_sgn2_dble),                         
+                         "m" (_sse_sgn2_dble),
                          "m" ((*X).c1),
-                         "m" ((*X).c2)                         
+                         "m" ((*X).c2)
                          :
                          "xmm4", "xmm5");
 
@@ -2020,13 +2001,13 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
                          "movapd %%xmm4, %2"
                          :
                          "=m" ((*X).c7),
-                         "=m" ((*X).c8),                         
-                         "=m" ((*X).c1),                         
+                         "=m" ((*X).c8),
+                         "=m" ((*X).c1),
                          "=m" ((*X).c2)
                          :
                          "m" (c1)
                          :
-                         "xmm4");   
+                         "xmm4");
 }
 
 #else
@@ -2106,7 +2087,7 @@ void su3dagxsu3(su3_dble *u,su3_dble *v,su3_dble *w)
 void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 {
    psi.c1.re= (*v).c11.re;
-   psi.c1.im=-(*v).c11.im;   
+   psi.c1.im=-(*v).c11.im;
    psi.c2.re= (*v).c12.re;
    psi.c2.im=-(*v).c12.im;
    psi.c3.re= (*v).c13.re;
@@ -2117,7 +2098,7 @@ void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
    (*w).c31=chi.c3;
 
    psi.c1.re= (*v).c21.re;
-   psi.c1.im=-(*v).c21.im;   
+   psi.c1.im=-(*v).c21.im;
    psi.c2.re= (*v).c22.re;
    psi.c2.im=-(*v).c22.im;
    psi.c3.re= (*v).c23.re;
@@ -2128,7 +2109,7 @@ void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
    (*w).c32=chi.c3;
 
    psi.c1.re= (*v).c31.re;
-   psi.c1.im=-(*v).c31.im;   
+   psi.c1.im=-(*v).c31.im;
    psi.c2.re= (*v).c32.re;
    psi.c2.im=-(*v).c32.im;
    psi.c3.re= (*v).c33.re;
@@ -2143,7 +2124,7 @@ void su3xsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
 {
    psi.c1.re= (*v).c11.re;
-   psi.c1.im=-(*v).c11.im;   
+   psi.c1.im=-(*v).c11.im;
    psi.c2.re= (*v).c12.re;
    psi.c2.im=-(*v).c12.im;
    psi.c3.re= (*v).c13.re;
@@ -2154,7 +2135,7 @@ void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
    (*w).c31=chi.c3;
 
    psi.c1.re= (*v).c21.re;
-   psi.c1.im=-(*v).c21.im;   
+   psi.c1.im=-(*v).c21.im;
    psi.c2.re= (*v).c22.re;
    psi.c2.im=-(*v).c22.im;
    psi.c3.re= (*v).c23.re;
@@ -2165,7 +2146,7 @@ void su3dagxsu3dag(su3_dble *u,su3_dble *v,su3_dble *w)
    (*w).c32=chi.c3;
 
    psi.c1.re= (*v).c31.re;
-   psi.c1.im=-(*v).c31.im;   
+   psi.c1.im=-(*v).c31.im;
    psi.c2.re= (*v).c32.re;
    psi.c2.im=-(*v).c32.im;
    psi.c3.re= (*v).c33.re;
@@ -2346,7 +2327,7 @@ void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v)
 double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
 {
    double tr;
-   
+
    psi.c1=(*v).c11;
    psi.c2=(*v).c21;
    psi.c3=(*v).c31;
@@ -2355,7 +2336,7 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
    (*X).c1 = chi.c1.im;
    (*X).c2 = chi.c1.im;
    (*X).c3 =-chi.c2.re;
-   (*X).c4 = chi.c2.im;   
+   (*X).c4 = chi.c2.im;
    (*X).c5 =-chi.c3.re;
    (*X).c6 = chi.c3.im;
 
@@ -2363,9 +2344,9 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
    psi.c2=(*v).c22;
    psi.c3=(*v).c32;
    su3xsu3vec(u);
-   tr+=chi.c2.re;   
+   tr+=chi.c2.re;
    (*X).c3+= chi.c1.re;
-   (*X).c4+= chi.c1.im;   
+   (*X).c4+= chi.c1.im;
    (*X).c1-= chi.c2.im;
    (*X).c7 =-chi.c3.re;
    (*X).c8 = chi.c3.im;
@@ -2376,17 +2357,17 @@ double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X)
    su3xsu3vec(u);
    tr+=chi.c3.re;
    (*X).c5+= chi.c1.re;
-   (*X).c6+= chi.c1.im;   
+   (*X).c6+= chi.c1.im;
    (*X).c7+= chi.c2.re;
-   (*X).c8+= chi.c2.im;   
+   (*X).c8+= chi.c2.im;
    (*X).c2-= chi.c3.im;
 
    (*X).c1*=(1.0/3.0);
-   (*X).c2*=(1.0/3.0);   
+   (*X).c2*=(1.0/3.0);
    (*X).c3*=0.5;
    (*X).c4*=0.5;
    (*X).c5*=0.5;
-   (*X).c6*=0.5;   
+   (*X).c6*=0.5;
    (*X).c7*=0.5;
    (*X).c8*=0.5;
 
@@ -2401,29 +2382,29 @@ void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X)
    psi.c3=(*v).c31;
    su3xsu3vec(u);
    (*X).c1=chi.c1.im+chi.c1.im;
-   (*X).c4=-chi.c2.re;   
+   (*X).c4=-chi.c2.re;
    (*X).c5=chi.c2.im;
-   (*X).c6=-chi.c3.re;   
+   (*X).c6=-chi.c3.re;
    (*X).c7=chi.c3.im;
-   
+
    psi.c1=(*v).c12;
    psi.c2=(*v).c22;
    psi.c3=(*v).c32;
    su3xsu3vec(u);
    (*X).c4+=chi.c1.re;
-   (*X).c5+=chi.c1.im;   
+   (*X).c5+=chi.c1.im;
    (*X).c2=chi.c2.im+chi.c2.im;
    (*X).c8=-chi.c3.re;
-   (*X).c9=chi.c3.im;   
+   (*X).c9=chi.c3.im;
 
    psi.c1=(*v).c13;
    psi.c2=(*v).c23;
    psi.c3=(*v).c33;
    su3xsu3vec(u);
    (*X).c6+=chi.c1.re;
-   (*X).c7+=chi.c1.im;   
+   (*X).c7+=chi.c1.im;
    (*X).c8+=chi.c2.re;
-   (*X).c9+=chi.c2.im;   
+   (*X).c9+=chi.c2.im;
    (*X).c3=chi.c3.im+chi.c3.im;
 }
 
@@ -2453,7 +2434,7 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
    uX.c32.im= (*X).c8;
 
    psi.c1.re= (*u).c11.re;
-   psi.c1.im=-(*u).c11.im;   
+   psi.c1.im=-(*u).c11.im;
    psi.c2.re= (*u).c12.re;
    psi.c2.im=-(*u).c12.im;
    psi.c3.re= (*u).c13.re;
@@ -2467,7 +2448,7 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
    (*X).c6= chi.c3.im;
 
    psi.c1.re= (*u).c21.re;
-   psi.c1.im=-(*u).c21.im;   
+   psi.c1.im=-(*u).c21.im;
    psi.c2.re= (*u).c22.re;
    psi.c2.im=-(*u).c22.im;
    psi.c3.re= (*u).c23.re;

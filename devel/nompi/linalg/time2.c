@@ -33,13 +33,17 @@ int main(void)
    printf("--------------------------------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n\n");
+#else
    printf("Using AVX instructions\n\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
    printf("Measurement made with all data in cache\n\n");
-   
+
    printf("Matrix size: ");
    ir=scanf(" %d",&nm);
 
@@ -51,7 +55,7 @@ int main(void)
 
    rlxd_init(1,23456);
    ranlxd((double*)(a),6*nm*nm+4*nm);
-   
+
    b=a+nm*nm;
    c=b+nm*nm;
    v=c+nm*nm;
@@ -61,7 +65,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          cmat_vec_dble(nm,a,v,w);
@@ -81,7 +85,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          cmat_mul_dble(nm,a,b,c);
@@ -99,14 +103,14 @@ int main(void)
    for (n=0;n<nm;n++)
       a[n*nm+n].re=(double)(10*nm*nm);
 
-   ie=cmat_inv_dble(nm,a,b,&k);   
-   error(ie!=0,1,"main [time2.c]","Matrix is not safely invertible");   
-   
+   ie=cmat_inv_dble(nm,a,b,&k);
+   error(ie!=0,1,"main [time2.c]","Matrix is not safely invertible");
+
    n=(int)(1.0e7)/(nm*nm*nm);
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          ie=cmat_inv_dble(nm,a,b,&k);
@@ -119,7 +123,7 @@ int main(void)
 
    printf("Time per call of cmat_inv_dble():\n");
    printf("%.2e micro sec (~%d Mflops)\n\n",
-          dt,(int)((double)(12*nm*nm*nm)/dt)); 
+          dt,(int)((double)(12*nm*nm*nm)/dt));
 
    exit(0);
 }

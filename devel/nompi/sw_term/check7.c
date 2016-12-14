@@ -3,7 +3,7 @@
 *
 * File check7.c
 *
-* Copyright (C) 2005, 2009, 2011 Martin Luescher
+* Copyright (C) 2005, 2009, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -24,7 +24,10 @@
 #define NM 10000
 
 static double dd[6] ALIGNED16;
-static complex_dble aa[36],bb[36],vv[36],ww[36] ALIGNED16;
+static complex_dble aa[36] ALIGNED16;
+static complex_dble bb[36] ALIGNED16;
+static complex_dble vv[36] ALIGNED16;
+static complex_dble ww[36] ALIGNED16;
 
 
 static complex_dble random_dd(double mu)
@@ -35,7 +38,7 @@ static complex_dble random_dd(double mu)
    ranlxd(dd,6);
    det.re=1.0;
    det.im=0.0;
-   
+
    for (i=0;i<6;i++)
    {
       if (dd[i]<0.5)
@@ -63,7 +66,7 @@ static double norm(complex_dble *v)
 
    for (i=0;i<6;i++)
       r+=(v[i].re*v[i].re+v[i].im*v[i].im);
-           
+
    return sqrt(r);
 }
 
@@ -124,7 +127,7 @@ static void random_vv(void)
 
          for (j=0;j<i;j++)
             proj(vv+6*j,vi);
-         
+
          for (j=0;j<i;j++)
             proj(vv+6*j,vi);
 
@@ -144,7 +147,7 @@ static complex_dble random_aa(double mu)
 {
    int i,j;
    complex_dble det;
-   
+
    det=random_dd(mu);
    random_vv();
 
@@ -163,12 +166,12 @@ static complex_dble random_aa(double mu)
             aa[6*i+j].im=0.0;
          }
       }
-   }   
+   }
 
    cmat_mul_dble(6,aa,vv,bb);
    cmat_dag_dble(6,vv,ww);
    cmat_mul_dble(6,ww,bb,aa);
-   
+
    return det;
 }
 
@@ -211,7 +214,7 @@ int main(void)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
-   rlxd_init(1,1234);   
+   rlxd_init(1,1234);
    md=amalloc(NM*sizeof(pauli_dble),4);
    error(md==NULL,1,"main [check7.c]",
          "Unable to allocate auxiliary arrays");
@@ -229,10 +232,10 @@ int main(void)
 
       d=sqrt((det2.re*det2.re+det2.im*det2.im)/
              (det1.re*det1.re+det1.im*det1.im));
-         
+
       if (d>dmax)
          dmax=d;
-      
+
       md+=1;
    }
 

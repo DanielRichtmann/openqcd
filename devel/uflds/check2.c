@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2010, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -176,7 +176,7 @@ static void check_ud(double *dev1,double *dev2)
    int iu,ix,ifc,x0;
    double d1,d2,dmax1,dmax2;
    su3_dble *u,*ub,*um;
-   
+
    ub=udfld();
    um=ub+4*VOLUME;
    dmax1=0.0;
@@ -199,23 +199,23 @@ static void check_ud(double *dev1,double *dev2)
          d1=dev_uudag_dble(u,u);
          d2=dev_detu_dble(u);
       }
-      
+
       if (d1>dmax1)
          dmax1=d1;
       if (d2>dmax2)
-         dmax2=d2;      
+         dmax2=d2;
    }
 
    MPI_Reduce(&dmax1,dev1,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
    MPI_Reduce(&dmax2,dev2,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
    MPI_Bcast(dev1,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(dev2,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+   MPI_Bcast(dev2,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 }
 
 
 static double cmp_ud(su3_dble *usv)
 {
-   int ix,ifc,x0;   
+   int ix,ifc,x0;
    double d1,dmax1;
    su3_dble *ub,*u,*v,*um;
 
@@ -238,12 +238,10 @@ static double cmp_ud(su3_dble *usv)
 
       if (d1>dmax1)
          dmax1=d1;
-      
+
       v+=1;
    }
 
-   error_chk();
-   
    d1=dmax1;
    MPI_Reduce(&d1,&dmax1,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
    MPI_Bcast(&dmax1,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -257,7 +255,7 @@ static void tilt_ud(double eps)
    int ix,ifc,t;
    double r[18];
    su3_dble *ud;
-   
+
    ud=udfld();
 
    for (ix=(VOLUME/2);ix<VOLUME;ix++)
@@ -273,27 +271,27 @@ static void tilt_ud(double eps)
             gauss_dble(r,18);
 
             (*ud).c11.re+=eps*r[ 0];
-            (*ud).c11.im+=eps*r[ 1];      
+            (*ud).c11.im+=eps*r[ 1];
             (*ud).c12.re+=eps*r[ 2];
             (*ud).c12.im+=eps*r[ 3];
             (*ud).c13.re+=eps*r[ 4];
             (*ud).c13.im+=eps*r[ 5];
 
             (*ud).c21.re+=eps*r[ 6];
-            (*ud).c21.im+=eps*r[ 7];      
+            (*ud).c21.im+=eps*r[ 7];
             (*ud).c22.re+=eps*r[ 8];
             (*ud).c22.im+=eps*r[ 9];
             (*ud).c23.re+=eps*r[10];
             (*ud).c23.im+=eps*r[11];
 
             (*ud).c31.re+=eps*r[12];
-            (*ud).c31.im+=eps*r[13];      
+            (*ud).c31.im+=eps*r[13];
             (*ud).c32.re+=eps*r[14];
             (*ud).c32.im+=eps*r[15];
             (*ud).c33.re+=eps*r[16];
             (*ud).c33.im+=eps*r[17];
          }
-         
+
          ud+=1;
       }
    }
@@ -304,7 +302,7 @@ int main(int argc,char *argv[])
 {
    int my_rank,ie;
    double d1,d2,d3,d4,d5;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    su3_dble *udb,**usv;
    FILE *flog=NULL;
 
@@ -335,35 +333,38 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms();      
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
 
    start_ranlux(0,123456);
    geometry();
    alloc_wud(1);
    usv=reserve_wud(1);
    udb=udfld();
-   
+
    random_ud();
    check_ud(&d1,&d2);
-   
+
    if (my_rank==0)
    {
       printf("Random double-precision gauge field:\n");
       printf("|u^dag*u-1|     = %.2e\n",d1);
-      printf("|det{u}-1|      = %.2e\n\n",d2);      
+      printf("|det{u}-1|      = %.2e\n\n",d2);
    }
 
-   cm3x3_assign(4*VOLUME,udb,usv[0]);   
+   cm3x3_assign(4*VOLUME,udb,usv[0]);
    tilt_ud(50.0*DBL_EPSILON);
    check_ud(&d1,&d2);
    renormalize_ud();
    d3=cmp_ud(usv[0]);
-   check_ud(&d4,&d5);   
+   check_ud(&d4,&d5);
 
    ie=check_bc(0.0);
    error_root(ie==0,1,"main [check2.c]","Boundary conditions changed");
-   
+
    if (my_rank==0)
    {
       printf("Tilt double-precision gauge field:\n");
@@ -377,20 +378,20 @@ int main(int argc,char *argv[])
    }
 
    random_ud();
-   cm3x3_assign(4*VOLUME,udb,usv[0]); 
+   cm3x3_assign(4*VOLUME,udb,usv[0]);
    renormalize_ud();
    d1=cmp_ud(usv[0]);
-   
+
    ie=check_bc(0.0);
-   error_root(ie==0,1,"main [check2.c]","Boundary conditions changed");    
-   
+   error_root(ie==0,1,"main [check2.c]","Boundary conditions changed");
+
    if (my_rank==0)
    {
       printf("Renormalization of a fresh random double-precision field:\n");
-      printf("Maximal change in the link variables = %.2e\n\n",d1);       
+      printf("Maximal change in the link variables = %.2e\n\n",d1);
       fclose(flog);
    }
-   
+
    MPI_Finalize();
    exit(0);
 }

@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -217,7 +217,7 @@ static int check_w(int nw,int vol,weyl **w)
          }
       }
    }
-   
+
    return 0;
 }
 
@@ -228,7 +228,7 @@ static int check_wd(int nwd,int vol,weyl_dble **wd)
    wspin_dble_t *wp,*wm;
 
    for (k=0;k<nwd;k++)
-   {   
+   {
       wp=(wspin_dble_t*)(wd[k]);
       wm=wp+vol;
 
@@ -252,7 +252,7 @@ static int check_blk(block_t *b0,block_t *b,
    int vol;
 
    vol=(*b).vol;
-   
+
    if ((*b).shf!=shf)
       return 1;
 
@@ -262,7 +262,7 @@ static int check_blk(block_t *b0,block_t *b,
           ((*b0).idn!=(*b).idn))
          return 2;
    }
-   
+
    if (iu==1)
    {
       if (((*b).u==NULL)||((shf&0x4)&&((*b0).u!=(*b).u)))
@@ -273,7 +273,7 @@ static int check_blk(block_t *b0,block_t *b,
       if (((*b).sw==NULL)||((shf&0x4)&&((*b0).sw!=(*b).sw)))
          return 3;
       if (check_sw(2*vol,(*b).sw))
-         return 3;      
+         return 3;
    }
    else
    {
@@ -291,7 +291,7 @@ static int check_blk(block_t *b0,block_t *b,
       if (((*b).swd==NULL)||((shf&0x8)&&((*b0).swd!=(*b).swd)))
          return 4;
       if (check_swd(2*vol,(*b).swd))
-         return 4;      
+         return 4;
    }
    else
    {
@@ -301,7 +301,7 @@ static int check_blk(block_t *b0,block_t *b,
 
    if ((*b).ns!=ns)
       return 5;
-   
+
    if (ns>0)
    {
       if (((*b).s==NULL)||((shf&0x10)&&((*b0).s!=(*b).s)))
@@ -317,7 +317,7 @@ static int check_blk(block_t *b0,block_t *b,
 
    if ((*b).nsd!=nsd)
       return 6;
-   
+
    if (nsd>0)
    {
       if (((*b).sd==NULL)||((shf&0x20)&&((*b0).sd!=(*b).sd)))
@@ -329,8 +329,8 @@ static int check_blk(block_t *b0,block_t *b,
    {
       if ((*b).sd!=NULL)
          return 6;
-   }   
-   
+   }
+
    return 0;
 }
 
@@ -347,7 +347,7 @@ static int check_bnd(block_t *b0,block_t *b,
    for (ifc=0;ifc<8;ifc++)
    {
       vol=(*bb).vol;
-      
+
       if (iub==1)
       {
          if (((*bb).u==NULL)||((shf&0x4)&&((*bb0).u!=(*bb).u)))
@@ -376,7 +376,7 @@ static int check_bnd(block_t *b0,block_t *b,
 
       if ((*bb).nw!=nw)
          return 9;
-   
+
       if (nw>0)
       {
          if (((*bb).w==NULL)||((shf&0x40)&&((*bb0).w!=(*bb).w)))
@@ -392,7 +392,7 @@ static int check_bnd(block_t *b0,block_t *b,
 
       if ((*bb).nwd!=nwd)
          return 10;
-   
+
       if (nwd>0)
       {
          if (((*bb).wd==NULL)||((shf&0x80)&&((*bb0).wd!=(*bb).wd)))
@@ -409,7 +409,7 @@ static int check_bnd(block_t *b0,block_t *b,
       bb0+=1;
       bb+=1;
    }
-   
+
    return 0;
 }
 
@@ -450,9 +450,9 @@ int main(int argc,char *argv[])
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    geometry();
    set_sap_parms(bs,0,1,1);
-   set_dfl_parms(bs,2);   
+   set_dfl_parms(bs,2);
    grid=BLK_GRIDS;
-   
+
    for (igr=0;igr<(int)(BLK_GRIDS);igr++)
    {
       iu=0;
@@ -498,7 +498,7 @@ int main(int argc,char *argv[])
       alloc_bgr(grid);
       print_grid_flags(grid);
       b0=blk_list(grid,&nb,&isw);
-      
+
       n0=L0/bs[0];
       n1=L1/bs[1];
       n2=L2/bs[2];
@@ -515,7 +515,7 @@ int main(int argc,char *argv[])
       }
 
       itest=0;
-      
+
       for (n=0;n<nb;n++)
       {
          b=b0+n;
@@ -546,7 +546,7 @@ int main(int argc,char *argv[])
          itest=check_blk(b0,b,iu,iud,ns,nsd,shf);
          if (itest!=0)
             break;
-         
+
          error((*b).bb==NULL,1,"main [check2.c]",
                "Block boundaries are not allocated");
 
@@ -555,8 +555,8 @@ int main(int argc,char *argv[])
             break;
       }
 
-      error(itest==1,1,"main [check2.c]","Unexpected share flag");      
-      error(itest==2,1,"main [check2.c]","Geometry arrays are not shared");      
+      error(itest==1,1,"main [check2.c]","Unexpected share flag");
+      error(itest==2,1,"main [check2.c]","Geometry arrays are not shared");
       error(itest==3,1,"main [check2.c]",
             "b.u or b.sw is not in the proper condition");
       error(itest==4,1,"main [check2.c]",
@@ -568,14 +568,12 @@ int main(int argc,char *argv[])
       error(itest==7,1,"main [check2.c]",
             "b.bb.u is not in the proper condition");
       error(itest==8,1,"main [check2.c]",
-            "b.bb.ud is not in the proper condition");       
+            "b.bb.ud is not in the proper condition");
       error(itest==9,1,"main [check2.c]",
-            "b.bb.w is not in the proper condition");       
+            "b.bb.w is not in the proper condition");
       error(itest==10,1,"main [check2.c]",
-            "b.bb.wd is not in the proper condition");  
+            "b.bb.wd is not in the proper condition");
    }
-
-   error_chk();
 
    if (my_rank==0)
    {

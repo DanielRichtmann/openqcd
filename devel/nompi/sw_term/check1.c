@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2009, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2009, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -42,8 +42,14 @@ typedef union
 } mat_t;
 
 static pauli mp[2] ALIGNED16;
-static spin_t s1,s2,r1,r2 ALIGNED16;
-static spin2_t sd1,sd2,rd1,rd2 ALIGNED16;
+static spin_t s1 ALIGNED16;
+static spin_t s2 ALIGNED16;
+static spin_t r1 ALIGNED16;
+static spin_t r2 ALIGNED16;
+static spin2_t sd1 ALIGNED16;
+static spin2_t sd2 ALIGNED16;
+static spin2_t rd1 ALIGNED16;
+static spin2_t rd2 ALIGNED16;
 static mat_t mv[2] ALIGNED16;
 
 
@@ -91,7 +97,7 @@ int main(void)
    for (im=0;im<2;im++)
    {
       gauss(mv[im].r,72);
-      
+
       for (i=0;i<6;i++)
       {
          for (j=i;j<6;j++)
@@ -110,7 +116,7 @@ int main(void)
    for (im=0;im<2;im++)
    {
       k=6;
-      
+
       for (i=0;i<6;i++)
       {
          mp[im].u[i]=mv[im].c[6*i+i].re;
@@ -125,13 +131,13 @@ int main(void)
       }
    }
 
-   gauss(s1.r,12);   
+   gauss(s1.r,12);
    cpvec(6,s1.c,s2.c);
    mul_pauli(mu,mp,&(s1.w),&(r1.w));
 
    error(diffvec(6,s1.c,s2.c),1,"main [check1.c]",
-         "mul_pauli() modifies the source spinor"); 
-   
+         "mul_pauli() modifies the source spinor");
+
    cmat_vec(6,mv[0].c,s2.c,r2.c);
 
    for (i=0;i<6;i++)
@@ -142,7 +148,7 @@ int main(void)
 
    printf("mul_pauli():\n");
    printf("r1: result, r2: expected result\n\n");
-   
+
    for (i=0;i<2;i++)
    {
       for (j=0;j<3;j++)
@@ -164,22 +170,22 @@ int main(void)
    }
 
    printf("Maximal absolute deviation = %.1e\n",dmax);
-   
+
    mul_pauli(mu,mp,&(s1.w),&(s1.w));
    error(diffvec(6,s1.c,r1.c),1,"main [check1.c]",
-         "mul_pauli() is incorrect when r=s");    
+         "mul_pauli() is incorrect when r=s");
    printf("Works correctly if input and output spinors coincide\n\n");
 
-   gauss(sd1.r,24);   
+   gauss(sd1.r,24);
    cpvec(12,sd1.c,sd2.c);
    mul_pauli2(mu,mp,&(sd1.s),&(rd1.s));
 
    error(diffvec(12,sd1.c,sd2.c),1,"main [check1.c]",
-         "mul_pauli2() modifies the source spinor"); 
-   
+         "mul_pauli2() modifies the source spinor");
+
    cmat_vec(6,mv[0].c,sd2.c,rd2.c);
    cmat_vec(6,mv[1].c,sd2.c+6,rd2.c+6);
-   
+
    for (i=0;i<6;i++)
    {
       rd2.c[i].re-=mu*sd2.c[i].im;
@@ -190,11 +196,11 @@ int main(void)
    {
       rd2.c[i].re+=mu*sd2.c[i].im;
       rd2.c[i].im-=mu*sd2.c[i].re;
-   }   
+   }
 
    printf("mul_pauli2():\n");
    printf("r1: result, r2: expected result\n\n");
-   
+
    for (i=0;i<4;i++)
    {
       for (j=0;j<3;j++)
@@ -216,11 +222,11 @@ int main(void)
    }
 
    printf("Maximal absolute deviation = %.1e\n",dmax);
-   
+
    mul_pauli2(mu,mp,&(sd1.s),&(sd1.s));
    error(diffvec(12,sd1.c,rd1.c),1,"main [check1.c]",
-         "mul_pauli2() is incorrect when r=s");    
+         "mul_pauli2() is incorrect when r=s");
    printf("Works correctly if input and output spinors coincide\n\n");
-   
+
    exit(0);
 }

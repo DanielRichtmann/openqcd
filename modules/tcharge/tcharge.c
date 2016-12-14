@@ -3,7 +3,7 @@
 *
 * File tcharge.c
 *
-* Copyright (C) 2010, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -64,11 +64,9 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
-#define MAX_LEVELS 8
-#define BLK_LENGTH 8
 
-static int cnt[L0][MAX_LEVELS];
-static double smx[L0][MAX_LEVELS],qsl0[N0];
+static int isx[L0],init=0;
+static double qsl0[N0];
 static u3_alg_dble **ft;
 
 
@@ -99,25 +97,24 @@ static double density(int ix)
 
 double tcharge(void)
 {
-   int bc,tmx;
-   int n,ix,t,*cnt0;
-   double pi,Q,*smx0;
+   int bc,ix,t,tmx;
+   double pi,Q;
 
-   ft=ftensor();
-   cnt0=cnt[0];
-   smx0=smx[0];
-
-   for (n=0;n<MAX_LEVELS;n++)
+   if (init==0)
    {
-      cnt0[n]=0;
-      smx0[n]=0.0;
+      for (t=0;t<L0;t++)
+         isx[t]=init_hsum(1);
+
+      init=1;
    }
 
+   ft=ftensor();
    bc=bc_type();
    if (bc==0)
       tmx=N0-1;
    else
       tmx=N0;
+   reset_hsum(isx[0]);
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -125,30 +122,15 @@ double tcharge(void)
 
       if (((t>0)&&(t<tmx))||(bc==3))
       {
-         cnt0[0]+=1;
-         smx0[0]+=density(ix);
-
-         for (n=1;(cnt0[n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
-         {
-            cnt0[n]+=1;
-            smx0[n]+=smx0[n-1];
-
-            cnt0[n-1]=0;
-            smx0[n-1]=0.0;
-         }
+         Q=density(ix);
+         add_to_hsum(isx[0],&Q);
       }
    }
 
-   for (n=1;n<MAX_LEVELS;n++)
-      smx0[0]+=smx0[n];
-
    if (NPROC>1)
-   {
-      MPI_Reduce(smx0,&Q,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&Q,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
+      global_hsum(isx[0],&Q);
    else
-      Q=smx0[0];
+      local_hsum(isx[0],&Q);
 
    pi=4.0*atan(1.0);
 
@@ -158,9 +140,16 @@ double tcharge(void)
 
 double tcharge_slices(double *qsl)
 {
-   int bc,tmx;
-   int n,ix,t,t0;
+   int bc,ix,t,t0,tmx;
    double pi,fact,Q;
+
+   if (init==0)
+   {
+      for (t=0;t<L0;t++)
+         isx[t]=init_hsum(1);
+
+      init=1;
+   }
 
    ft=ftensor();
    bc=bc_type();
@@ -168,17 +157,10 @@ double tcharge_slices(double *qsl)
       tmx=N0-1;
    else
       tmx=N0;
+   t0=cpr[0]*L0;
 
    for (t=0;t<L0;t++)
-   {
-      for (n=0;n<MAX_LEVELS;n++)
-      {
-         cnt[t][n]=0;
-         smx[t][n]=0.0;
-      }
-   }
-
-   t0=cpr[0]*L0;
+      reset_hsum(isx[t]);
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -187,17 +169,8 @@ double tcharge_slices(double *qsl)
       if (((t>0)&&(t<tmx))||(bc==3))
       {
          t-=t0;
-         smx[t][0]+=density(ix);
-         cnt[t][0]+=1;
-
-         for (n=1;(cnt[t][n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
-         {
-            cnt[t][n]+=1;
-            smx[t][n]+=smx[t][n-1];
-
-            cnt[t][n-1]=0;
-            smx[t][n-1]=0.0;
-         }
+         Q=density(ix);
+         add_to_hsum(isx[t],&Q);
       }
    }
 
@@ -209,10 +182,8 @@ double tcharge_slices(double *qsl)
 
    for (t=0;t<L0;t++)
    {
-      for (n=1;n<MAX_LEVELS;n++)
-         smx[t][0]+=smx[t][n];
-
-      qsl0[t+t0]=fact*smx[t][0];
+      local_hsum(isx[t],&Q);
+      qsl0[t+t0]=fact*Q;
    }
 
    if (NPROC>1)

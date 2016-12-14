@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2009, 2011 Filippo Palombi, Martin Luescher
+* Copyright (C) 2009, 2011, 2016 Filippo Palombi, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "su3.h"
 #include "utils.h"
 #include "random.h"
 #include "su3fcts.h"
@@ -26,7 +25,6 @@
 static double mu[3];
 static su3_alg_dble *X;
 static su3_dble *r,*u,*v,*w;
-static const su3_dble u0={{0.0}};
 static ch_drv0_t *sp;
 
 
@@ -56,9 +54,9 @@ static void random_Xu(void)
 
       if (fabs(mu[2])<=1.0)
          break;
-   }   
+   }
 
-   (*u)=u0;
+   cm3x3_zero(1,u);
    (*u).c11.im=mu[0];
    (*u).c22.im=mu[1];
    (*u).c33.im=mu[2];
@@ -66,7 +64,7 @@ static void random_Xu(void)
    random_su3_dble(r);
    su3xsu3(r,u,w);
    su3xsu3dag(w,r,u);
-   
+
    (*X).c1=((*u).c11.im-(*u).c22.im)/3.0;
    (*X).c2=((*u).c11.im-(*u).c33.im)/3.0;
    (*X).c3=(*u).c12.re;
@@ -115,10 +113,10 @@ static double dev_uv(void)
    r[14]=(*u).c32.re-(*v).c32.re;
    r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
-   r[17]=(*u).c33.im-(*v).c33.im;   
+   r[17]=(*u).c33.im-(*v).c33.im;
 
    dmax=0.0;
-   
+
    for (i=0;i<18;i++)
    {
       dev=fabs(r[i]);
@@ -146,7 +144,7 @@ int main(void)
 
    dmax1=0.0;
    dmax2=0.0;
-   
+
    for (i=0;i<NTEST;i++)
    {
       random_Xu();
@@ -163,18 +161,15 @@ int main(void)
       chexp_drv0(X,sp);
       ch2mat((*sp).p,X,w);
       su3xsu3(u,w,v);
-      (*u)=u0;
-      (*u).c11.re=1.0;
-      (*u).c22.re=1.0;
-      (*u).c33.re=1.0;
-      
+      cm3x3_unity(1,u);
+
       dev=dev_uv();
       if (dev>dmax2)
          dmax2=dev;
    }
-   
-   printf ("Maximal deviation of exp(X) from SU(3)     = %.1e\n",dmax1);      
-   printf ("Maximal deviation of exp(X)*exp(-X) from 1 = %.1e\n\n",dmax2);   
+
+   printf ("Maximal deviation of exp(X) from SU(3)     = %.1e\n",dmax1);
+   printf ("Maximal deviation of exp(X)*exp(-X) from 1 = %.1e\n\n",dmax2);
 
    exit(0);
 }

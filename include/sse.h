@@ -3,7 +3,8 @@
 *
 * File sse.h
 *
-* Copyright (C) 2005, 2008, 2009, 2011 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005, 2008, 2009, 2011,  Martin Luescher, Filippo Palombi
+*               2016
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -17,20 +18,20 @@
 #ifndef SSE_H
 #define SSE_H
 
-typedef struct
+typedef struct __attribute__ ((aligned (16)))
 {
    int c1,c2,c3,c4;
-} sse_int __attribute__ ((aligned (16)));
+} sse_int;
 
-typedef struct
+typedef struct __attribute__ ((aligned (16)))
 {
    float c1,c2,c3,c4;
-} sse_float __attribute__ ((aligned (16)));
+} sse_float;
 
-typedef struct
+typedef struct __attribute__ ((aligned (16)))
 {
    sse_float c1,c2,c3;
-} sse_vector __attribute__ ((aligned (16)));
+} sse_vector;
 
 static sse_float _sse_sgn12 __attribute__ ((unused)) ={-1.0f,-1.0f,1.0f,1.0f};
 static sse_float _sse_sgn13 __attribute__ ((unused)) ={-1.0f,1.0f,-1.0f,1.0f};
@@ -118,7 +119,7 @@ __asm__ __volatile__ ("prefetcht0 %0 \n\t" \
                       : \
                       "m" (*((char*)(_pfbase(addr)))), \
                       "m" (*((char*)(_pfbase(addr)+0x40L))))
-                      
+
 #define _prefetch_192b(addr) \
 __asm__ __volatile__ ("prefetcht0 %0 \n\t" \
                       "prefetcht0 %1 \n\t" \

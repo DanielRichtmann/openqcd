@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011-2013 Martin Luescher
+* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -487,7 +487,7 @@ static void bnd_corr(double *cF,spinor_dble *pk,spinor_dble *pl)
 int main(int argc,char *argv[])
 {
    int my_rank,n;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    double d,dmax;
    pauli_dble *sw;
    spinor_dble **psd;
@@ -526,8 +526,11 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.301,0.789,phi,phi_prime,theta);
+   print_bc_parms(2);
 
    start_ranlux(0,12345);
    geometry();
@@ -571,8 +574,6 @@ int main(int argc,char *argv[])
          printf("delta = %.2e\n\n",d);
       }
    }
-
-   error_chk();
 
    if (my_rank==0)
    {

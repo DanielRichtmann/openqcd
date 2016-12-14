@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -16,21 +16,22 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#include "su3.h"
 #include "random.h"
 #include "su3fcts.h"
 
 static su3 u[4] ALIGNED16;
-static su3_vector s[8],r[8],t[8] ALIGNED16;
+static su3_vector s[8] ALIGNED16;
+static su3_vector r[8] ALIGNED16;
+static su3_vector t[8] ALIGNED16;
 
 #if (defined x64)
 #if (defined AVX)
 #include "avx.h"
 
 #define _avx_vector_quartet_load(s)              \
-__asm__ __volatile__ ("vmovaps %0, %%xmm6 \n\t" \
-                      "vmovaps %2, %%xmm7 \n\t" \
-                      "vmovaps %4, %%xmm8" \
+__asm__ __volatile__ ("vmovaps %0, %%xmm0 \n\t" \
+                      "vmovaps %2, %%xmm1 \n\t" \
+                      "vmovaps %4, %%xmm2" \
                       : \
                       : \
                       "m" ((s[0]).c1), \
@@ -41,9 +42,9 @@ __asm__ __volatile__ ("vmovaps %0, %%xmm6 \n\t" \
                       "m" ((s[1]).c3) \
                       : \
                       "xmm6", "xmm7", "xmm8"); \
-__asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm6, %%ymm6 \n\t" \
-                      "vinsertf128 $0x1, %2, %%ymm7, %%ymm7 \n\t" \
-                      "vinsertf128 $0x1, %4, %%ymm8, %%ymm8" \
+__asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm0, %%ymm0 \n\t" \
+                      "vinsertf128 $0x1, %2, %%ymm1, %%ymm1 \n\t" \
+                      "vinsertf128 $0x1, %4, %%ymm2, %%ymm2" \
                       : \
                       : \
                       "m" ((s[2]).c1), \
@@ -53,26 +54,12 @@ __asm__ __volatile__ ("vinsertf128 $0x1, %0, %%ymm6, %%ymm6 \n\t" \
                       "m" ((s[3]).c2), \
                       "m" ((s[3]).c3) \
                       : \
-                      "xmm6", "xmm7", "xmm8"); \
-__asm__ __volatile__ ("vshufps $0xe4, %%ymm7, %%ymm6, %%ymm0 \n\t" \
-                      "vshufps $0x4e, %%ymm8, %%ymm6, %%ymm1 \n\t" \
-                      "vshufps $0xe4, %%ymm8, %%ymm7, %%ymm2" \
-                      : \
-                      : \
-                      : \
-                      "xmm0", "xmm1", "xmm2")
+                      "xmm6", "xmm7", "xmm8")
 
 #define _avx_vector_quartet_store_up(r) \
-__asm__ __volatile__ ("vshufps $0x44, %%ymm4, %%ymm3, %%ymm9 \n\t" \
-                      "vshufps $0xe4, %%ymm3, %%ymm5, %%ymm10 \n\t" \
-                      "vshufps $0xee, %%ymm5, %%ymm4, %%ymm11" \
-                      : \
-                      : \
-                      : \
-                      "xmm9", "xmm10", "xmm11"); \
-__asm__ __volatile__ ("vmovaps %%xmm9, %0 \n\t" \
-                      "vmovaps %%xmm10, %2 \n\t" \
-                      "vmovaps %%xmm11, %4" \
+__asm__ __volatile__ ("vmovaps %%xmm3, %0 \n\t" \
+                      "vmovaps %%xmm4, %2 \n\t" \
+                      "vmovaps %%xmm5, %4" \
                       : \
                       : \
                       "m" ((r[0]).c1), \
@@ -81,9 +68,9 @@ __asm__ __volatile__ ("vmovaps %%xmm9, %0 \n\t" \
                       "m" ((r[1]).c1), \
                       "m" ((r[1]).c2), \
                       "m" ((r[1]).c3)); \
-__asm__ __volatile__ ("vextractf128 $0x1, %%ymm9, %0 \n\t" \
-                      "vextractf128 $0x1, %%ymm10, %2 \n\t" \
-                      "vextractf128 $0x1, %%ymm11, %4" \
+__asm__ __volatile__ ("vextractf128 $0x1, %%ymm3, %0 \n\t" \
+                      "vextractf128 $0x1, %%ymm4, %2 \n\t" \
+                      "vextractf128 $0x1, %%ymm5, %4" \
                       : \
                       : \
                       "m" ((r[2]).c1), \
@@ -93,6 +80,52 @@ __asm__ __volatile__ ("vextractf128 $0x1, %%ymm9, %0 \n\t" \
                       "m" ((r[3]).c2), \
                       "m" ((r[3]).c3))
 
+
+#define _avx_vector_quartet_save(s) \
+__asm__ __volatile__ ("vshufps $0x44, %%ymm1, %%ymm0, %%ymm9 \n\t" \
+                      "vshufps $0xe4, %%ymm0, %%ymm2, %%ymm10 \n\t" \
+                      "vshufps $0xee, %%ymm2, %%ymm1, %%ymm11" \
+                      : \
+                      : \
+                      : \
+                      "xmm9", "xmm10", "xmm11"); \
+__asm__ __volatile__ ("vmovaps %%xmm9, %0 \n\t" \
+                      "vmovaps %%xmm10, %2 \n\t" \
+                      "vmovaps %%xmm11, %4" \
+                      : \
+                      : \
+                      "m" ((s[0]).c1), \
+                      "m" ((s[0]).c2), \
+                      "m" ((s[0]).c3), \
+                      "m" ((s[1]).c1), \
+                      "m" ((s[1]).c2), \
+                      "m" ((s[1]).c3)); \
+__asm__ __volatile__ ("vextractf128 $0x1, %%ymm9, %0 \n\t" \
+                      "vextractf128 $0x1, %%ymm10, %2 \n\t" \
+                      "vextractf128 $0x1, %%ymm11, %4" \
+                      : \
+                      : \
+                      "m" ((s[2]).c1), \
+                      "m" ((s[2]).c2), \
+                      "m" ((s[2]).c3), \
+                      "m" ((s[3]).c1), \
+                      "m" ((s[3]).c2), \
+                      "m" ((s[3]).c3))
+
+
+static void swizzle_spinors(su3_vector *sa,su3_vector *ra)
+{
+   _avx_vector_quartet_load(sa);
+   _avx_vector_quartet_save(sa);
+   _avx_vector_quartet_load(ra);
+   _avx_vector_quartet_save(ra);
+   sa+=4;
+   ra+=4;
+   _avx_vector_quartet_load(sa);
+   _avx_vector_quartet_save(sa);
+   _avx_vector_quartet_load(ra);
+   _avx_vector_quartet_save(ra);
+}
 
 static void fast_multiply(su3 *ua,su3_vector *sa,su3_vector *ra)
 {
@@ -221,13 +254,17 @@ int main(void)
    printf("-------------------------------------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n");
+#else
    printf("Using AVX instructions\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n");
 #endif
 
-   printf("Measurement made with all data in cache\n\n");   
-   
+   printf("Measurement made with all data in cache\n\n");
+
    rlxs_init(0,123456);
 
    for (k=0;k<4;k++)
@@ -235,7 +272,7 @@ int main(void)
 
    gauss((float*)(s),48);
    gauss((float*)(r),48);
-   gauss((float*)(t),48);      
+   gauss((float*)(t),48);
 
 #if (defined x64)
 
@@ -243,7 +280,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   { 
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          fast_multiply(u,s,r);
@@ -251,17 +288,17 @@ int main(void)
       dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
       n*=2;
    }
-   
+
    dt*=1.0e6/(double)(4*n);
 
-   printf("The time per v=U*w is     %4.3f micro sec",dt);
+   printf("The time per v=U*w is     %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
    n=(int)(1.0e6);
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          fast_inverse_multiply(u,s,r);
@@ -271,8 +308,8 @@ int main(void)
    }
 
    dt*=1.0e6/(double)(4*n);
-   
-   printf("The time per v=U^dag*w is %4.3f micro sec",dt);
+
+   printf("The time per v=U^dag*w is %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
 #if (defined AVX)
@@ -281,7 +318,7 @@ int main(void)
    dt=0.0;
 
    while (dt<2.0)
-   {   
+   {
       t1=(double)clock();
       for (count=0;count<n;count++)
          fast_mixed_multiply(u,s,r);
@@ -291,11 +328,11 @@ int main(void)
    }
 
    dt*=1.0e6/(double)(4*n);
-   
-   printf("The time per v=U/U^dag*w is %4.3f micro sec",dt);
+
+   printf("The time per v=U/U^dag*w is %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
-#endif   
+#endif
 #endif
 
    n=(int)(1.0e6);
@@ -310,16 +347,19 @@ int main(void)
       dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
       n*=2;
    }
-   
+
    dt*=1.0e6/(double)(2*n);
 
    printf("Using x87 FPU instructions:\n");
-   printf("The time per v=U*w is     %4.3f micro sec",dt);
+   printf("The time per v=U*w is     %4.3f nsec",1.0e3*dt);
    printf(" [%d Mflops]\n",(int)(66.0/dt));
 
 #if (defined x64)
 
    fast_multiply(u,s,r);
+#if (defined AVX)
+   swizzle_spinors(s,r);
+#endif
    slow_multiply(u,s,t);
    delta=0.0;
 
@@ -338,8 +378,11 @@ int main(void)
 #else
    printf("||U*w_SSE-U*w_FPU||<= %.1e*||w||\n",delta);
 #endif
-   
+
    fast_inverse_multiply(u,s,r);
+#if (defined AVX)
+   swizzle_spinors(s,r);
+#endif
    slow_inverse_multiply(u,s,t);
    delta=0.0;
 
@@ -352,7 +395,7 @@ int main(void)
       if (diff>delta)
          delta=diff;
    }
-   
+
 #if (defined AVX)
    printf("||U^dag*w_AVX-U^dag*w_FPU||<= %.1e*||w||\n",delta);
 #else
@@ -362,6 +405,7 @@ int main(void)
 #if (defined AVX)
 
    fast_mixed_multiply(u,s,r);
+   swizzle_spinors(s,r);
    slow_mixed_multiply(u,s,t);
    delta=0.0;
 
@@ -374,12 +418,11 @@ int main(void)
       if (diff>delta)
          delta=diff;
    }
-   
+
    printf("||U/U^dag*w_AVX-U/U^dag*w_FPU||<= %.1e*||w||\n",delta);
-   
+
 #endif
 #endif
 
    exit(0);
 }
-

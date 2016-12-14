@@ -3,7 +3,7 @@
 *
 * File check5.c
 *
-* Copyright (C) 2009, 2011 Filippo Palombi, Martin Luescher
+* Copyright (C) 2009, 2011, 2016 Filippo Palombi, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -11,14 +11,13 @@
 * Check of chexp_drv2() in the case of diagonal X
 *
 * This program verifies that eqs. (4.1)-(4.6) of the notes "SU(3) matrix
-* functions" are satisfied by the coefficients obtained by chexp_drv2()
+* functions" are satisfied by the coefficients obtained by chexp_drv2().
 *
 *******************************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "su3.h"
 #include "utils.h"
 #include "random.h"
 #include "su3fcts.h"
@@ -42,7 +41,7 @@ static void mul_vec(complex_dble *a,complex_dble *b,complex_dble *c)
    for (i=0;i<3;i++)
    {
       c[i].re=a[i].re*b[i].re-a[i].im*b[i].im;
-      c[i].im=a[i].re*b[i].im+a[i].im*b[i].re;      
+      c[i].im=a[i].re*b[i].im+a[i].im*b[i].re;
    }
 }
 
@@ -54,7 +53,7 @@ static void add_vec(complex_dble z,complex_dble *a,complex_dble *b)
    for (i=0;i<3;i++)
    {
       b[i].re+=(z.re*a[i].re-z.im*a[i].im);
-      b[i].im+=(z.re*a[i].im+z.im*a[i].re);      
+      b[i].im+=(z.re*a[i].im+z.im*a[i].re);
    }
 }
 
@@ -72,22 +71,22 @@ static void alloc_X(void)
 static void set_tk(void)
 {
    double r;
-   
+
    t[0][0].re=0.0;
    t[0][0].im=0.5;
    t[0][1].re=0.0;
    t[0][1].im=-0.5;
    t[0][2].re=0.0;
-   t[0][2].im=0.0;   
+   t[0][2].im=0.0;
 
    r=1.0/(2.0*sqrt(3.0));
-   
+
    t[1][0].re=0.0;
    t[1][0].im=r;
    t[1][1].re=0.0;
    t[1][1].im=r;
    t[1][2].re=0.0;
-   t[1][2].im=-2.0*r;   
+   t[1][2].im=-2.0*r;
 }
 
 
@@ -104,7 +103,7 @@ static void random_X(void)
 
       if (fabs(mu[2])<=1.0)
          break;
-   }   
+   }
 
    (*X).c1=(mu[0]-mu[1])/3.0;
    (*X).c2=(mu[0]-mu[2])/3.0;
@@ -124,7 +123,7 @@ static void random_X(void)
 
    xt[0]=x[0].im-x[1].im;
    xt[1]=sqrt(3.0)*(x[0].im+x[1].im);
-   
+
    s=(mu[0]*mu[0]+mu[1]*mu[1]+mu[2]*mu[2])/3.0;
 
    y[0].re=0.0;
@@ -132,7 +131,7 @@ static void random_X(void)
    y[1].re=0.0;
    y[1].im=mu[1]*mu[1]-s;
    y[2].re=0.0;
-   y[2].im=mu[2]*mu[2]-s;   
+   y[2].im=mu[2]*mu[2]-s;
 
    yt[0]=y[0].im-y[1].im;
    yt[1]=sqrt(3.0)*(y[0].im+y[1].im);
@@ -156,7 +155,7 @@ static void diff_exp(void)
    for (i=0;i<2;i++)
    {
       for (j=0;j<2;j++)
-         mul_vec(t[i],dex[j],ddex[i][j]);   
+         mul_vec(t[i],dex[j],ddex[i][j]);
    }
 }
 
@@ -165,7 +164,7 @@ static void diff_fk(void)
 {
    int i,j,k;
    double d;
-   
+
    for (i=0;i<2;i++)
    {
       for (k=0;k<3;k++)
@@ -180,16 +179,16 @@ static void diff_fk(void)
    for (k=0;k<3;k++)
    {
       ddf[0][0][k].re=0.5*((*sf).pt[k].re+d*xt[1]*(*sf).pd[k].re);
-      ddf[0][0][k].im=0.5*((*sf).pt[k].im+d*xt[1]*(*sf).pd[k].im);      
+      ddf[0][0][k].im=0.5*((*sf).pt[k].im+d*xt[1]*(*sf).pd[k].im);
 
       ddf[1][1][k].re=0.5*((*sf).pt[k].re-d*xt[1]*(*sf).pd[k].re);
       ddf[1][1][k].im=0.5*((*sf).pt[k].im-d*xt[1]*(*sf).pd[k].im);
 
       ddf[0][1][k].re=0.5*d*xt[0]*(*sf).pd[k].re;
-      ddf[0][1][k].im=0.5*d*xt[0]*(*sf).pd[k].im;          
+      ddf[0][1][k].im=0.5*d*xt[0]*(*sf).pd[k].im;
 
       ddf[1][0][k].re=0.5*d*xt[0]*(*sf).pd[k].re;
-      ddf[1][0][k].im=0.5*d*xt[0]*(*sf).pd[k].im;          
+      ddf[1][0][k].im=0.5*d*xt[0]*(*sf).pd[k].im;
    }
 
    for (i=0;i<2;i++)
@@ -206,7 +205,7 @@ static void diff_fk(void)
             ddf[i][j][k].im+=0.25*(xt[i]*xt[j]*(*sf).ptt[k].im+
                                    xt[i]*yt[j]*(*sf).ptd[k].im+
                                    yt[i]*xt[j]*(*sf).ptd[k].im+
-                                   yt[i]*yt[j]*(*sf).pdd[k].im);            
+                                   yt[i]*yt[j]*(*sf).pdd[k].im);
          }
       }
    }
@@ -216,9 +215,9 @@ static void diff_fk(void)
 static void set_prods(void)
 {
    int i,j;
-   
+
    mul_vec(x,x,xsq);
-   
+
    for (i=0;i<2;i++)
    {
       mul_vec(t[i],x,stx[i]);
@@ -248,8 +247,8 @@ static void subtract_chexp(void)
 
       z.re=-df[i][2].re;
       z.im=-df[i][2].im;
-      add_vec(z,xsq,dex[i]);      
-      
+      add_vec(z,xsq,dex[i]);
+
       z.re=-(*sf).p[1].re;
       z.im=-(*sf).p[1].im;
       add_vec(z,t[i],dex[i]);
@@ -288,11 +287,11 @@ static void subtract_chexp(void)
 
          z.re=-2.0*df[j][2].re;
          z.im=-2.0*df[j][2].im;
-         add_vec(z,stx[i],ddex[i][j]);           
+         add_vec(z,stx[i],ddex[i][j]);
 
          z.re=-2.0*(*sf).p[2].re;
          z.im=-2.0*(*sf).p[2].im;
-         add_vec(z,stt[i][j],ddex[i][j]);                    
+         add_vec(z,stt[i][j],ddex[i][j]);
       }
    }
 }
@@ -304,7 +303,7 @@ static double dev_dex(void)
    double dev,dmax;
 
    dmax=0.0;
-   
+
    for (i=0;i<2;i++)
    {
       for (k=0;k<3;k++)
@@ -325,7 +324,7 @@ static double dev_ddex(void)
    double dev,dmax;
 
    dmax=0.0;
-   
+
    for (i=0;i<2;i++)
    {
       for (j=0;j<2;j++)
@@ -333,7 +332,7 @@ static double dev_ddex(void)
          for (k=0;k<3;k++)
          {
             dev=ddex[i][j][k].re*ddex[i][j][k].re+
-                ddex[i][j][k].im*ddex[i][j][k].im;            
+                ddex[i][j][k].im*ddex[i][j][k].im;
             if (dev>dmax)
                dmax=dev;
          }
@@ -361,7 +360,7 @@ int main(void)
 
    dmax1=0.0;
    dmax2=0.0;
-   
+
    for (i=0;i<NTEST;i++)
    {
       random_X();
@@ -370,18 +369,18 @@ int main(void)
       diff_fk();
       set_prods();
       subtract_chexp();
-      
-      dev=dev_dex();      
+
+      dev=dev_dex();
       if (dev>dmax1)
          dmax1=dev;
 
-      dev=dev_ddex();      
+      dev=dev_ddex();
       if (dev>dmax2)
-         dmax2=dev;      
+         dmax2=dev;
    }
 
-   printf ("Maximal deviation of 1st derivatives = %.1e\n",dmax1);   
-   printf ("Maximal deviation of 2nd derivatives = %.1e\n\n",dmax2);   
+   printf ("Maximal deviation of 1st derivatives = %.1e\n",dmax1);
+   printf ("Maximal deviation of 2nd derivatives = %.1e\n\n",dmax2);
 
    exit(0);
 }

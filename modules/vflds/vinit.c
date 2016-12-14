@@ -3,12 +3,12 @@
 *
 * File vinit.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic initialization and assignment programs for complex single- and 
+* Generic initialization and assignment programs for complex single- and
 * double-precision fields
 *
 * The externally accessible functions are
@@ -50,13 +50,13 @@
 *     wd.
 *
 *   void diff_vd2v(int n,complex_dble *vd,complex_dble *wd,complex *w)
-*     Assigns the difference vd-wd of the double-precision fields vd 
+*     Assigns the difference vd-wd of the double-precision fields vd
 *     and wd to the single-precision field w.
 *
 * Notes:
 *
-* All these programs operate on arrays of complex fields, whose base 
-* addresses are passed through the arguments. The length of the arrays 
+* All these programs operate on arrays of complex fields, whose base
+* addresses are passed through the arguments. The length of the arrays
 * is specified by the parameter n.
 *
 * Since no communications are performed, all programs in this file can be
@@ -73,8 +73,8 @@
 #include "random.h"
 #include "vflds.h"
 
-static const complex v0={0.0f};
-static const complex_dble vd0={0.0};
+static const complex v0={0.0f,0.0f};
+static const complex_dble vd0={0.0,0.0};
 
 
 void set_v2zero(int n,complex *v)
@@ -82,7 +82,7 @@ void set_v2zero(int n,complex *v)
    complex *vm;
 
    vm=v+n;
-   
+
    for (;v<vm;v++)
       (*v)=v0;
 }
@@ -93,12 +93,12 @@ void set_vd2zero(int n,complex_dble *vd)
    complex_dble *vm;
 
    vm=vd+n;
-   
+
    for (;vd<vm;vd++)
       (*vd)=vd0;
 }
 
-   
+
 void random_v(int n,complex *v,float sigma)
 {
    int m;
@@ -107,7 +107,7 @@ void random_v(int n,complex *v,float sigma)
 
    m=n&0x3;
    vm=v+(n-m);
-   
+
    while (v<vm)
    {
       gauss(r,8);
@@ -123,7 +123,7 @@ void random_v(int n,complex *v,float sigma)
    }
 
    vm=v+m;
-   
+
    while (v<vm)
    {
       gauss(r,2);
@@ -174,7 +174,7 @@ void assign_v2v(int n,complex *v,complex *w)
    complex *vm;
 
    vm=v+n;
-   
+
    for (;v<vm;v++)
    {
       (*w).re=(*v).re;
@@ -189,9 +189,9 @@ void assign_v2vd(int n,complex *v,complex_dble *wd)
    complex *vm;
 
    vm=v+n;
-   
+
    for (;v<vm;v++)
-   {   
+   {
       (*wd).re=(double)((*v).re);
       (*wd).im=(double)((*v).im);
       wd+=1;
@@ -204,9 +204,9 @@ void assign_vd2v(int n,complex_dble *vd,complex *w)
    complex_dble *vm;
 
    vm=vd+n;
-   
+
    for (;vd<vm;vd++)
-   {   
+   {
       (*w).re=(float)((*vd).re);
       (*w).im=(float)((*vd).im);
       w+=1;
@@ -219,7 +219,7 @@ void assign_vd2vd(int n,complex_dble *vd,complex_dble *wd)
    complex_dble *vm;
 
    vm=vd+n;
-   
+
    for (;vd<vm;vd++)
    {
       (*wd).re=(*vd).re;
@@ -234,9 +234,9 @@ void add_v2vd(int n,complex *v,complex_dble *wd)
    complex *vm;
 
    vm=v+n;
-   
+
    for (;v<vm;v++)
-   {   
+   {
       (*wd).re+=(double)((*v).re);
       (*wd).im+=(double)((*v).im);
       wd+=1;
@@ -249,9 +249,9 @@ void diff_vd2v(int n,complex_dble *vd,complex_dble *wd,complex *w)
    complex_dble *vm;
 
    vm=vd+n;
-   
+
    for (;vd<vm;vd++)
-   {   
+   {
       (*w).re=(float)((*vd).re-(*wd).re);
       (*w).im=(float)((*vd).im-(*wd).im);
       w+=1;

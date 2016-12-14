@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,7 +32,10 @@ typedef union
 
 static pauli m[2*NM] ALIGNED16;
 static pauli_dble md[2*NM] ALIGNED16;
-static spin_t sp1[NM],sp2[NM],rp1[NM],rp2[NM] ALIGNED16;
+static spin_t sp1[NM] ALIGNED16;
+static spin_t sp2[NM] ALIGNED16;
+static spin_t rp1[NM] ALIGNED16;
+static spin_t rp2[NM] ALIGNED16;
 static complex mv[36] ALIGNED16;
 
 
@@ -56,12 +59,12 @@ static float diff_pauli(void)
    double *ud;
 
    dmax=0.0f;
-   
+
    for (i=0;i<(2*NM);i++)
    {
       u=m[i].u;
       ud=md[i].u;
-      
+
       for (j=0;j<36;j++)
       {
          d=u[j]-(float)(ud[j]);
@@ -103,7 +106,7 @@ static float diff_spin(spin_t *sp,spin_t *rp)
    float d,dmax;
 
    dmax=0.0f;
-   
+
    for (i=0;i<NM;i++)
    {
       for (j=0;j<24;j++)
@@ -136,10 +139,10 @@ static void pauli2mv(float mu,pauli *mp)
       for (j=i+1;j<6;j++)
       {
          mv[6*i+j].re=u[k];
-         mv[6*j+i].re=u[k];         
+         mv[6*j+i].re=u[k];
          k+=1;
          mv[6*i+j].im=u[k];
-         mv[6*j+i].im=-u[k];         
+         mv[6*j+i].im=-u[k];
          k+=1;
       }
    }
@@ -177,24 +180,24 @@ int main(void)
 
    error(diff_spin(sp1,sp2)!=0.0f,1,"main [check3.c]",
          "apply_sw() does not preserve the input spinor field");
-   
+
    for (i=0;i<NM;i++)
    {
       pauli2mv(mu,m+2*i);
       cmat_vec(6,mv,sp1[i].c,rp2[i].c);
 
       pauli2mv(-mu,m+2*i+1);
-      cmat_vec(6,mv,sp1[i].c+6,rp2[i].c+6);      
+      cmat_vec(6,mv,sp1[i].c+6,rp2[i].c+6);
    }
 
-   printf("Check of apply_sw():\nAbsolute deviation = %.1e\n",   
+   printf("Check of apply_sw():\nAbsolute deviation = %.1e\n",
           diff_spin(rp1,rp2));
    printf("Input spinor field preserved\n");
 
    apply_sw(NM,mu,m,s1,s1);
    error(diff_spin(sp1,rp1)!=0.0f,1,"main [check3.c]",
-         "apply_sw() does not work correctly if r=s");   
+         "apply_sw() does not work correctly if r=s");
    printf("Works correctly if input and output fields coincide\n\n");
-   
+
    exit(0);
 }

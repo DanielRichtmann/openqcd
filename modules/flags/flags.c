@@ -3,7 +3,7 @@
 *
 * File flags.c
 *
-* Copyright (C) 2009, 2011, 2012 Martin Luescher
+* Copyright (C) 2009, 2011, 2012, 2016 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -29,7 +29,7 @@
 *   int query_grid_flags(blk_grid_t grid,query_t query)
 *     Queries the data base on the status of the field arrays on the
 *     specified block grid. The program returns 1 or 0 depending on
-*     whether the answer to the specified query is "yes" or "no". If 
+*     whether the answer to the specified query is "yes" or "no". If
 *     the query is unknown to the data base, the program returns -1.
 *
 *   void print_flags(void)
@@ -68,7 +68,7 @@
 #include "flags.h"
 #include "global.h"
 
-#define NFLGS (9+4*(int)(BLK_GRIDS))
+#define NFLGS (10+4*(int)(BLK_GRIDS))
 
 static struct
 {
@@ -76,7 +76,8 @@ static struct
    int bstap,fts;
    int sw[3],swd[3];
    int aw,awh;
-} lat={0,0,0,0,0,{0,0,0},{0,0,0},0,0};
+   int phase;
+} lat={0,0,0,0,0,{0,0,0},{0,0,0},0,0,0};
 
 typedef struct
 {
@@ -93,7 +94,7 @@ static grid_flags_t gfs[(int)(BLK_GRIDS)+1]={{0x0,0,0,{0,0,0},{0,0,0}}},*gf;
 static void set_flgs(void)
 {
    int n,igr;
-      
+
    flgs[0]=lat.u;
    flgs[1]=lat.ud;
    flgs[2]=lat.udbuf;
@@ -103,15 +104,16 @@ static void set_flgs(void)
    flgs[6]=lat.swd[0];
    flgs[7]=lat.aw;
    flgs[8]=lat.awh;
+   flgs[9]=lat.phase;
 
-   n=9;
-   
+   n=10;
+
    for (igr=0;igr<(int)(BLK_GRIDS);igr++)
    {
       flgs[n++]=gfs[igr].u;
       flgs[n++]=gfs[igr].ud;
       flgs[n++]=gfs[igr].sw[0];
-      flgs[n++]=gfs[igr].swd[0];      
+      flgs[n++]=gfs[igr].swd[0];
    }
 }
 
@@ -131,7 +133,7 @@ static void find_gap(int *a,int *d)
       if ((h>0)&&(h<(*d)))
          (*d)=h;
    }
-   
+
    for (k=0;k<NFLGS;k++)
    {
       fk=flgs[k];
@@ -183,17 +185,18 @@ static void compress_flags(void)
    lat.swd[0]=flgs[6];
    lat.aw=flgs[7];
    lat.awh=flgs[8];
+   lat.phase=flgs[9];
 
-   n=9;
-   
+   n=10;
+
    for (igr=0;igr<(int)(BLK_GRIDS);igr++)
    {
       gfs[igr].u=flgs[n++];
       gfs[igr].ud=flgs[n++];
       gfs[igr].sw[0]=flgs[n++];
-      gfs[igr].swd[0]=flgs[n++];      
+      gfs[igr].swd[0]=flgs[n++];
    }
-   
+
    tag-=d;
 }
 
@@ -218,10 +221,10 @@ static void set_arrays(void)
 
    for (igr=1;igr<=(int)(BLK_GRIDS);igr++)
       gfs[igr]=gfs[0];
-   
+
    gfs[(int)(SAP_BLOCKS)].shf=0x0;
    gfs[(int)(DFL_BLOCKS)].shf=0x2;
-      
+
    set_events();
    set_grid_events();
    set_queries();
@@ -237,9 +240,9 @@ void set_flags(event_t event)
 
    if (init==0)
       set_arrays();
-   
+
    iev=(int)(event);
-   
+
    if (NPROC>1)
    {
       iprms[0]=iev;
@@ -249,7 +252,7 @@ void set_flags(event_t event)
       error(iprms[0]!=iev,1,"set_flags [flags.c]",
             "Parameter is not global");
    }
-   
+
    if (event_fcts[iev]==NULL)
       error_root(1,1,"set_flags [flags.c]","No action associated to event");
    else
@@ -263,10 +266,10 @@ void set_grid_flags(blk_grid_t grid,event_t event)
 
    if (init==0)
       set_arrays();
-   
+
    igr=(int)(grid);
    iev=(int)(event);
-   
+
    if (NPROC>1)
    {
       iprms[0]=igr;
@@ -280,8 +283,8 @@ void set_grid_flags(blk_grid_t grid,event_t event)
 
    if (grid==BLK_GRIDS)
       error_root(1,1,"set_grid_flags [flags.c]",
-                 "BLK_GRIDS is a dummy block grid");  
-   
+                 "BLK_GRIDS is a dummy block grid");
+
    if (grid_event_fcts[iev]==NULL)
       error_root(1,1,"set_grid_flags [flags.c]",
                  "No action associated to event");
@@ -296,12 +299,12 @@ void set_grid_flags(blk_grid_t grid,event_t event)
 int query_flags(query_t query)
 {
    int iqr;
-   
+
    if (init==0)
       set_arrays();
 
    iqr=(int)(query);
-   
+
    if (query_fcts[iqr]==NULL)
    {
       error_loc(1,1,"query_flags [flags.c]","No response to query");
@@ -315,12 +318,12 @@ int query_flags(query_t query)
 int query_grid_flags(blk_grid_t grid,query_t query)
 {
    int iqr;
-   
+
    if (init==0)
       set_arrays();
 
    iqr=(int)(query);
-   
+
    if (grid_query_fcts[iqr]==NULL)
    {
       error_loc(1,1,"query_grid_flags [flags.c]","No response to query");
@@ -353,7 +356,8 @@ void print_flags(void)
              lat.sw[0],lat.sw[1],lat.sw[2]);
       printf("swd        = %d,%d,%d\n",
              lat.swd[0],lat.swd[1],lat.swd[2]);
-      printf("aw,awh     = %d,%d\n",lat.aw,lat.awh);      
+      printf("aw,awh     = %d,%d\n",lat.aw,lat.awh);
+      printf("phase      = %d\n",lat.phase);
       printf("\n");
    }
 }
@@ -365,7 +369,7 @@ void print_grid_flags(blk_grid_t grid)
 
    if (init==0)
       set_arrays();
-   
+
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
@@ -376,9 +380,9 @@ void print_grid_flags(blk_grid_t grid)
          printf("Flags on the SAP block grid:\n");
       else if (grid==DFL_BLOCKS)
          printf("Flags on the DFL block grid:\n");
-      else 
+      else
          error_root(1,1,"print_grid_flags [flags.c]","Unknown block grid");
-         
+
       printf("shf        = %#x\n",(*gf).shf);
       printf("u          = %d\n",(*gf).u);
       printf("ud         = %d\n",(*gf).ud);
@@ -386,6 +390,6 @@ void print_grid_flags(blk_grid_t grid)
              (*gf).sw[0],(*gf).sw[1],(*gf).sw[2]);
       printf("swd        = %d,%d,%d\n",
              (*gf).swd[0],(*gf).swd[1],(*gf).swd[2]);
-      printf("\n");      
+      printf("\n");
    }
 }

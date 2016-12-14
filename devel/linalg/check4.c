@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -48,10 +48,10 @@ static complex sp(int vol,complex *pk,complex *pl)
       pk+=1;
       pl+=1;
    }
-   
+
    z.re=(float)(x);
    z.im=(float)(y);
-   
+
    return z;
 }
 
@@ -65,7 +65,7 @@ int main(int argc,char *argv[])
    double d,dmax,dall;
    complex w,z;
    complex **wv,*pk,*pl;
-   FILE *flog=NULL,*fin=NULL;   
+   FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -74,10 +74,10 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check4.log","w",stdout);
       fin=freopen("check4.in","r",stdin);
-      
+
       printf("\n");
       printf("Checks on the programs in the module valg\n");
-      printf("-----------------------------------------\n\n");   
+      printf("-----------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -88,7 +88,7 @@ int main(int argc,char *argv[])
 
       printf("bs = %d %d %d %d\n\n",bs[0],bs[1],bs[2],bs[3]);
       fflush(flog);
-   }      
+   }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
 
@@ -103,7 +103,7 @@ int main(int argc,char *argv[])
    alloc_wv(10);
    wv=reserve_wv(10);
    dall=0.0;
-   
+
    for (icom=0;icom<2;icom++)
    {
       if ((icom==0)||(NPROC>1))
@@ -121,7 +121,7 @@ int main(int argc,char *argv[])
                printf("===============================\n\n");
             }
          }
-      
+
          for (ieo=0;ieo<3;ieo++)
          {
             if (my_rank==0)
@@ -146,7 +146,7 @@ int main(int argc,char *argv[])
                random_v(vol,wv[i]+off,1.0f);
 
             dmax=0.0;
-   
+
             for (i=0;i<10;i++)
             {
                pk=wv[i]+off;
@@ -156,7 +156,7 @@ int main(int argc,char *argv[])
                {
                   z=sp(vol,pk,pl);
                   MPI_Reduce(&z.re,&w.re,2,MPI_FLOAT,MPI_SUM,0,MPI_COMM_WORLD);
-                  MPI_Bcast(&w.re,2,MPI_FLOAT,0,MPI_COMM_WORLD); 
+                  MPI_Bcast(&w.re,2,MPI_FLOAT,0,MPI_COMM_WORLD);
                }
                else
                   w=sp(vol,pk,pl);
@@ -170,7 +170,7 @@ int main(int argc,char *argv[])
 
                z=vprod(vol,icom,pk,pk);
                r=vnorm_square(vol,icom,pk);
-      
+
                d=fabs((double)(z.im/r));
                if (d>dmax)
                   dmax=d;
@@ -183,20 +183,20 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax; 
+                  dall=dmax;
                printf("Check of vprod and vnorm_square: %.2e\n\n",dmax);
             }
-            
+
             dmax=0.0;
             z.re= 0.345f;
             z.im=-0.876f;
             zsq=z.re*z.re+z.im*z.im;
-   
+
             for (i=0;i<9;i++)
             {
                pk=wv[i]+off;
-               pl=wv[i+1]+off;      
-      
+               pl=wv[i+1]+off;
+
                w=vprod(vol,icom,pk,pl);
                r=vnorm_square(vol,icom,pk)+zsq*vnorm_square(vol,icom,pl)
                   +2.0f*(z.re*w.re-z.im*w.im);
@@ -210,23 +210,23 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;                
+                  dall=dmax;
                printf("Consistency of vprod, vnorm_square\n");
                printf("and mulc_vadd: %.2e\n\n",dmax);
             }
-   
+
             for (i=0;i<10;i++)
                random_v(vol,wv[i]+off,1.0f);
 
             dmax=0.0;
-   
+
             for (i=0;i<10;i++)
             {
                pk=wv[i]+off;
-      
+
                if (i>0)
                {
-                  pl=wv[i-1]+off;         
+                  pl=wv[i-1]+off;
                   vproject(vol,icom,pk,pl);
                   z=vprod(vol,icom,pk,pl);
 
@@ -240,7 +240,7 @@ int main(int argc,char *argv[])
 
                vnormalize(vol,icom,pk);
                r=vnorm_square(vol,icom,pk);
-               
+
                d=fabs((double)(r-1.0f));
                if (d>dmax)
                   dmax=d;
@@ -249,16 +249,16 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;                
+                  dall=dmax;
                printf("Consistency of vprod, vnorm_square,\n");
                printf("vnormalize and vproject: %.2e\n\n",dmax);
             }
-   
+
             for (i=0;i<5;i++)
             {
                pk=wv[i]+off;
                pl=wv[i+5]+off;
-      
+
                random_v(vol,wv[i]+off,1.0f);
                assign_v2v(vol,pk,pl);
 
@@ -273,7 +273,7 @@ int main(int argc,char *argv[])
 
             vrotate(vol,5,ppk,v);
             dmax=0.0;
-   
+
             for (i=5;i<10;i++)
             {
                pk=wv[i]+off;
@@ -283,7 +283,7 @@ int main(int argc,char *argv[])
                   z.re=-v[5*j+(i-5)].re;
                   z.im=-v[5*j+(i-5)].im;
 
-                  pl=wv[j]+off;         
+                  pl=wv[j]+off;
                   mulc_vadd(vol,pk,pl,z);
                }
 
@@ -300,7 +300,7 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;                
+                  dall=dmax;
                printf("Consistency of mulc_vadd\n");
                printf("and vrotate: %.2e\n\n",dmax);
             }
@@ -308,14 +308,12 @@ int main(int argc,char *argv[])
       }
    }
 
-   error_chk();
-
    if (my_rank==0)
    {
       printf("Maximal deviation in all tests: %.2e\n\n",dall);
       fclose(flog);
    }
 
-   MPI_Finalize();   
+   MPI_Finalize();
    exit(0);
 }

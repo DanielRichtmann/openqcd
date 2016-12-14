@@ -3,7 +3,7 @@
 *
 * File ym_action.c
 *
-* Copyright (C) 2010, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -66,11 +66,9 @@
 #include "global.h"
 
 #define N0 (NPROC0*L0)
-#define MAX_LEVELS 12
-#define BLK_LENGTH 8
 
-static int cnt[L0][MAX_LEVELS];
-static double smx[L0][MAX_LEVELS],asl0[N0];
+static int isx[L0],init=0;
+static double asl0[N0];
 static u3_alg_dble **ft;
 
 
@@ -100,25 +98,24 @@ static double density(int ix)
 
 double ym_action(void)
 {
-   int bc,tmx;
-   int n,ix,t,*cnt0;
-   double s,*smx0;
+   int bc,ix,t,tmx;
+   double S;
 
-   ft=ftensor();
-   cnt0=cnt[0];
-   smx0=smx[0];
-
-   for (n=0;n<MAX_LEVELS;n++)
+   if (init==0)
    {
-      cnt0[n]=0;
-      smx0[n]=0.0;
+      for (t=0;t<L0;t++)
+         isx[t]=init_hsum(1);
+
+      init=1;
    }
 
+   ft=ftensor();
    bc=bc_type();
    if (bc==0)
       tmx=N0-1;
    else
       tmx=N0;
+   reset_hsum(isx[0]);
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -126,40 +123,32 @@ double ym_action(void)
 
       if (((t>0)&&(t<tmx))||(bc==3))
       {
-         cnt0[0]+=1;
-         smx0[0]+=density(ix);
-
-         for (n=1;(cnt0[n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
-         {
-            cnt0[n]+=1;
-            smx0[n]+=smx0[n-1];
-
-            cnt0[n-1]=0;
-            smx0[n-1]=0.0;
-         }
+         S=density(ix);
+         add_to_hsum(isx[0],&S);
       }
    }
 
-   for (n=1;n<MAX_LEVELS;n++)
-      smx0[0]+=smx0[n];
-
    if (NPROC>1)
-   {
-      MPI_Reduce(smx0,&s,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&s,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
+      global_hsum(isx[0],&S);
    else
-      s=smx0[0];
+      local_hsum(isx[0],&S);
 
-   return 0.5*s;
+   return 0.5*S;
 }
 
 
 double ym_action_slices(double *asl)
 {
-   int bc,tmx;
-   int n,ix,t,t0;
-   double s;
+   int bc,ix,t,t0,tmx;
+   double S;
+
+   if (init==0)
+   {
+      for (t=0;t<L0;t++)
+         isx[t]=init_hsum(1);
+
+      init=1;
+   }
 
    ft=ftensor();
    bc=bc_type();
@@ -167,17 +156,10 @@ double ym_action_slices(double *asl)
       tmx=N0-1;
    else
       tmx=N0;
+   t0=cpr[0]*L0;
 
    for (t=0;t<L0;t++)
-   {
-      for (n=0;n<MAX_LEVELS;n++)
-      {
-         cnt[t][n]=0;
-         smx[t][n]=0.0;
-      }
-   }
-
-   t0=cpr[0]*L0;
+      reset_hsum(isx[t]);
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -186,17 +168,8 @@ double ym_action_slices(double *asl)
       if (((t>0)&&(t<tmx))||(bc==3))
       {
          t-=t0;
-         smx[t][0]+=density(ix);
-         cnt[t][0]+=1;
-
-         for (n=1;(cnt[t][n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
-         {
-            cnt[t][n]+=1;
-            smx[t][n]+=smx[t][n-1];
-
-            cnt[t][n-1]=0;
-            smx[t][n-1]=0.0;
-         }
+         S=density(ix);
+         add_to_hsum(isx[t],&S);
       }
    }
 
@@ -205,10 +178,8 @@ double ym_action_slices(double *asl)
 
    for (t=0;t<L0;t++)
    {
-      for (n=1;n<MAX_LEVELS;n++)
-         smx[t][0]+=smx[t][n];
-
-      asl0[t+t0]=0.5*smx[t][0];
+      local_hsum(isx[t],&S);
+      asl0[t+t0]=0.5*S;
    }
 
    if (NPROC>1)
@@ -222,10 +193,10 @@ double ym_action_slices(double *asl)
          asl[t]=asl0[t];
    }
 
-   s=0.0;
+   S=0.0;
 
    for (t=0;t<N0;t++)
-      s+=asl[t];
+      S+=asl[t];
 
-   return s;
+   return S;
 }

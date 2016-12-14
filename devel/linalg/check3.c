@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011, 2012 Martin Luescher
+* Copyright (C) 2005, 2011, 2012, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -42,7 +42,7 @@ static complex_dble sp(int vol,spinor_dble *pk,spinor_dble *pl)
    z.re=0.0;
    z.im=0.0;
    pm=pk+vol;
-   
+
    for (;pk<pm;pk++)
    {
       _acc_sp(z,(*pk).c1.c1,(*pl).c1.c1);
@@ -59,11 +59,11 @@ static complex_dble sp(int vol,spinor_dble *pk,spinor_dble *pl)
 
       _acc_sp(z,(*pk).c4.c1,(*pl).c4.c1);
       _acc_sp(z,(*pk).c4.c2,(*pl).c4.c2);
-      _acc_sp(z,(*pk).c4.c3,(*pl).c4.c3);      
-      
+      _acc_sp(z,(*pk).c4.c3,(*pl).c4.c3);
+
       pl+=1;
    }
-   
+
    return z;
 }
 
@@ -75,7 +75,7 @@ int main(int argc,char *argv[])
    double r,cs,cr,zsq,d,dmax,dall;
    complex_dble z,w;
    spinor_dble **psd,*pk,*pl,*pj;
-   FILE *flog=NULL;   
+   FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -83,10 +83,10 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("check3.log","w",stdout);
-      
+
       printf("\n");
       printf("Consistency of the programs in the module salg_dble\n");
-      printf("---------------------------------------------------\n\n");   
+      printf("---------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -98,7 +98,7 @@ int main(int argc,char *argv[])
    alloc_wsd(10);
    psd=reserve_wsd(10);
    dall=0.0;
-   
+
    for (icom=0;icom<2;icom++)
    {
       if ((icom==0)||(NPROC>1))
@@ -116,7 +116,7 @@ int main(int argc,char *argv[])
                printf("===============================\n\n");
             }
          }
-      
+
          for (ieo=0;ieo<3;ieo++)
          {
             if (my_rank==0)
@@ -128,7 +128,7 @@ int main(int argc,char *argv[])
                else
                   printf("Third case: odd points\n\n");
             }
-   
+
             vol=VOLUME/2;
             off=0;
 
@@ -136,12 +136,12 @@ int main(int argc,char *argv[])
                vol=VOLUME;
             if (ieo==2)
                off=VOLUME/2;
-   
+
             for (i=0;i<10;i++)
                random_sd(vol,psd[i]+off,1.0);
 
             dmax=0.0;
-   
+
             for (i=0;i<10;i++)
             {
                pk=psd[i]+off;
@@ -151,7 +151,7 @@ int main(int argc,char *argv[])
                {
                   z=sp(vol,pk,pl);
                   MPI_Reduce(&z.re,&w.re,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-                  MPI_Bcast(&w.re,2,MPI_DOUBLE,0,MPI_COMM_WORLD); 
+                  MPI_Bcast(&w.re,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
                }
                else
                   w=sp(vol,pk,pl);
@@ -164,14 +164,14 @@ int main(int argc,char *argv[])
                   dmax=d;
 
                r=spinor_prod_re_dble(vol,icom,pk,pl);
-            
+
                d=fabs(z.re/r-1.0);
                if (d>dmax)
                   dmax=d;
 
                z=spinor_prod_dble(vol,icom,pk,pk);
                r=norm_square_dble(vol,icom,pk);
-      
+
                d=fabs(z.im/r);
                if (d>dmax)
                   dmax=d;
@@ -190,7 +190,7 @@ int main(int argc,char *argv[])
             }
 
             dmax=0.0;
-   
+
             for (i=0;i<10;i++)
             {
                pk=psd[i]+off;
@@ -210,21 +210,21 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency check of spinor_prod5, mulg5\n");
                printf("and spinor_prod: %.2e\n\n",dmax);
             }
-            
+
             dmax=0.0;
             z.re= 0.345;
             z.im=-0.876;
             zsq=z.re*z.re+z.im*z.im;
-   
+
             for (i=0;i<9;i++)
             {
                pk=psd[i]+off;
-               pl=psd[i+1]+off;      
-      
+               pl=psd[i+1]+off;
+
                w=spinor_prod_dble(vol,icom,pk,pl);
                r=norm_square_dble(vol,icom,pk)+zsq*norm_square_dble(vol,icom,pl)
                   +2.0*(z.re*w.re-z.im*w.im);
@@ -234,11 +234,11 @@ int main(int argc,char *argv[])
                if (d>dmax)
                   dmax=d;
             }
-         
+
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency of spinor_prod, norm_square\n");
                printf("and mulc_spinor_add: %.2e\n\n",dmax);
             }
@@ -254,7 +254,7 @@ int main(int argc,char *argv[])
             for (i=0;i<8;i+=3)
             {
                pk=psd[i]+off;
-               pl=psd[i+1]+off;      
+               pl=psd[i+1]+off;
                pj=psd[i+2]+off;
 
                assign_sd2sd(vol,pk,pj);
@@ -276,11 +276,11 @@ int main(int argc,char *argv[])
                if (d>dmax)
                   dmax=d;
             }
-         
+
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency of mulr_spinor_add, scale\n");
                printf("and mulc_spinor_add: %.2e\n\n",dmax);
             }
@@ -295,7 +295,7 @@ int main(int argc,char *argv[])
             for (i=0;i<8;i+=3)
             {
                pk=psd[i]+off;
-               pl=psd[i+1]+off;      
+               pl=psd[i+1]+off;
                pj=psd[i+2]+off;
 
                assign_sd2sd(vol,pk,pj);
@@ -309,27 +309,27 @@ int main(int argc,char *argv[])
                if (d>dmax)
                   dmax=d;
             }
-         
+
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency of mulr_spinor_add, scale\n");
                printf("and combine_spinor: %.2e\n\n",dmax);
             }
-            
+
             for (i=0;i<10;i++)
                random_sd(vol,psd[i]+off,1.0);
 
             dmax=0.0;
-   
+
             for (i=0;i<10;i++)
             {
                pk=psd[i]+off;
-      
+
                if (i>0)
                {
-                  pl=psd[i-1]+off;         
+                  pl=psd[i-1]+off;
                   project_dble(vol,icom,pk,pl);
                   z=spinor_prod_dble(vol,icom,pk,pl);
 
@@ -350,11 +350,11 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency of spinor_prod, norm_square,\n");
                printf("normalize and project: %.2e\n\n",dmax);
             }
-         
+
             for (i=0;i<5;i++)
             {
                pk=psd[i]+off;
@@ -374,7 +374,7 @@ int main(int argc,char *argv[])
 
             rotate_dble(vol,5,ppk,v);
             dmax=0.0;
-   
+
             for (i=5;i<10;i++)
             {
                pk=psd[i]+off;
@@ -384,7 +384,7 @@ int main(int argc,char *argv[])
                   z.re=-v[5*j+(i-5)].re;
                   z.im=-v[5*j+(i-5)].im;
 
-                  pl=psd[j]+off;         
+                  pl=psd[j]+off;
                   mulc_spinor_add_dble(vol,pk,pl,z);
                }
 
@@ -401,13 +401,13 @@ int main(int argc,char *argv[])
             if (my_rank==0)
             {
                if (dmax>dall)
-                  dall=dmax;               
+                  dall=dmax;
                printf("Consistency of mulc_spinor_add\n");
                printf("and rotate: %.2e\n\n",dmax);
             }
-         
+
             dmax=0.0;
-   
+
             for (i=0;i<5;i++)
             {
                pk=psd[i]+off;
@@ -431,9 +431,9 @@ int main(int argc,char *argv[])
                mulg5_dble(vol,pk);
                mulg5_dble(vol,pl);
                w=spinor_prod_dble(vol,icom,pk,pl);
-      
+
                d=(fabs(z.re-w.re)+fabs(z.im-w.im))/
-                  (fabs(z.re)+fabs(z.im)); 
+                  (fabs(z.re)+fabs(z.im));
                if (d>dmax)
                   dmax=d;
 
@@ -449,7 +449,7 @@ int main(int argc,char *argv[])
                r=norm_square_dble(vol,icom,pl)/norm_square_dble(vol,icom,pk);
                d=sqrt(r);
                if (d>dmax)
-                  dmax=d;            
+                  dmax=d;
             }
 
             if (my_rank==0)
@@ -462,14 +462,12 @@ int main(int argc,char *argv[])
       }
    }
 
-   error_chk();
-   
    if (my_rank==0)
    {
       printf("Maximal deviation in all tests: %.2e\n\n",dall);
       fclose(flog);
    }
-   
-   MPI_Finalize();    
+
+   MPI_Finalize();
    exit(0);
 }

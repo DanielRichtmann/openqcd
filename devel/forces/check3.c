@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2008-2013 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005, 2008-2013, 2016 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -198,9 +198,9 @@ static double dSdt(double c)
 }
 
 
-static void chk_chs(double c)
+static double chk_chs(double c)
 {
-   double d;
+   double dev;
    su3_alg_dble **wfd;
    mdflds_t *mdfs;
 
@@ -211,15 +211,14 @@ static void chk_chs(double c)
    force0(c);
    assign_alg2alg(4*VOLUME,(*mdfs).frc,wfd[0]);
 
-   chs_ubnd(-1);
+   set_ud_phase();
    force0(c);
    muladd_assign_alg(4*VOLUME,-1.0,(*mdfs).frc,wfd[0]);
-   d=norm_square_alg(4*VOLUME,0,wfd[0]);
-
-   error(d!=0.0,1,"chk_chs [check3.c]",
-         "Gauge force changed after applying chs_ubnd(-1)");
-
+   dev=norm_square_alg(4*VOLUME,0,wfd[0])/
+      norm_square_alg(4*VOLUME,0,(*mdfs).frc);
    release_wfd();
+
+   return sqrt(dev);
 }
 
 
@@ -228,7 +227,7 @@ int main(int argc,char *argv[])
    int my_rank,k,ie,bc;
    double c,eps,act0,act1,dact,dsdt;
    double dev_frc,sig_loss,rdmy;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -261,19 +260,26 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.38;
+   theta[1]=-1.25;
+   theta[2]=0.54;
+   set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(3);
 
    start_ranlux(0,1234);
    geometry();
    alloc_wfd(1);
    c=0.789;
-   chk_chs(c);
+   dev_frc=chk_chs(c);
+
+   if (my_rank==0)
+      printf("Deviation of gauge force after a phase change = %.1e\n\n",
+             dev_frc);
 
    for (k=0;k<4;k++)
    {
       random_ud();
-      chs_ubnd(-1);
+      set_ud_phase();
       random_mom();
       dsdt=dSdt(c);
 
@@ -313,11 +319,10 @@ int main(int argc,char *argv[])
       MPI_Reduce(&rdmy,&sig_loss,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
       MPI_Bcast(&sig_loss,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
+      unset_ud_phase();
       ie=check_bc(0.0);
       error_root(ie!=1,1,"main [check3.c]",
                  "Operations did not preserve boundary conditions");
-
-      error_chk();
 
       if (my_rank==0)
       {

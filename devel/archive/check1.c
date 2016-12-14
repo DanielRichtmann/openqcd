@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2007, 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2007, 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -45,12 +45,12 @@ static void save_ranlux(void)
          "Unable to allocate state arrays");
    rlxs_state[0]=p;
    p+=nlxs;
-   rlxs_state[1]=p;   
+   rlxs_state[1]=p;
    p+=nlxs;
    rlxd_state[0]=p;
    p+=nlxd;
    rlxd_state[1]=p;
-   
+
    rlxs_get(rlxs_state[0]);
    rlxd_get(rlxd_state[0]);
 }
@@ -66,7 +66,7 @@ static int check_ranlux(void)
    rlxs_get(rlxs_state[1]);
    rlxd_get(rlxd_state[1]);
    ie=0;
-   
+
    for (k=0;k<nlxs;k++)
       ie|=(rlxs_state[0][k]!=rlxs_state[1][k]);
 
@@ -101,7 +101,7 @@ static int cmp_ud(su3_dble *u,su3_dble *v)
    it|=((*u).c32.im!=(*v).c32.im);
    it|=((*u).c33.re!=(*v).c33.re);
    it|=((*u).c33.im!=(*v).c33.im);
-   
+
    return it;
 }
 
@@ -114,7 +114,7 @@ static int check_ud(su3_dble *usv)
    u=udfld();
    um=u+4*VOLUME;
    it=0;
-   
+
    for (;u<um;u++)
    {
       it|=cmp_ud(u,usv);
@@ -128,7 +128,7 @@ static int check_ud(su3_dble *usv)
 int main(int argc,char *argv[])
 {
    int my_rank,bc,nsize,ie;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
    su3_dble *udb,**usv;
    char loc_dir[NAME_SIZE],cnfg[NAME_SIZE];
    FILE *flog=NULL,*fin=NULL;
@@ -140,7 +140,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check1.log","w",stdout);
       fin=freopen("check1.in","r",stdin);
-      
+
       printf("\n");
       printf("Writing and reading gauge configurations\n");
       printf("----------------------------------------\n\n");
@@ -159,25 +159,28 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
-   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);      
+   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms();
+   theta[0]=0.5;
+   theta[1]=1.0;
+   theta[2]=-0.5;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(3);
 
    start_ranlux(0,123456);
    geometry();
    alloc_wud(1);
 
-   check_dir(loc_dir);   
+   check_dir(loc_dir);
    nsize=name_size("%s/testcnfg_%d",loc_dir,NPROC);
    error_root(nsize>=NAME_SIZE,1,"main [check1.c]","loc_dir name is too long");
-   sprintf(cnfg,"%s/testcnfg_%d",loc_dir,my_rank);   
-   
+   sprintf(cnfg,"%s/testcnfg_%d",loc_dir,my_rank);
+
    if (my_rank==0)
    {
       printf("Write random field configuration to the files\n"
@@ -197,8 +200,7 @@ int main(int argc,char *argv[])
 
    random_ud();
    read_cnfg(cnfg);
-   remove(cnfg);   
-   error_chk();
+   remove(cnfg);
 
    ie=(check_bc(0.0)^0x1);
    ie|=check_ud(usv[0]);
@@ -208,9 +210,9 @@ int main(int argc,char *argv[])
    error(ie!=0,1,"main [check1.c]",
          "The random number generator is not properly restored");
    print_flags();
-   
+
    if (my_rank==0)
-   {   
+   {
       printf("No errors detected --- the fields are correctly written\n\n");
       fclose(flog);
    }

@@ -3,7 +3,7 @@
 *
 * File ym1.c
 *
-* Copyright (C) 2010-2013 Martin Luescher
+* Copyright (C) 2010-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -454,7 +454,7 @@ static void read_bc_parms(void)
 {
    int bc;
    double cG,cG_prime;
-   double phi[2],phi_prime[2];
+   double phi[2],phi_prime[2],theta[3];
 
    if (my_rank==0)
    {
@@ -487,7 +487,11 @@ static void read_bc_parms(void)
    MPI_Bcast(&cG,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&cG_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   bcp=set_bc_parms(bc,cG,cG_prime,1.0,1.0,phi,phi_prime);
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+
+   bcp=set_bc_parms(bc,cG,cG_prime,1.0,1.0,phi,phi_prime,theta);
 
    if (append)
       check_bc_parms(fdat);
@@ -1073,6 +1077,29 @@ static void check_files(int *nl,int *icnfg)
 }
 
 
+static void init_rng(int icnfg)
+{
+   int ic;
+
+   if (append)
+   {
+      if (cnfg[strlen(cnfg)-1]!='*')
+      {
+         if (norng)
+            start_ranlux(level,seed^(icnfg-1));
+         else
+         {
+            ic=import_ranlux(rng_file);
+            error_root(ic!=(icnfg-1),1,"init_rng [ym1.c]",
+                       "Configuration number mismatch (*.rng file)");
+         }
+      }
+   }
+   else
+      start_ranlux(level,seed);
+}
+
+
 static void init_ud(void)
 {
    char *p;
@@ -1095,29 +1122,6 @@ static void init_ud(void)
    }
    else
       random_ud();
-}
-
-
-static void init_rng(int icnfg)
-{
-   int ic;
-
-   if (append)
-   {
-      if (cnfg[strlen(cnfg)-1]!='*')
-      {
-         if (norng)
-            start_ranlux(level,seed^(icnfg-1));
-         else
-         {
-            ic=import_ranlux(rng_file);
-            error_root(ic!=(icnfg-1),1,"init_rng [ym1.c]",
-                       "Configuration number mismatch (*.rng file)");
-         }
-      }
-   }
-   else
-      start_ranlux(level,seed);
 }
 
 
@@ -1172,7 +1176,7 @@ static void set_data(int nt)
 
 static void print_info(int icnfg)
 {
-   int n[3];
+   int n;
    long ip;
    mdint_parms_t mdp;
 
@@ -1238,56 +1242,14 @@ static void print_info(int icnfg)
 
       if (append==0)
       {
-         n[0]=fdigits(lat.beta);
-         printf("beta = %.*f\n",IMAX(n[0],1),lat.beta);
-         n[0]=fdigits(lat.c0);
-         printf("c0 = %.*f, ",IMAX(n[0],1),lat.c0);
-         n[0]=fdigits(lat.c1);
-         printf("c1 = %.*f\n\n",IMAX(n[0],1),lat.c1);
+         n=fdigits(lat.beta);
+         printf("beta = %.*f\n",IMAX(n,1),lat.beta);
+         n=fdigits(lat.c0);
+         printf("c0 = %.*f, ",IMAX(n,1),lat.c0);
+         n=fdigits(lat.c1);
+         printf("c1 = %.*f\n\n",IMAX(n,1),lat.c1);
 
-         if (bcp.type==0)
-         {
-            printf("Open boundary conditions\n");
-
-            n[0]=fdigits(bcp.cG[0]);
-            printf("cG = %.*f\n\n",IMAX(n[0],1),bcp.cG[0]);
-         }
-         else if (bcp.type==1)
-         {
-            printf("SF boundary conditions\n");
-
-            n[0]=fdigits(bcp.cG[0]);
-            printf("cG = %.*f\n",IMAX(n[0],1),bcp.cG[0]);
-
-            n[0]=fdigits(bcp.phi[0][0]);
-            n[1]=fdigits(bcp.phi[0][1]);
-            n[2]=fdigits(bcp.phi[0][2]);
-            printf("phi = %.*f,%.*f,%.*f\n",IMAX(n[0],1),bcp.phi[0][0],
-                   IMAX(n[1],1),bcp.phi[0][1],IMAX(n[2],1),bcp.phi[0][2]);
-
-            n[0]=fdigits(bcp.phi[1][0]);
-            n[1]=fdigits(bcp.phi[1][1]);
-            n[2]=fdigits(bcp.phi[1][2]);
-            printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
-                   IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
-         }
-         else if (bcp.type==2)
-         {
-            printf("Open-SF boundary conditions\n");
-
-            n[0]=fdigits(bcp.cG[0]);
-            printf("cG = %.*f\n",IMAX(n[0],1),bcp.cG[0]);
-            n[1]=fdigits(bcp.cG[1]);
-            printf("cG' = %.*f\n",IMAX(n[1],1),bcp.cG[1]);
-
-            n[0]=fdigits(bcp.phi[1][0]);
-            n[1]=fdigits(bcp.phi[1][1]);
-            n[2]=fdigits(bcp.phi[1][2]);
-            printf("phi' = %.*f,%.*f,%.*f\n\n",IMAX(n[0],1),bcp.phi[1][0],
-                   IMAX(n[1],1),bcp.phi[1][1],IMAX(n[2],1),bcp.phi[1][2]);
-         }
-         else
-            printf("Periodic boundary conditions\n\n");
+         print_bc_parms(1);
       }
 
       printf("Random number generator:\n");
@@ -1322,8 +1284,8 @@ static void print_info(int icnfg)
       else
       {
          printf("Trajectories:\n");
-         n[0]=fdigits(hmc.tau);
-         printf("tau = %.*f\n",IMAX(n[0],1),hmc.tau);
+         n=fdigits(hmc.tau);
+         printf("tau = %.*f\n",IMAX(n,1),hmc.tau);
 
          mdp=mdint_parms(0);
 
@@ -1357,8 +1319,8 @@ static void print_info(int icnfg)
                printf("2nd order RK integrator\n");
             else
                printf("3rd order RK integrator\n");
-            n[0]=fdigits(file_head.eps);
-            printf("eps = %.*f\n",IMAX(n[0],1),file_head.eps);
+            n=fdigits(file_head.eps);
+            printf("eps = %.*f\n",IMAX(n,1),file_head.eps);
             printf("nstep = %d\n",file_head.dn*file_head.nn);
             printf("dnms = %d\n\n",file_head.dn);
          }
@@ -1445,9 +1407,11 @@ static void save_cnfg(int icnfg)
 {
    int ie;
 
-   ie=check_bc(0.0)^0x1;
-   ie|=chs_ubnd(1);
-   error_root(ie!=0,1,"save_cnfg [ym1.c]","Unexpected boundary values");
+   ie=query_flags(UD_PHASE_SET);
+   if (ie==0)
+      ie=check_bc(0.0)^0x1;
+   error_root(ie!=0,1,"save_cnfg [ym1.c]",
+              "Phase-modified field or unexpected boundary values");
 
    if (noloc==0)
    {
@@ -1532,19 +1496,13 @@ int main(int argc,char *argv[])
    check_files(&nl,&icnfg);
    geometry();
    alloc_wud(1);
-
-   if (noms==0)
-   {
-      alloc_data();
-
-      if (flint)
+   if ((noms==0)&&(flint))
          alloc_wfd(1);
-   }
 
    print_info(icnfg);
    set_mdsteps();
-   init_ud();
    init_rng(icnfg);
+   init_ud();
 
    if (bc_type()==0)
       npl=(double)(6*(N0-1)*N1)*(double)(N2*N3);
@@ -1614,7 +1572,6 @@ int main(int argc,char *argv[])
          save_cnfg(icnfg);
          export_ranlux(icnfg,rng_file);
          check_endflag(&iend);
-         error_chk();
 
          if (my_rank==0)
          {

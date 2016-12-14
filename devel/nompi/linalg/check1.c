@@ -117,7 +117,7 @@ static void mdag(int n,complex *a,complex *b)
       for (j=0;j<n;j++)
       {
          b[i*n+j].re=a[j*n+i].re;
-         b[i*n+j].im=-a[j*n+i].im;          
+         b[i*n+j].im=-a[j*n+i].im;
       }
    }
 }
@@ -141,7 +141,7 @@ static void mmul(int n,complex *a,complex *b,complex *c)
          }
 
          c[i*n+j]=z;
-          
+
       }
    }
 }
@@ -153,7 +153,7 @@ static float vdev(int n,complex *v,complex *w)
    float d,dmax;
 
    dmax=0.0f;
-   
+
    for (i=0;i<n;i++)
    {
       d= (float)(fabs((double)(v[i].re-w[i].re)))+
@@ -172,7 +172,7 @@ static float mdev(int n,complex *a,complex *b)
    float d,dmax;
 
    dmax=0.0f;
-   
+
    for (i=0;i<n;i++)
    {
       for (j=0;j<n;j++)
@@ -219,7 +219,7 @@ static void rmat(int n,complex *a)
 static void vec2vec(int n,complex *v,complex *w)
 {
    int i;
-   
+
    for (i=0;i<n;i++)
       w[i]=v[i];
 }
@@ -228,7 +228,7 @@ static void vec2vec(int n,complex *v,complex *w)
 static void mat2mat(int n,complex *a,complex *b)
 {
    int i,j;
-   
+
    for (i=0;i<n;i++)
    {
       for (j=0;j<n;j++)
@@ -243,17 +243,21 @@ int main(void)
    float d,d1,d2,d3,d4,d5;
    complex *a1,*b1,*c1,*v1,*w1;
    complex *a2,*b2,*c2,*v2,*w2;
-   
+
    printf("\n");
    printf("Check of cmat_vec, cmat_add, ...\n");
    printf("--------------------------------\n\n");
 
 #if (defined AVX)
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n\n");
+#else
    printf("Using AVX instructions\n\n");
+#endif
 #elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
-   
+
    a1=amalloc(2*NMAX*(3*NMAX+2)*sizeof(*a1),4);
    error(a1==NULL,1,"main [check1.c]","Unable to allocate auxiliary arrays");
 
@@ -272,7 +276,7 @@ int main(void)
    d3=0.0f;
    d4=0.0f;
    d5=0.0f;
-   
+
    for (n=1;n<=NMAX;n++)
    {
       rvec(n,v1);
@@ -313,7 +317,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_add(n,a1,b1,c1);
       madd(n,a2,b2,c2);
 
@@ -330,7 +334,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_sub(n,a1,b1,c1);
       msub(n,a2,b2,c2);
 
@@ -339,7 +343,7 @@ int main(void)
          d3=d;
 
       error((mdev(n,a1,a2)!=0.0f)||(mdev(n,b1,b2)!=0.0f),1,"main [check1.c]",
-            "cmat_sub: input values have changed");      
+            "cmat_sub: input values have changed");
 
       rmat(n,a1);
       rmat(n,b1);
@@ -347,7 +351,7 @@ int main(void)
       mat2mat(n,a1,a2);
       mat2mat(n,b1,b2);
       rmat(n,c2);
-      
+
       cmat_mul(n,a1,b1,c1);
       mmul(n,a2,b2,c2);
 
@@ -356,13 +360,13 @@ int main(void)
          d4=d;
 
       error((mdev(n,a1,a2)!=0.0f)||(mdev(n,b1,b2)!=0.0f),1,"main [check1.c]",
-            "cmat_mul: input values have changed");      
+            "cmat_mul: input values have changed");
 
       rmat(n,a1);
       rmat(n,b1);
       mat2mat(n,a1,a2);
       rmat(n,b2);
-      
+
       cmat_dag(n,a1,b1);
       mdag(n,a2,b2);
 
@@ -371,17 +375,17 @@ int main(void)
          d5=d;
 
       error(mdev(n,a1,a2)!=0.0f,1,"main [check1.c]",
-            "cmat_dag: input values have changed");      
+            "cmat_dag: input values have changed");
    }
 
    printf("Consider matrices of size up to %dx%d\n\n",NMAX,NMAX);
-   
+
    printf("The maximal observed deviations are:\n\n");
-   printf("cmat_vec:     %.1e\n",d1);   
+   printf("cmat_vec:     %.1e\n",d1);
    printf("cmat_add:     %.1e\n",d2);
    printf("cmat_sub:     %.1e\n",d3);
    printf("cmat_mul:     %.1e\n",d4);
    printf("cmat_dag:     %.1e\n\n",d5);
-   
+
    exit(0);
 }

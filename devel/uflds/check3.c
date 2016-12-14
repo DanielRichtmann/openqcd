@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2007, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2005, 2007, 2011-2013, 2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -50,20 +50,20 @@ static int range(int *dist,int *s,int *ra,int *rb)
    io=1;
 
    l[0]=L0;
-   l[1]=L1;   
+   l[1]=L1;
    l[2]=L2;
    l[3]=L3;
 
    nl[0]=L0*NPROC0;
    nl[1]=L1*NPROC1;
    nl[2]=L2*NPROC2;
-   nl[3]=L3*NPROC3;   
-   
+   nl[3]=L3*NPROC3;
+
    for (mu=0;mu<4;mu++)
    {
       a=dist[mu]+s[mu];
       b=a+l[mu];
-      
+
       a=safe_mod(a,nl[mu]);
       b=safe_mod(b,nl[mu]);
 
@@ -101,7 +101,7 @@ static void snd_pairs(int *dist)
 
    for (ic=0;ic<NPROC;ic++)
       isnd[ic]=0;
-   
+
    for (c0=0;c0<(NPROC0*L0);c0+=L0)
    {
       for (c1=0;c1<(NPROC1*L1);c1+=L1)
@@ -118,8 +118,8 @@ static void snd_pairs(int *dist)
                bo1[0]=c0+dist[0];
                bo1[1]=c1+dist[1];
                bo1[2]=c2+dist[2];
-               bo1[3]=c3+dist[3];               
-               
+               bo1[3]=c3+dist[3];
+
                ipt_global(bo0,&ip0,&dmy);
                ipt_global(bo1,&ip1,&dmy);
 
@@ -127,7 +127,7 @@ static void snd_pairs(int *dist)
                   iprcv=ip1;
                if (my_rank==ip1)
                   ipsnd=ip0;
-               
+
                if ((isnd[ip1]==0)&&(ip0!=ip1))
                {
                   isnd[ip1]=1;
@@ -144,7 +144,7 @@ static void snd_field(int *dist)
 {
    int nbuf,tag,n;
    MPI_Status stat;
-   
+
    snd_pairs(dist);
    nbuf=4*18*VOLUME;
    tag=mpi_tag();
@@ -157,7 +157,7 @@ static void snd_field(int *dist)
    else if (isnd[my_rank]==-1)
    {
       MPI_Recv(ubuf,nbuf,MPI_DOUBLE,iprcv,tag,MPI_COMM_WORLD,&stat);
-      MPI_Send(uold,nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);      
+      MPI_Send(uold,nbuf,MPI_DOUBLE,ipsnd,tag,MPI_COMM_WORLD);
    }
    else
    {
@@ -174,7 +174,7 @@ static void save_field(su3_dble *u)
 
    copy_bnd_ud();
    ub=udfld();
-   
+
    for (ix=0;ix<VOLUME;ix++)
    {
       iy=ipt[ix];
@@ -202,24 +202,24 @@ static int cmp_su3_dble(su3_dble *u,su3_dble *v)
    r[ 0]=(*u).c11.re-(*v).c11.re;
    r[ 1]=(*u).c11.im-(*v).c11.im;
    r[ 2]=(*u).c12.re-(*v).c12.re;
-   r[ 3]=(*u).c12.im-(*v).c12.im;   
+   r[ 3]=(*u).c12.im-(*v).c12.im;
    r[ 4]=(*u).c13.re-(*v).c13.re;
    r[ 5]=(*u).c13.im-(*v).c13.im;
 
    r[ 6]=(*u).c21.re-(*v).c21.re;
    r[ 7]=(*u).c21.im-(*v).c21.im;
    r[ 8]=(*u).c22.re-(*v).c22.re;
-   r[ 9]=(*u).c22.im-(*v).c22.im;   
+   r[ 9]=(*u).c22.im-(*v).c22.im;
    r[10]=(*u).c23.re-(*v).c23.re;
    r[11]=(*u).c23.im-(*v).c23.im;
 
    r[12]=(*u).c31.re-(*v).c31.re;
    r[13]=(*u).c31.im-(*v).c31.im;
    r[14]=(*u).c32.re-(*v).c32.re;
-   r[15]=(*u).c32.im-(*v).c32.im;   
+   r[15]=(*u).c32.im-(*v).c32.im;
    r[16]=(*u).c33.re-(*v).c33.re;
    r[17]=(*u).c33.im-(*v).c33.im;
-   
+
    for (k=0;k<18;k++)
    {
       if (r[k]!=0.0)
@@ -251,14 +251,14 @@ static int cmp_field(int *s)
                dist[0]=c0;
                dist[1]=c1;
                dist[2]=c2;
-               dist[3]=c3;               
+               dist[3]=c3;
 
                io=range(dist,s,ra,rb);
 
                if (io!=0)
                {
                   snd_field(dist);
-                  
+
                   for (x0=ra[0];x0<rb[0];x0++)
                   {
                      for (x1=ra[1];x1<rb[1];x1++)
@@ -291,9 +291,9 @@ static int cmp_field(int *s)
    {
       io=itest;
       MPI_Reduce(&io,&itest,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&itest,1,MPI_INT,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&itest,1,MPI_INT,0,MPI_COMM_WORLD);
    }
-   
+
    return itest;
 }
 
@@ -316,17 +316,17 @@ static void random_vec(int *svec)
       if (svec[mu]>(bs[mu]/2))
          svec[mu]-=bs[mu];
    }
-   
-   MPI_Bcast(svec,4,MPI_INT,0,MPI_COMM_WORLD);   
+
+   MPI_Bcast(svec,4,MPI_INT,0,MPI_COMM_WORLD);
 }
 
-               
+
 int main(int argc,char *argv[])
 {
    int bc,ie;
    int ifc,mu,s[4],n,itest;
-   double phi[2],phi_prime[2];
-   FILE *flog=NULL;   
+   double phi[2],phi_prime[2],theta[3];
+   FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -334,7 +334,7 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       flog=freopen("check3.log","w",stdout);
-      
+
       printf("\n");
       printf("Translation of the double-precision gauge field\n");
       printf("-----------------------------------------------\n\n");
@@ -355,9 +355,12 @@ int main(int argc,char *argv[])
    phi[1]=-0.534;
    phi_prime[0]=0.912;
    phi_prime[1]=0.078;
-   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime);
-   print_bc_parms();  
-   
+   theta[0]=0.0;
+   theta[1]=0.0;
+   theta[2]=0.0;
+   set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
+   print_bc_parms(0);
+
    geometry();
    alloc_bufs();
 
@@ -370,7 +373,7 @@ int main(int argc,char *argv[])
       {
          random_ud();
          save_field(uold);
-               
+
          s[0]=0;
          s[1]=0;
          s[2]=0;
@@ -388,7 +391,7 @@ int main(int argc,char *argv[])
 
          ie=check_bc(0.0);
          error_root(ie==0,1,"main [check3.c]","Boundary conditions changed");
-         
+
          if (my_rank==0)
          {
             printf("Shift vector (% 3d,% 3d,% 3d,% 3d): ",
@@ -407,7 +410,7 @@ int main(int argc,char *argv[])
       printf("\n");
       printf("Random shift vectors:\n\n");
    }
-   
+
    for (n=0;n<8;n++)
    {
       random_ud();
@@ -422,7 +425,7 @@ int main(int argc,char *argv[])
 
       ie=check_bc(0.0);
       error_root(ie==0,1,"main [check3.c]","Boundary conditions changed");
-      
+
       if (my_rank==0)
       {
          printf("Shift vector (% 3d,% 3d,% 3d,% 3d): ",
@@ -434,15 +437,13 @@ int main(int argc,char *argv[])
             printf("failed\n");
       }
    }
-  
-   error_chk();
-   
+
    if (my_rank==0)
    {
       printf("\n");
       fclose(flog);
    }
-   
-   MPI_Finalize(); 
+
+   MPI_Finalize();
    exit(0);
 }

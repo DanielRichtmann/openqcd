@@ -21,7 +21,7 @@
 *     address (the return value) that is an integer multiple of 2^p
 *
 *   void afree(void *addr)
-*     Frees the aligned memory area at address "addr" that was 
+*     Frees the aligned memory area at address "addr" that was
 *     previously allocated using amalloc
 *
 *   void error(int test,int no,char *name,char *format,...)
@@ -34,9 +34,8 @@
 *   void error_root(int test,int no,char *name,char *format,...)
 *     Same as error(), provided for compatibility
 *
-*   int error_loc(int test,int no,char *name,char *format,...)
-*     Same as error(), except that "test" is returned. Provided for
-*     compatibility
+*   void error_loc(int test,int no,char *name,char *format,...)
+*     Same as error(), provided for compatibility
 *
 *   void message(char *format,...)
 *     Same as printf(), provided for compatibility
@@ -85,7 +84,7 @@ void *amalloc(size_t size,int p)
 
    true_addr=malloc(size+shift);
    new=malloc(sizeof(*new));
-   
+
    if ((true_addr==NULL)||(new==NULL))
    {
       free(true_addr);
@@ -113,7 +112,7 @@ void *amalloc(size_t size,int p)
    }
 
    rpos=new;
-                   
+
    return (void*)(addr);
 }
 
@@ -123,7 +122,7 @@ void afree(void *addr)
    struct addr_t *p,*pn,*pl;
 
    if (rpos!=NULL)
-   {   
+   {
       p=rpos;
 
       for (;;)
@@ -132,7 +131,7 @@ void afree(void *addr)
          {
             pn=(*p).next;
             pl=(*p).last;
-            
+
             if (pn!=p)
             {
                (*pl).next=pn;
@@ -143,7 +142,7 @@ void afree(void *addr)
                rpos=NULL;
 
             free((*p).true_addr);
-            free(p);            
+            free(p);
             return;
          }
 
@@ -158,12 +157,12 @@ void afree(void *addr)
 void error(int test,int no,char *name,char *format,...)
 {
    va_list args;
-   
+
    if (test!=0)
    {
       printf("\nError in %s:\n",name);
       va_start(args,format);
-      vprintf(format,args);      
+      vprintf(format,args);
       va_end(args);
       printf("\nProgram aborted\n\n");
       exit(no);
@@ -174,12 +173,12 @@ void error(int test,int no,char *name,char *format,...)
 void error_root(int test,int no,char *name,char *format,...)
 {
    va_list args;
-   
+
    if (test!=0)
    {
       printf("\nError in %s:\n",name);
       va_start(args,format);
-      vprintf(format,args);      
+      vprintf(format,args);
       va_end(args);
       printf("\nProgram aborted\n\n");
       exit(no);
@@ -187,21 +186,19 @@ void error_root(int test,int no,char *name,char *format,...)
 }
 
 
-int error_loc(int test,int no,char *name,char *format,...)
+void error_loc(int test,int no,char *name,char *format,...)
 {
    va_list args;
-   
+
    if (test!=0)
    {
       printf("\nError in %s:\n",name);
       va_start(args,format);
-      vprintf(format,args);      
+      vprintf(format,args);
       va_end(args);
       printf("\nProgram aborted\n\n");
       exit(no);
    }
-
-   return test;
 }
 
 
@@ -210,6 +207,6 @@ void message(char *format,...)
    va_list args;
 
    va_start(args,format);
-   vprintf(format,args);      
+   vprintf(format,args);
    va_end(args);
 }
