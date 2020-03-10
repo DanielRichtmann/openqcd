@@ -1,0 +1,33 @@
+
+[Run name]
+name         Snoopy137
+
+[Log and data directories]
+log_dir      ../data/xms1/log
+dat_dir      ../data/xms1/dat
+
+[Configurations]
+type         e
+cnfg_dir     /data/ym1/cnfg
+nio_nodes    12
+nio_streams  8
+first        1
+last         4
+step         1
+
+[Observable fields]
+type         b
+flds_dir     /data/xms1/flds
+bs           16 8 8 24
+nio_nodes    8
+nio_streams  8
+
+[Wilson flow]
+integrator   RK3
+eps          2.0e-2
+
+[Observables]
+tm           2.75 2.78 2.81
+i3d          0
+dmax         16
+Qmax         10.0

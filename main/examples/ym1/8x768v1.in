@@ -1,0 +1,57 @@
+
+################################################################################
+#
+# HMC master-field simulation of the SU(3) YM theory with Wilson plaquette
+# action, periodic boundary conditions and parallel configuration I/O.
+# Parameters tuned for simulations of 8x768^3 lattices.
+#
+# The block size "bs" specified in the section "Configurations"  assumes that
+# the local lattice L0xL1xL2xL3 divides the block 8x96x96x96. Other lattice
+# sizes can be accommodated by changing the block size "bs".
+#
+################################################################################
+
+[Run name]
+name         8x768v1
+
+[Log and data directories]
+log_dir      /data/openQCD/ym1/log
+dat_dir      /data/openQCD/ym1/dat
+
+[Initial configuration]
+type         b
+init_dir     /data/openQCD/ym1/blk
+nio_nodes    16
+nio_streams  16
+
+[Configurations]
+types        b
+block_dir    /data/openQCD/ym1/blk
+bs           8 96 96 96
+nio_nodes    16
+nio_streams  16
+
+[Random number generator]
+level        0
+seed         5008
+
+[Lattice parameters]
+beta         6.56185
+c0           1.0
+
+[Boundary conditions]
+type         3
+
+[Trajectory length]
+tau          2.0
+
+[MD integrator]
+integrator   OMF4
+nstep        17
+
+[MD trajectories]
+nth          0
+ntr          5760
+dtr_log      40
+dtr_ms       40
+dtr_cnfg     240

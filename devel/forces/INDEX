@@ -1,34 +1,55 @@
 
-MD force programs
+MD force programs.
 
-check1        Gauge and translation invariance of the gauge action
+check1        Gauge and translation invariance of the gauge action.
 
-check2        Gauge action of constant Abelian fields
+check2        Gauge action of constant Abelian fields.
 
-check3        Check of force0() and action0()
+check3        Check of force0() and action0().
 
-check4        Check of sw_frc() and hop_frc()
+check4        Check of sw_frc() and hop_frc().
 
-check5        Check and performance of the CG solver
+check5        Check and performance of the CG solver.
 
-check6        Check of force1() and action1()
+check6        Check of force1() and action1().
 
-check7        Check of force2() and action2()
+check7        Check of force2() and action2().
 
-check8        Check and performance of the multi-shift CG solver
+check8        Check and performance of the multi-shift CG solver.
 
-check9        Check of force3() and action3()
+check9        Check of force3() and action3().
 
-check10       Check of force4() and action4()
+check10       Check of force4() and action4().
 
-check11       Check of force5() and action5()
+check11       Check of force5() and action5().
 
-time1         Timing of plaq_frc(), sw_frc() and hop_frc()
+check12       Check of the numerical accuracy of the calculated actions
+              and forces.
 
-Except for check5 and check8, all programs accept the option -bc <type> that
-allows the type of boundary condition to be chosen at runtime. When the option
-is not set, open boundary conditions are assumed.
+time1         Timing of plaq_frc(), sw_frc() and hop_frc().
 
-The option may be set but has no effect in the case of check5 and check8 (the
-boundary conditions are selected through the input parameter file in these
-cases).
+Local modules:
+
+auxfcts       Common functions used in the force check programs.
+
+Except for check5, check8 and check12, all programs accept the option -bc
+<type> that allows the type of boundary condition to be chosen at runtime.
+When the option is not set, open boundary conditions are assumed.
+
+The programs check6,check7,check9,check10,check11 and time1 moreover accept
+the option -sw <type>, which selects the type of the SW term at runtime (0
+corresponds to the traditional SW term and 1 to the "exponential" variant).
+The default type is 0.
+
+In the case of the programs check5, check8 and check12, the boundary
+conditions and the type of the SW term are selected through the input
+parameter file.
+
+The programs check5 and check8 require as input an ensemble of gauge
+configurations as produced by the programs main/{qcd1.c,qcd2.c,ym1.c,ym2.c}.
+
+The program check12 requires as input an ensemble of gauge configurations
+together with the corresponding pseudo-fermion fields as produced by the
+program main/qcd2.c. Typically the latter is run for some time and the check
+program is then called, with the same action, force and solver parameters, in
+order to check the numerical accuracy of the calculated actions and forces.

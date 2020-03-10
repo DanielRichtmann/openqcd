@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2009, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of mul_pauli() and mul_pauli2()
+* Check of mul_pauli() and mul_pauli2().
 *
 *******************************************************************************/
 

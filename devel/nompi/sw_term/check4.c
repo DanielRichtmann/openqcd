@@ -3,12 +3,12 @@
 *
 * File check4.c
 *
-* Copyright (C) 2011, 2016 Martin Luescher
+* Copyright (C) 2011, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of apply_sw_dble() and apply_swinv_dble()
+* Check of apply_sw_dble() and apply_swinv_dble().
 *
 *******************************************************************************/
 
@@ -30,12 +30,21 @@ typedef union
    double r[24];
 } spin_t;
 
+#if (defined AVX)
+static complex_dble mv[36] ALIGNED32;
+static pauli_dble m[2*NM] ALIGNED32;
+static spin_t sp1[NM] ALIGNED32;
+static spin_t sp2[NM] ALIGNED32;
+static spin_t rp1[NM] ALIGNED32;
+static spin_t rp2[NM] ALIGNED32;
+#else
+static complex_dble mv[36] ALIGNED16;
 static pauli_dble m[2*NM] ALIGNED16;
 static spin_t sp1[NM] ALIGNED16;
 static spin_t sp2[NM] ALIGNED16;
 static spin_t rp1[NM] ALIGNED16;
 static spin_t rp2[NM] ALIGNED16;
-static complex_dble mv[36] ALIGNED16;
+#endif
 
 
 static void random_pauli_dble(void)
@@ -134,7 +143,9 @@ int main(void)
    printf("Check of apply_sw_dble() and apply_swinv_dble()\n");
    printf("-----------------------------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
@@ -165,13 +176,14 @@ int main(void)
    printf("Input spinor field preserved\n");
 
    apply_sw_dble(NM,mu,m,s1,s1);
-   error(diff_spin(sp1,rp1)!=0.0f,1,"main [check4.c]",
+   error(diff_spin(sp1,rp1)!=0.0,1,"main [check4.c]",
          "apply_sw_dble() does not work correctly if r=s");
    printf("Works correctly if input and output fields coincide\n\n");
 
    random_pauli_dble();
    random_spin();
    cp_spin(sp1,sp2);
+
    ie=apply_swinv_dble(NM,mu,m,s1,r1);
 
    error(diff_spin(sp1,sp2)!=0.0,1,"main [check4.c]",
@@ -193,7 +205,7 @@ int main(void)
    printf("Input spinor field preserved\n");
 
    apply_swinv_dble(NM,mu,m,s1,s1);
-   error(diff_spin(sp1,rp1)!=0.0f,1,"main [check4.c]",
+   error(diff_spin(sp1,rp1)!=0.0,1,"main [check4.c]",
          "apply_swinv_dble() does not work correctly if r=s");
    printf("Works correctly if input and output fields coincide\n\n");
 

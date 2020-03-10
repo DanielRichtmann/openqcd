@@ -3,14 +3,12 @@
 *
 * File sap_com.c
 *
-* Copyright (C) 2005, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * SAP communication program.
-*
-* The externally accessible functions are
 *
 *   void alloc_sap_bufs(void)
 *     Allocates and initializes the buffers and index arrays needed for
@@ -22,8 +20,6 @@
 *     from the global spinor field r. Before subtraction, the Weyl fields
 *     on the block faces in direction ifc are expanded to Dirac spinor
 *     fields s satisfying theta[ifc]*s=0.
-*
-* Notes:
 *
 * The program alloc_sap_bufs() adds a single-precision Weyl field to the
 * boundaries of the blocks in the SAP_BLOCKS grid. In memory these fields
@@ -257,10 +253,13 @@ static void set_mpi_req(void)
          tag=mpi_permanent_tag();
          nbf=12*nsbf[ic][ifc];
 
-         MPI_Send_init(snd_buf[ic][ifc],nbf,MPI_FLOAT,
-                       saddr,tag,MPI_COMM_WORLD,&snd_req[ic][ifc]);
-         MPI_Recv_init(rcv_buf[ic][ifc],nbf,MPI_FLOAT,
-                       raddr,tag,MPI_COMM_WORLD,&rcv_req[ic][ifc]);
+         if (nbf)
+         {
+            MPI_Send_init(snd_buf[ic][ifc],nbf,MPI_FLOAT,
+                          saddr,tag,MPI_COMM_WORLD,&snd_req[ic][ifc]);
+            MPI_Recv_init(rcv_buf[ic][ifc],nbf,MPI_FLOAT,
+                          raddr,tag,MPI_COMM_WORLD,&rcv_req[ic][ifc]);
+         }
       }
    }
 }

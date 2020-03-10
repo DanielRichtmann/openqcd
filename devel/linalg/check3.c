@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011, 2012, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Checks on the programs in the module salg_dble.c
+* Checks on the programs in the module salg_dble.c.
 *
 *******************************************************************************/
 
@@ -73,7 +73,9 @@ int main(int argc,char *argv[])
    int my_rank,i,j,vol,off;
    int icom,ieo;
    double r,cs,cr,zsq,d,dmax,dall;
+   qflt qr;
    complex_dble z,w;
+   complex_qflt qz;
    spinor_dble **psd,*pk,*pl,*pj;
    FILE *flog=NULL;
 
@@ -93,6 +95,7 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
+   check_machine();
    start_ranlux(0,12345);
    geometry();
    alloc_wsd(10);
@@ -156,21 +159,31 @@ int main(int argc,char *argv[])
                else
                   w=sp(vol,pk,pl);
 
-               z=spinor_prod_dble(vol,icom,pk,pl);
-               r=norm_square_dble(vol,icom,pk)*norm_square_dble(vol,icom,pl);
+               qz=spinor_prod_dble(vol,icom,pk,pl);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
+
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
+               qr=norm_square_dble(vol,icom,pl);
+               r*=qr.q[0];
                d=(z.re-w.re)*(z.re-w.re)+(z.im-w.im)*(z.im-w.im);
                d=sqrt(d/r);
                if (d>dmax)
                   dmax=d;
 
-               r=spinor_prod_re_dble(vol,icom,pk,pl);
-
-               d=fabs(z.re/r-1.0);
+               qr=spinor_prod_re_dble(vol,icom,pk,pl);
+               w.re=qr.q[0];
+               d=(z.re-w.re)*(z.re-w.re);
+               d=sqrt(d/r);
                if (d>dmax)
                   dmax=d;
 
-               z=spinor_prod_dble(vol,icom,pk,pk);
-               r=norm_square_dble(vol,icom,pk);
+               qz=spinor_prod_dble(vol,icom,pk,pk);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
 
                d=fabs(z.im/r);
                if (d>dmax)
@@ -196,11 +209,17 @@ int main(int argc,char *argv[])
                pk=psd[i]+off;
                pl=psd[9-i]+off;
 
-               z=spinor_prod5_dble(vol,icom,pk,pl);
+               qz=spinor_prod5_dble(vol,icom,pk,pl);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
                mulg5_dble(vol,pl);
-               w=spinor_prod_dble(vol,icom,pk,pl);
-
-               r=norm_square_dble(vol,icom,pk)*norm_square_dble(vol,icom,pl);
+               qz=spinor_prod_dble(vol,icom,pk,pl);
+               w.re=qz.re.q[0];
+               w.im=qz.im.q[0];
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
+               qr=norm_square_dble(vol,icom,pl);
+               r*=qr.q[0];
                d=(z.re-w.re)*(z.re-w.re)+(z.im-w.im)*(z.im-w.im);
                d=sqrt(d/r);
                if (d>dmax)
@@ -225,12 +244,17 @@ int main(int argc,char *argv[])
                pk=psd[i]+off;
                pl=psd[i+1]+off;
 
-               w=spinor_prod_dble(vol,icom,pk,pl);
-               r=norm_square_dble(vol,icom,pk)+zsq*norm_square_dble(vol,icom,pl)
-                  +2.0*(z.re*w.re-z.im*w.im);
+               qz=spinor_prod_dble(vol,icom,pk,pl);
+               w.re=qz.re.q[0];
+               w.im=qz.im.q[0];
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
+               qr=norm_square_dble(vol,icom,pl);
+               r+=zsq*qr.q[0]+2.0*(z.re*w.re-z.im*w.im);
                mulc_spinor_add_dble(vol,pk,pl,z);
+               qr=norm_square_dble(vol,icom,pk);
 
-               d=fabs(r/norm_square_dble(vol,icom,pk)-1.0);
+               d=fabs(r/qr.q[0]-1.0);
                if (d>dmax)
                   dmax=d;
             }
@@ -262,8 +286,10 @@ int main(int argc,char *argv[])
                mulc_spinor_add_dble(vol,pk,pl,z);
                mulr_spinor_add_dble(vol,pk,pj,-1.0);
 
-               d=norm_square_dble(vol,icom,pk)/norm_square_dble(vol,icom,pj);
-               d=sqrt(d);
+               qr=norm_square_dble(vol,icom,pk);
+               d=qr.q[0];
+               qr=norm_square_dble(vol,icom,pj);
+               d=sqrt(d/qr.q[0]);
                if (d>dmax)
                   dmax=d;
 
@@ -271,8 +297,10 @@ int main(int argc,char *argv[])
                scale_dble(vol,r,pk);
                mulc_spinor_add_dble(vol,pk,pl,z);
 
-               d=norm_square_dble(vol,icom,pk)/norm_square_dble(vol,icom,pl);
-               d=sqrt(d);
+               qr=norm_square_dble(vol,icom,pk);
+               d=qr.q[0];
+               qr=norm_square_dble(vol,icom,pl);
+               d=sqrt(d/qr.q[0]);
                if (d>dmax)
                   dmax=d;
             }
@@ -304,8 +332,10 @@ int main(int argc,char *argv[])
                mulr_spinor_add_dble(vol,pj,pl,cr);
                mulr_spinor_add_dble(vol,pk,pj,-1.0);
 
-               d=norm_square_dble(vol,icom,pk)/norm_square_dble(vol,icom,pj);
-               d=sqrt(d);
+               qr=norm_square_dble(vol,icom,pk);
+               d=qr.q[0];
+               qr=norm_square_dble(vol,icom,pj);
+               d=sqrt(d/qr.q[0]);
                if (d>dmax)
                   dmax=d;
             }
@@ -331,16 +361,19 @@ int main(int argc,char *argv[])
                {
                   pl=psd[i-1]+off;
                   project_dble(vol,icom,pk,pl);
-                  z=spinor_prod_dble(vol,icom,pk,pl);
-
-                  d=(fabs(z.re)+fabs(z.im))/sqrt(norm_square_dble(vol,icom,pk));
+                  qz=spinor_prod_dble(vol,icom,pk,pl);
+                  z.re=qz.re.q[0];
+                  z.im=qz.im.q[0];
+                  qr=norm_square_dble(vol,icom,pk);
+                  d=(fabs(z.re)+fabs(z.im))/sqrt(qr.q[0]);
 
                   if (d>dmax)
                      dmax=d;
                }
 
-               normalize_dble(vol,icom,pk);
-               r=norm_square_dble(vol,icom,pk);
+               (void)(normalize_dble(vol,icom,pk));
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
 
                d=fabs(r-1.0);
                if (d>dmax)
@@ -388,14 +421,16 @@ int main(int argc,char *argv[])
                   mulc_spinor_add_dble(vol,pk,pl,z);
                }
 
-               r=norm_square_dble(vol,icom,pk);
+               qr=norm_square_dble(vol,icom,pk);
+               r=qr.q[0];
 
                d=fabs(r);
                if (d>dmax)
                   dmax=d;
             }
 
-            dmax/=norm_square_dble(vol,icom,psd[0]+off);
+            qr=norm_square_dble(vol,icom,psd[0]+off);
+            dmax/=qr.q[0];
             dmax=sqrt(dmax);
 
             if (my_rank==0)
@@ -421,16 +456,22 @@ int main(int argc,char *argv[])
                z.im=0.0;
 
                mulc_spinor_add_dble(vol,pl,pk,z);
-               r=norm_square_dble(vol,icom,pl)/norm_square_dble(vol,icom,pk);
-               d=sqrt(r);
+               qr=norm_square_dble(vol,icom,pl);
+               r=qr.q[0];
+               qr=norm_square_dble(vol,icom,pk);
+               d=sqrt(r/qr.q[0]);
                if (d>dmax)
                   dmax=d;
 
                random_sd(vol,pl,1.0);
-               z=spinor_prod_dble(vol,icom,pk,pl);
+               qz=spinor_prod_dble(vol,icom,pk,pl);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
                mulg5_dble(vol,pk);
                mulg5_dble(vol,pl);
-               w=spinor_prod_dble(vol,icom,pk,pl);
+               qz=spinor_prod_dble(vol,icom,pk,pl);
+               w.re=qz.re.q[0];
+               w.im=qz.im.q[0];
 
                d=(fabs(z.re-w.re)+fabs(z.im-w.im))/
                   (fabs(z.re)+fabs(z.im));
@@ -446,8 +487,10 @@ int main(int argc,char *argv[])
                z.im=0.0;
 
                mulc_spinor_add_dble(vol,pl,pk,z);
-               r=norm_square_dble(vol,icom,pl)/norm_square_dble(vol,icom,pk);
-               d=sqrt(r);
+               qr=norm_square_dble(vol,icom,pl);
+               r=qr.q[0];
+               qr=norm_square_dble(vol,icom,pk);
+               d=sqrt(r/qr.q[0]);
                if (d>dmax)
                   dmax=d;
             }

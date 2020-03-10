@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2010-2013, 2016 Martin Luescher
+* Copyright (C) 2010-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -360,9 +360,10 @@ static void scale_bnd_frc(su3_alg_dble *frc)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,bc,n,k,ie;
+   int my_rank,iact,bc,n,k,ie;
    double phi[2],phi_prime[2],theta[3];
    double eps,nplaq,act0,act1,dev0,dev1;
+   qflt rqsm;
    su3_dble *udb,*u,*um,**usv;
    su3_alg_dble *frc,**fsv;
    mdflds_t *mdfs;
@@ -398,11 +399,12 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
 
-   set_lat_parms(6.0,1.0,0,NULL,1.0);
+   set_lat_parms(6.0,1.0,0,NULL,0,1.0);
    print_lat_parms();
 
    phi[0]=0.123;
@@ -412,6 +414,9 @@ int main(int argc,char *argv[])
    theta[0]=0.0;
    theta[1]=0.0;
    theta[2]=0.0;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
    print_bc_parms(0);
 
@@ -430,8 +435,9 @@ int main(int argc,char *argv[])
       nplaq=(double)(6*N0)*(double)(N1*N2*N3);
 
    random_ud();
-   act0=action0(1);
-   act1=3.0*nplaq-plaq_wsum_dble(1);
+   rqsm=action0(1);
+   act0=rqsm.q[0];
+   act1=6.0*nplaq-2.0*plaq_wsum_dble(1);
 
    plaq_frc();
    ie=check_bnd_fld((*mdfs).frc);
@@ -448,7 +454,7 @@ int main(int argc,char *argv[])
    {
       printf("Random gauge field:\n");
       printf("Action (action0)   = %.15e\n",act0);
-      printf("Action (plaq_wsum) = %.15e\n",2.0*act1);
+      printf("Action (plaq_wsum) = %.15e\n",act1);
       printf("Deviation of force = %.1e\n\n",dev0);
    }
 
@@ -482,23 +488,22 @@ int main(int argc,char *argv[])
    }
 
    random_ud();
-   act0=3.0*nplaq-plaq_wsum_dble(1);
+   act0=6.0*nplaq-2.0*plaq_wsum_dble(1);
 
    if (my_rank==0)
-      printf("k =  0: %.8e\n",2.0*act0/nplaq);
+      printf("k =  0: %.8e\n",act0/nplaq);
 
    for (k=1;k<=n;k++)
    {
       fwd_euler(1,eps);
-      act1=3.0*nplaq-plaq_wsum_dble(1);
-
-      error(((act1>act0)&&(eps>=0.0))||((act1<act0)&&(eps<=0.0)),1,
+      act1=6.0*nplaq-2.0*plaq_wsum_dble(1);
+      error(((act1>act0)&&(eps>=0.0))||
+            ((act1<act0)&&(eps<=0.0)),1,
             "main [check1.c]","The Wilson action is not monotonic");
-
       act0=act1;
 
       if (my_rank==0)
-         printf("k = %2d: %.8e\n",k,2.0*act0/nplaq);
+         printf("k = %2d: %.8e\n",k,act0/nplaq);
    }
 
    ie=check_bc(0.0);

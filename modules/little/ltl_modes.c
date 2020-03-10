@@ -3,14 +3,12 @@
 *
 * File ltl_modes.c
 *
-* Copyright (C) 2011, 2013 Martin Luescher
+* Copyright (C) 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Computation of the little modes.
-*
-* The externally accessible functions are
 *
 *   int set_ltl_modes(void)
 *     Computes the little modes, the associated little-little Dirac
@@ -21,14 +19,14 @@
 *     Returns the pointer to an Ns x Ns matrix that represents the
 *     *inverse* of the double-precision little-little Dirac operator.
 *
-* Notes:
-*
 * For a description of the little Dirac operator and the associated data
 * structures see README.Aw. As usual, Ns denotes the number of deflation
 * modes in each block of the DFL_BLOCKS grid.
 *
 * The inversion of a double-precision complex matrix is considered to be
 * safe if and only if its Frobenius condition number is less than 10^6.
+* The program set_ltl_modes() requires a workspace of 2 double-precision
+* complex vector fields (see utils/wspace.c).
 *
 * All programs in this module may involve global communications and must
 * be called simultaneously on all MPI processes.
@@ -117,8 +115,10 @@ int set_ltl_modes(void)
 {
    int k,l,nmat,ifail;
    double r,cn;
+   qflt rqsm;
    complex **wv;
    complex_dble **wvd,z;
+   complex_qflt cqsm;
 
    if (Ns==0)
       alloc_matrices();
@@ -133,7 +133,11 @@ int set_ltl_modes(void)
       if (k>0)
       {
          for (l=0;l<k;l++)
-            Cds[l]=vprod_dble(nvh,0,vds[l],vds[k]);
+         {
+            cqsm=vprod_dble(nvh,0,vds[l],vds[k]);
+            Cds[l].re=cqsm.re.q[0];
+            Cds[l].im=cqsm.im.q[0];
+         }
 
          sum_vprod(k,Cds,Cds+Ns);
 
@@ -146,8 +150,8 @@ int set_ltl_modes(void)
          }
       }
 
-      r=vnorm_square_dble(nvh,1,vds[k]);
-      r=sqrt(r);
+      rqsm=vnorm_square_dble(nvh,1,vds[k]);
+      r=sqrt(rqsm.q[0]);
 
       if (r!=0.0)
       {
@@ -167,7 +171,11 @@ int set_ltl_modes(void)
    for (k=0;k<Ns;k++)
    {
       for (l=0;l<Ns;l++)
-         Cds[Ns*k+l]=vprod_dble(nvh,0,vds[k],vds[l]+nvh);
+      {
+         cqsm=vprod_dble(nvh,0,vds[k],vds[l]+nvh);
+         Cds[Ns*k+l].re=cqsm.re.q[0];
+         Cds[Ns*k+l].im=cqsm.im.q[0];
+      }
    }
 
    nmat=Ns*Ns;

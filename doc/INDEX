@@ -5,7 +5,11 @@
 
 ********************************************************************************
 
+dft.pdf               Discrete Fourier transform.
+
 dirac.pdf             Implementation of the lattice Dirac operator.
+
+dft.pdf               Discrete Fourier transform.
 
 forces.pdf            Molecular-dynamics quark forces.
 
@@ -14,6 +18,8 @@ gauge_action.pdf      Gauge actions in openQCD simulations.
 mscg.pdf              Multi-shift conjugate gradient algorithm.
 
 parms.pdf             Parameters of the openQCD main programs.
+
+qsum.pdf              Quadruple-precision summation in openQCD.
 
 ranlux_guide.pdf      User's guide for the random number generator ranlux.
                       Notes accompanying the program files ranlxs.c and
@@ -29,3 +35,4 @@ stat_fcts.pdf         Statistical tests. Notes accompanying the program files
 
 su3_fcts.pdf          SU(3) matrix functions.
 
+unorm.pdf             Stopping criteria and the uniform norm in lattice QCD.

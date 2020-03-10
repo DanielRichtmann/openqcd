@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2005, 2008, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2008, 2011-2013, 2016, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -78,7 +78,11 @@ int main(int argc,char *argv[])
 
 #if (defined x64)
 #if (defined AVX)
-      printf("Using AVX instructions\n");
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n");
+#else
+   printf("Using AVX instructions\n");
+#endif
 #else
       printf("Using SSE3 instructions and 16 xmm registers\n");
 #endif
@@ -101,7 +105,7 @@ int main(int argc,char *argv[])
                     "Syntax: time1 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);

@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Yang-Mills action of constant abelian background fields.
+* Yang-Mills action of constant Abelian background fields.
 *
 *******************************************************************************/
 
@@ -343,7 +343,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check5.log","w",stdout);
       printf("\n");
-      printf("Yang-Mills action of constant abelian background fields\n");
+      printf("Yang-Mills action of constant Abelian background fields\n");
       printf("-------------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
@@ -357,6 +357,7 @@ int main(int argc,char *argv[])
                     "Syntax: check5 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;

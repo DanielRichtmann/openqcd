@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2011-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -55,6 +55,7 @@ int main(int argc,char *argv[])
    int ncr,ifr,zero;
    double phi[2],phi_prime[2],theta[3];
    double kappa,mu,eps,dev;
+   qflt rqsm;
    spinor_dble **chi,**wsd;
    mdstep_t *s,*sm;
    FILE *flog=NULL;
@@ -75,12 +76,12 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
+   check_machine();
    mu=0.5;
    zero=0;
    ncr=4;
-
    kappa=0.1365;
-   set_lat_parms(5.3,1.6667,1,&kappa,1.789);
+   set_lat_parms(5.3,1.6667,1,&kappa,0,1.789);
    phi[0]=0.0;
    phi[1]=0.0;
    phi_prime[0]=0.0;
@@ -130,8 +131,10 @@ int main(int argc,char *argv[])
          if (get_chrono(1,wsd[1]))
          {
             mulr_spinor_add_dble(VOLUME,wsd[1],wsd[0],-1.0);
-            dev=norm_square_dble(VOLUME,1,wsd[1])/
-               norm_square_dble(VOLUME,1,wsd[0]);
+            rqsm=norm_square_dble(VOLUME,1,wsd[1]);
+            dev=rqsm.q[0];
+            rqsm=norm_square_dble(VOLUME,1,wsd[0]);
+            dev/=rqsm.q[0];
 
             if (my_rank==0)
                printf("t = %.3f, dev = %.1e\n",mdtime(),sqrt(dev));

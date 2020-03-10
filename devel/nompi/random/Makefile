@@ -22,15 +22,15 @@ all: rmxeq mkdep mkxeq
 MAIN = check1 check2 check3 check4 check5 check6 check7\
        time1 time2
 
-RANDOM = ranlxs ranlxd gauss random_su3
+EXTRAS = chebyshev ks_test pchi_square stat
 
-UTILS = utils
+RANDOM = ranlxs ranlxd gauss random_su3
 
 SU3FCTS = su3prod su3ren
 
-EXTRAS = chebyshev ks_test pchi_square stat
+UTILS = utils
 
-MODULES = $(RANDOM) $(UTILS) $(SU3FCTS) $(EXTRAS)
+MODULES = $(EXTRAS) $(RANDOM) $(SU3FCTS) $(UTILS)
 
 
 # search path for modules
@@ -55,9 +55,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing -fno-inline \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

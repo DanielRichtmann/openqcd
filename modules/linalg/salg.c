@@ -3,24 +3,22 @@
 *
 * File salg.c
 *
-* Copyright (C) 2005, 2007, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Generic linear algebra routines for single-precision spinor fields.
 *
-* The externally accessible functions are
-*
 *   complex spinor_prod(int vol,int icom,spinor *s,spinor *r)
-*     Computes the scalar product of the fields s and r.
+*     Returns the scalar product of the fields s and r.
 *
 *   float spinor_prod_re(int vol,int icom,spinor *s,spinor *r)
-*     Computes the real part of the scalar product of the fields
+*     Returns the real part of the scalar product of the fields
 *     s and r.
 *
 *   float norm_square(int vol,int icom,spinor *s)
-*     Computes the square of the norm of the field s.
+*     returns the square of the norm of the field s.
 *
 *   void mulc_spinor_add(int vol,spinor *s,spinor *r,complex z)
 *     Replaces the field s by s+z*r.
@@ -46,8 +44,6 @@
 *
 *   void mulmg5(int vol,spinor *s)
 *     Multiplies the field s with -gamma_5.
-*
-* Notes:
 *
 * All these programs act on arrays of spinor fields whose base address
 * is passed through the arguments. The length of the arrays is specified

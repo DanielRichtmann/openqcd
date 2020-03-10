@@ -91,7 +91,7 @@ int main(int argc,char *argv[])
                     "Syntax: time1 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);

@@ -3,14 +3,12 @@
 *
 * File flags.c
 *
-* Copyright (C) 2009, 2011, 2012, 2016 Martin Luescher, Isabel Campos
+* Copyright (C) 2009, 2011, 2012, 2016, 2019 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Flags data base input and query programs
-*
-* The externally accessible functions are
+* Flags data base input and query programs.
 *
 *   void set_flags(event_t event)
 *     Reports an event to the data base, where some of the global field
@@ -40,8 +38,6 @@
 *     Prints the current values of all flags describing the state of
 *     the field arrays on the specified block grid to stdout on
 *     process 0.
-*
-* Notes:
 *
 * The programs set_flags() and set_grid_flags() perform global operations
 * and must be called on all processes simultaneously. As a consequence,
@@ -224,6 +220,7 @@ static void set_arrays(void)
 
    gfs[(int)(SAP_BLOCKS)].shf=0x0;
    gfs[(int)(DFL_BLOCKS)].shf=0x2;
+   gfs[(int)(TEST_BLOCKS)].shf=0x2;
 
    set_events();
    set_grid_events();
@@ -284,8 +281,7 @@ void set_grid_flags(blk_grid_t grid,event_t event)
    if (grid==BLK_GRIDS)
       error_root(1,1,"set_grid_flags [flags.c]",
                  "BLK_GRIDS is a dummy block grid");
-
-   if (grid_event_fcts[iev]==NULL)
+   else if (grid_event_fcts[iev]==NULL)
       error_root(1,1,"set_grid_flags [flags.c]",
                  "No action associated to event");
    else
@@ -324,7 +320,13 @@ int query_grid_flags(blk_grid_t grid,query_t query)
 
    iqr=(int)(query);
 
-   if (grid_query_fcts[iqr]==NULL)
+   if (grid==BLK_GRIDS)
+   {
+      error_loc(1,1,"query_grid_flags [flags.c]",
+                "BLK_GRIDS is a dummy block grid");
+      return -1;
+   }
+   else if (grid_query_fcts[iqr]==NULL)
    {
       error_loc(1,1,"query_grid_flags [flags.c]","No response to query");
       return -1;
@@ -374,14 +376,16 @@ void print_grid_flags(blk_grid_t grid)
 
    if (my_rank==0)
    {
-      gf=gfs+(int)(grid);
-
       if (grid==SAP_BLOCKS)
          printf("Flags on the SAP block grid:\n");
       else if (grid==DFL_BLOCKS)
          printf("Flags on the DFL block grid:\n");
+      else if (grid==TEST_BLOCKS)
+         printf("Flags on the TEST block grid:\n");
       else
          error_root(1,1,"print_grid_flags [flags.c]","Unknown block grid");
+
+      gf=gfs+(int)(grid);
 
       printf("shf        = %#x\n",(*gf).shf);
       printf("u          = %d\n",(*gf).u);

@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011, 2016 Martin Luescher
+* Copyright (C) 2005, 2011, 2016, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -455,6 +455,8 @@ int main(int argc,char *argv[])
 
    for (igr=0;igr<(int)(BLK_GRIDS);igr++)
    {
+      grid=(blk_grid_t)(igr);
+
       iu=0;
       iud=0;
       ns=0;
@@ -472,23 +474,32 @@ int main(int argc,char *argv[])
       shw=0;
       shwd=0;
 
-      if (igr==0)
+      if (grid==SAP_BLOCKS)
       {
-         grid=SAP_BLOCKS;
-
          iu=1;
          ns=3;
          nw=1;
          iub=1;
          shs=1;
       }
-      else if (igr==1)
+      else if (grid==DFL_BLOCKS)
       {
-         grid=DFL_BLOCKS;
-
          iud=1;
          ns=3;
-         nsd=3;
+         nsd=2;
+         shud=1;
+         shsd=1;
+      }
+      else if (grid==TEST_BLOCKS)
+      {
+         iu=1;
+         iud=1;
+         ns=4;
+         nsd=4;
+         nw=4;
+         nwd=4;
+         iub=1;
+         iudb=1;
          shud=1;
       }
       else

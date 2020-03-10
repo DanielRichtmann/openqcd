@@ -3,12 +3,12 @@
 *
 * File time2.c
 *
-* Copyright (C) 2005, 2008, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of the salg_dble routines
+* Timing of the salg_dble routines.
 *
 *******************************************************************************/
 
@@ -28,6 +28,53 @@
 
 static complex_dble *vmat,*wmat;
 static spinor_dble **psd,*ppk[5];
+
+
+static double wt_random_sd(int nflds)
+{
+   int my_rank,nmax,n,i,ib;
+   double wt1,wt2,wdt,wtav;
+
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+
+   for (i=0;i<nflds;i++)
+      random_sd(VOLUME,psd[i],1.0);
+
+   nmax=1;
+
+   for (ib=0;ib<1;nmax*=2)
+   {
+      MPI_Barrier(MPI_COMM_WORLD);
+      wt1=MPI_Wtime();
+
+      for (n=0;n<nmax;n++)
+      {
+         for (i=0;i<nflds;i++)
+            random_sd(VOLUME,psd[i],1.0);
+      }
+
+      wt2=MPI_Wtime();
+      wdt=wt2-wt1;
+
+      MPI_Reduce(&wdt,&wtav,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+
+      if (my_rank==0)
+      {
+         wtav/=(double)(NPROC);
+
+         if (wtav>2.0)
+            ib=1;
+
+         wtav/=(double)(nmax*nflds);
+      }
+
+      MPI_Bcast(&ib,1,MPI_INT,0,MPI_COMM_WORLD);
+   }
+
+   MPI_Bcast(&wtav,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+
+   return wtav;
+}
 
 
 static double wt_spinor_prod_dble(int nflds,int icom)
@@ -50,7 +97,7 @@ static double wt_spinor_prod_dble(int nflds,int icom)
       for (n=0;n<nmax;n++)
       {
          for (i=0;i<nflds;i+=2)
-            spinor_prod_dble(VOLUME,icom,psd[i],psd[i+1]);
+            (void)(spinor_prod_dble(VOLUME,icom,psd[i],psd[i+1]));
       }
 
       wt2=MPI_Wtime();
@@ -424,6 +471,7 @@ int main(int argc,char *argv[])
       printf("\n");
    }
 
+   check_machine();
    icom=1;
    start_ranlux(0,12345);
    geometry();
@@ -435,6 +483,14 @@ int main(int argc,char *argv[])
       nflds=10;
    alloc_wsd(nflds);
    psd=reserve_wsd(nflds);
+
+   wdt=1.0e6*wt_random_sd(nflds)/(double)(VOLUME);
+
+   if (my_rank==0)
+   {
+      printf("Function random_sd:\n");
+      printf("Time per lattice point: %4.3f micro sec\n\n",wdt);
+   }
 
    wdt=1.0e6*wt_spinor_prod_dble(nflds,icom)/(double)(VOLUME);
 

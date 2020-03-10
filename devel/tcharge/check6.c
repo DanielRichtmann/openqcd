@@ -3,12 +3,12 @@
 *
 * File check6.c
 *
-* Copyright (C) 2010, 2013, 2016 Martin Luescher
+* Copyright (C) 2010, 2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program ym_action_slices().
+* Check of the programs ym_action_slices() and ym_action_fld().
 *
 *******************************************************************************/
 
@@ -26,6 +26,7 @@
 #include "lattice.h"
 #include "uflds.h"
 #include "wflow.h"
+#include "msfcts.h"
 #include "tcharge.h"
 #include "global.h"
 
@@ -40,9 +41,9 @@ static double eps,A1,A2,A[N0],A0[N0];
 
 int main(int argc,char *argv[])
 {
-   int my_rank,i,imax,t;
+   int my_rank,iact,i,imax,t;
    double phi[2],phi_prime[2],theta[3];
-   double dev;
+   double dev,dmax,*f;
    FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -54,8 +55,8 @@ int main(int argc,char *argv[])
       fin=freopen("check6.in","r",stdin);
 
       printf("\n");
-      printf("Check of the program ym_action_slices()\n");
-      printf("---------------------------------------\n\n");
+      printf("Check of the programs ym_action_slices() and ym_action_fld()\n");
+      printf("------------------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -77,6 +78,7 @@ int main(int argc,char *argv[])
                     "Syntax: check6 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&dn,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -89,15 +91,21 @@ int main(int argc,char *argv[])
    theta[0]=0.0;
    theta[1]=0.0;
    theta[2]=0.0;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
    print_bc_parms(0);
 
    start_ranlux(0,123456);
    geometry();
    alloc_wfd(2);
+   f=malloc(VOLUME*sizeof(*f));
+   error(f==NULL,1,"main [check6.c]","Unable to allocate field array");
 
    random_ud();
    imax=n/dn;
+   dmax=0.0;
 
    for (i=0;i<imax;i++)
    {
@@ -136,11 +144,21 @@ int main(int argc,char *argv[])
 
       error(t!=N0,1,"main [check6.c]",
             "Action slices are not globally the same");
+
+      ym_action_fld(f);
+      A1/=((double)(VOLUME)*(double)(NPROC));
+      A2=avg_fld(f);
+      dev=fabs(A1-A2);
+      if (dev>dmax)
+         dmax=dev;
    }
 
    if (my_rank==0)
    {
       printf("\n");
+      printf("Check of ym_action_fld():\n"
+             "Maximal absolute deviation of the action per point = %.1e\n\n",
+             dmax);
       fclose(flog);
    }
 

@@ -36,8 +36,8 @@ The flags related to the global fields are stored in a structure
 
 struct
 {
-   int u,ud;
-   int udbuf,bstap,fts;
+   int u,ud,udbuf;
+   int bstap,fts[2];
    int sw[3],swd[3];
    int aw,awh;
    int phase;
@@ -56,8 +56,12 @@ lat.udbuf                   Tag of the double-precision field when its values
 lat.bstap                   Tag of the double-precision gauge field when the
                             boundary staples were last calculated.
 
-lat.fts                     Tag of the double-precision gauge field when the
+lat.fts[0]                  Tag of the double-precision gauge field when the
                             gauge-field tensor was last calculated.
+
+lat.fts[1]                  Indicates whether the gauge-field tensor is the
+                            classically O(a^2)-improved one (lat.fts[1]=1) or
+                            not (lat.fts[1]=0).
 
 lat.sw[0]                   Tag of the gauge field from which the current
                             single-precision SW-term was calculated.

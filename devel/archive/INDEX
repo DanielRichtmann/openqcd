@@ -1,19 +1,27 @@
 
 Saving/restoring field configurations to/from files.
 
-check1        Writing and reading of gauge configurations.
+check1        Writing and reading of gauge, momentum and spinor fields.
 
-check2        Exporting and importing gauge configurations.
+check2        Exporting and importing gauge, momentum and spinor fields.
 
-check3        Importing a previously exported configuration.
+check3        Block-exporting and importing gauge, momentum and spinor fields.
 
-check4        Writing and reading spinor fields.
+check4        Importing a previously exported gauge-field configuration
+              (possibly with anti-periodic/periodic extension).
 
-check5        Exporting and importing spinor fields.
+check5        Block-importing a previously block-exported gauge-field
+              configuration (possibly with anti-periodic/periodic extension).
 
-check6        Importing a previously exported spinor field.
+See main/README.io for a description of the different configuration storage
+types. The configuration directory structure assumed by the check programs
+is the one described in main/README.ym1.
 
 The programs check1,check2,check3 accept the option -bc <type> that allows the
 type of boundary condition to be chosen (open boundary conditions are assumed
-if the option is not set). All other programs are insensitive to the boundary
-conditions.
+if the option is not set).
+
+On exit the program check1 deletes the saved fields, check2 and check3 too
+except for the gauge-field configuration, which may subsequently be read by
+check4 and check5,respectively (the latter optionally delete the saved
+gauge fields).

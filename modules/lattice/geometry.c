@@ -3,14 +3,12 @@
 *
 * File geometry.c
 *
-* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Programs related to the lattice and block geometry.
-*
-* The externally accessible functions are
 *
 *   int ipr_global(int *n)
 *     This program returns the rank of the MPI process with Cartesian
@@ -46,8 +44,6 @@
 *   void bnd_imbed(block_t *b)
 *     Computes the index arrays bb.imb that describe the embedding
 *     of the exterior boundaries bb of the block b in the full lattice.
-*
-* Notes:
 *
 * See main/README.global for a description of the lattice geometry and
 * block/README.block for explanations of the block structure.
@@ -585,7 +581,7 @@ void blk_imbed(block_t *b)
 void bnd_geometry(block_t *b)
 {
    int ifc,mu,ix,iy,iw,iz;
-   int vol,volh,*ipp[8],*map[8];
+   int vol,volh,*ipp[8],*mp[8];
    bndry_t *bb;
 
    vol=(*b).vol;
@@ -595,7 +591,7 @@ void bnd_geometry(block_t *b)
    for (ifc=0;ifc<8;ifc++)
    {
       ipp[ifc]=bb[ifc].ipp;
-      map[ifc]=bb[ifc].map;
+      mp[ifc]=bb[ifc].map;
    }
 
    for (ix=0;ix<vol;ix++)
@@ -622,8 +618,8 @@ void bnd_geometry(block_t *b)
                iw=(*b).idn[iw][mu];
             }
 
-            map[ifc][0]=iz;
-            map[ifc]+=1;
+            mp[ifc][0]=iz;
+            mp[ifc]+=1;
          }
 
          if ((*b).idn[iy][mu]==vol)
@@ -641,8 +637,8 @@ void bnd_geometry(block_t *b)
                iw=(*b).iup[iw][mu];
             }
 
-            map[ifc][0]=iz;
-            map[ifc]+=1;
+            mp[ifc][0]=iz;
+            mp[ifc]+=1;
          }
       }
    }

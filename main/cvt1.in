@@ -1,0 +1,29 @@
+
+[Run name]
+name         Snoopy137
+
+[Log directory]
+log_dir      ../data/cvt1/log
+
+[Boundary conditions]
+type         2
+phi          0.12 -0.56
+phi'         0.92 0.76
+
+[Configurations]
+first        1
+last         4
+step         1
+
+[Input storage format]
+type         e
+cnfg_dir     /data/ym1/cnfg
+nio_nodes    8
+nio_streams  4
+
+[Output storage format]
+type         b
+cnfg_dir     /data/ym1/blk
+bs           16 8 8 24
+nio_nodes    12
+nio_streams  8

@@ -2,25 +2,28 @@
 [Solver 0]
 solver       CGNE
 nmx          256
-res          1.0e-12
+istop        1
+res          1.0e-14
 
 [Solver 1]
 solver       SAP_GCR
 nmx          128
+istop        1
 nkv          16
 isolv        0
 nmr          4
 ncy          3
-res          1.0e-12
+res          1.0e-14
 
 [Solver 2]
 solver       DFL_SAP_GCR
 nmx          64
+istop        1
 nkv          16
 isolv        1
 nmr          4
 ncy          5
-res          1.0e-12
+res          1.0e-14
 
 [SAP]
 bs           4 4 4 4

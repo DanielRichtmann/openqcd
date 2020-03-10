@@ -1,0 +1,219 @@
+[Run name]
+name         96x32v1
+
+[Log directories]
+log_dir      ../../data/qcd2/log
+dat_dir      ../../data/qcd2/dat
+
+[Initial configuration]
+type         b
+init_dir     ../../data/qcd2/blk
+nio_nodes    8
+nio_streams  8
+
+[Configurations]
+types        b
+block_dir    ../../data/qcd2/blk
+bs           16 16 16 16
+nio_nodes    8
+nio_streams  8
+
+[Lattice parameters]
+beta         3.80
+c0           1.666666666666667
+kappa        0.138963 0.138963
+isw	     1
+csw          1.955242
+
+[Boundary conditions]
+type         3
+theta        0.0 0.0 0.0
+
+[Random number generator]
+level        0
+seed         3005
+
+[SMD parameters]
+actions      0 1 2 3 4 5 6 7
+npf          7
+mu           0.002 0.002828427124746190 0.12 1.2
+nlv          2
+gamma        0.3
+eps          0.31
+iacc         1
+
+[Update cycles]
+nth          0
+ntot         700
+dnlog        5
+dnms         100
+dncnfg       100
+dndfl        0
+
+[Level 0]
+integrator   OMF4
+nstep        1
+forces       0
+
+[Level 1]
+integrator   OMF4
+nstep        2
+forces       1 2 3 4 5 6 7
+
+[Rational 0]
+degree       10
+range        0.007 8.0
+
+[Action 0]
+action       ACG
+
+[Action 1]
+action       ACF_TM1_EO
+ipf          0
+im0          0
+imu          3
+isp          0
+
+[Action 2]
+action       ACF_TM2_EO
+ipf          1
+im0          0
+imu          2 3
+isp          1 0
+
+[Action 3]
+action       ACF_TM2_EO
+ipf          2
+im0          0
+imu          0 2
+isp          1 1
+
+[Action 4]
+action       ACF_TM2_EO
+ipf          3
+im0          0
+imu          0 1
+isp          1 1
+
+[Action 5]
+action       ACF_RAT
+ipf          4
+im0          1
+irat         0 0 5
+isp          4 4
+
+[Action 6]
+action       ACF_RAT
+ipf          5
+im0          1
+irat         0 6 7
+isp          1 1
+
+[Action 7]
+action       ACF_RAT
+ipf          6
+im0          1
+irat         0 8 9
+isp          1 1
+
+[Force 0]
+force        FRG
+
+[Force 1]
+force        FRF_TM1_EO
+isp          2
+ncr          3
+
+[Force 2]
+force        FRF_TM2_EO
+isp          3
+ncr          3
+
+[Force 3]
+force        FRF_TM2_EO
+isp          3
+ncr          3
+
+[Force 4]
+force        FRF_TM2_EO
+isp          3
+ncr          3
+
+[Force 5]
+force        FRF_RAT
+isp          5
+
+[Force 6]
+force        FRF_RAT
+isp          3
+
+[Force 7]
+force        FRF_RAT
+isp          3
+
+[Solver 0]
+solver       CGNE
+nmx          2048
+istop        0
+res          1.0e-12
+
+[Solver 1]
+solver       DFL_SAP_GCR
+nkv          24
+isolv        1
+nmr          4
+ncy          5
+nmx          512
+istop        0
+res          1.0e-12
+
+[Solver 2]
+solver       CGNE
+nmx          2048
+istop        1
+res          1.0e-11
+
+[Solver 3]
+solver       DFL_SAP_GCR
+nkv          24
+isolv        1
+nmr          4
+ncy          5
+nmx          512
+istop        1
+res          1.0e-11
+
+[Solver 4]
+solver       MSCG
+nmx          2048
+istop        0
+res          1.0e-12
+
+[Solver 5]
+solver       MSCG
+nmx          2048
+istop        1
+res          1.0e-11
+
+[SAP]
+bs           4 4 4 4
+
+[Deflation subspace]
+bs           4 4 4 4
+Ns           28
+
+[Deflation subspace generation]
+kappa        0.138963
+mu           0.0005
+ninv         10
+nmr          4
+ncy          4
+
+[Deflation projection]
+nkv          32
+nmx          512
+res          1.0e-2
+
+[Deflation update scheme]
+dtau         0.069
+nsm          1

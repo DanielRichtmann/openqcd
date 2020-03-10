@@ -3,7 +3,7 @@
 *
 * File su3.h
 *
-* Copyright (C) 2005, 2009, 2011, 2013 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005-2013, 2018 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -109,6 +109,16 @@ typedef struct
 {
    double c1,c2,c3,c4,c5,c6,c7,c8,c9;
 } u3_alg_dble;
+
+typedef struct
+{
+   double q[2];
+} qflt;
+
+typedef struct
+{
+   qflt re,im;
+} complex_qflt;
 
 /*******************************************************************************
 *
@@ -654,5 +664,35 @@ typedef struct
    (r).c7=(c)*((u).c7-(v).c7); \
    (r).c8=(c)*((u).c8-(v).c8); \
    (r).c9=(c)*((u).c9-(v).c9)
+
+/*
+* r+=u
+*/
+
+#define _u3_alg_add_assign(r,u) \
+   (r).c1+=(u).c1; \
+   (r).c2+=(u).c2; \
+   (r).c3+=(u).c3; \
+   (r).c4+=(u).c4; \
+   (r).c5+=(u).c5; \
+   (r).c6+=(u).c6; \
+   (r).c7+=(u).c7; \
+   (r).c8+=(u).c8; \
+   (r).c9+=(u).c9
+
+/*
+* r+=c*u
+*/
+
+#define _u3_alg_mul_add_assign(r,c,u) \
+   (r).c1+=(c)*(u).c1; \
+   (r).c2+=(c)*(u).c2; \
+   (r).c3+=(c)*(u).c3; \
+   (r).c4+=(c)*(u).c4; \
+   (r).c5+=(c)*(u).c5; \
+   (r).c6+=(c)*(u).c6; \
+   (r).c7+=(c)*(u).c7; \
+   (r).c8+=(c)*(u).c8; \
+   (r).c9+=(c)*(u).c9
 
 #endif

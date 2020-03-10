@@ -3,14 +3,12 @@
 *
 * File blk_grid.c
 *
-* Copyright (C) 2005, 2007, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2007, 2011, 2013, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Block grid allocation.
-*
-* The externally accessible functions are
 *
 *   void alloc_bgr(blk_grid_t grid)
 *     Allocates the specified block grid. The block array and the block
@@ -23,8 +21,6 @@
 *     set to 0 or 1 depending on whether the first block is black or white
 *     (by definition it is black on the first process). If the block grid
 *     is not allocated, the program returns NULL and sets nb and isw to 0.
-*
-* Notes:
 *
 * The block sizes bs[4] and other parameters of the specified block grid
 * are obtained from the parameter data base. These and the lattice sizes
@@ -154,7 +150,7 @@ void alloc_bgr(blk_grid_t grid)
    }
 
    error(bgr[igr].b!=NULL,1,"alloc_bgr [blk_grid.c]",
-            "Block grid is already allocated");
+         "Block grid is already allocated");
 
    bs=NULL;
    iu=0;
@@ -188,7 +184,28 @@ void alloc_bgr(blk_grid_t grid)
       bs=dfl.bs;
       iud=1;
       ns=dfl.Ns+1;
-      nsd=dfl.Ns+1;
+      nsd=2;
+      shf=0x2b;
+   }
+   else if (grid==TEST_BLOCKS)
+   {
+      sap=sap_parms();
+      dfl=dfl_parms();
+      error_root((sap.ncy==0)&&(dfl.Ns==0),1,"alloc_bgr [blk_grid.c]",
+                 "Both SAP and deflation subspace parameters are not set");
+
+      if (sap.ncy)
+         bs=sap.bs;
+      else
+         bs=dfl.bs;
+      iu=1;
+      iud=1;
+      ns=4;
+      nsd=4;
+      iub=1;
+      iudb=1;
+      nw=4;
+      nwd=4;
       shf=0xb;
    }
    else

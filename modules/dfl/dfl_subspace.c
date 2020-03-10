@@ -3,59 +3,33 @@
 *
 * File dfl_subspace.c
 *
-* Copyright (C) 2007, 2011, 2013 Martin Luescher
+* Copyright (C) 2007-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Basic utility programs related to the deflation subspace.
-*
-* The externally accessible functions are
-*
-*   void dfl_sd2vd(spinor_dble *sd,complex_dble *vd)
-*     Assigns the components of the global double-precision spinor field
-*     sd along the deflation subspace to the double-precision vector
-*     field vd.
-*
-*   void dfl_vd2sd(complex_dble *vd,spinor_dble *sd)
-*     Assigns the element of the deflation subspace corresponding to the
-*     double-precision vector field vd to the global double-precision spinor
-*     field sd.
-*
-*   void dfl_sub_vd2sd(complex_dble *vd,spinor_dble *sd)
-*     Subtracts the element of the deflation subspace corresponding to the
-*     double-precision vector field vd from the global double-precision
-*     spinor field sd.
+* Basic programs related to the deflation subspace.
 *
 *   void dfl_s2v(spinor *s,complex *v)
-*     Assigns the components of the global single-precision spinor field
-*     s along the deflation subspace to the single-precision vector
-*     field v.
+*     Assigns the components of the global spinor field s along the
+*     deflation subspace to the vector field v.
 *
 *   void dfl_v2s(complex *v,spinor *s)
-*     Assigns the element of the deflation subspace corresponding to the
-*     single-precision vector field v to the global single-precision spinor
-*     field s.
-*
-*   void dfl_sub_v2s(complex *v,spinor *s)
-*     Subtracts the element of the deflation subspace corresponding to the
-*     double-precision vector field v from the global single-precision spinor
-*     field s.
+*     Assigns the element of the deflation subspace corresponding to
+*     the vector field v to the global spinor field s.
 *
 *   void dfl_subspace(spinor **mds)
-*     Copies the global single-precision spinor fields mds[0],..,mds[Ns-1]
-*     to the fields b.sd[1],..,b.sd[Ns] on the blocks b of the DFL_BLOCKS
-*     grid. The block fields are then orthonormalized and are assigned to
-*     the single-precision block fields b.s[1],..,b.s[Ns].
+*     Copies the global spinor fields mds[0],..,mds[Ns-1] to the fields
+*     b.s[1],..,b.s[Ns] on the blocks b of the DFL_BLOCKS grid. The block
+*     fields are then orthonormalized using the Gram-Schmidt process with
+*     double-precision accuracy.
 *      In this basis of fields, the modes mds[0],..,mds[Ns-1] are given by
 *     fields vmds[0],..,vmds[Ns-1] of Ns*nb complex numbers, where nb is
 *     the number of blocks in the block grid. These fields are assigned to
 *     the last Ns single-precision vector fields of the array returned by
 *     vflds() [vflds/vflds.c].
 *
-* Notes:
-*
-* The deflation subspace is spanned by the fields (*b).sd[1],..,(*b).sd[Ns]
+* The deflation subspace is spanned by the fields (*b).s[1],..,(*b).s[Ns]
 * on the blocks b of the DFL_BLOCKS grid. The number Ns of fields is set by
 * the program dfl_set_parms() [flags/dfl_parms.c].
 *
@@ -81,118 +55,12 @@
 #include "su3.h"
 #include "flags.h"
 #include "utils.h"
-#include "linalg.h"
 #include "sflds.h"
-#include "block.h"
 #include "vflds.h"
+#include "linalg.h"
+#include "block.h"
 #include "dfl.h"
 #include "global.h"
-
-
-void dfl_sd2vd(spinor_dble *sd,complex_dble *vd)
-{
-   int Ns,nb,nbh,isw;
-   int n,m,i,vol;
-   block_t *b;
-   spinor_dble **sdb;
-   dfl_parms_t dfl;
-
-   dfl=dfl_parms();
-   Ns=dfl.Ns;
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
-   nbh=nb/2;
-   vol=(*b).vol;
-
-   for (n=0;n<nb;n++)
-   {
-      if (n<nbh)
-         m=n+isw*nbh;
-      else
-         m=n-isw*nbh;
-
-      assign_sd2sdblk(DFL_BLOCKS,m,ALL_PTS,sd,0);
-      sdb=b[m].sd;
-
-      for (i=1;i<=Ns;i++)
-      {
-         (*vd)=spinor_prod_dble(vol,0,sdb[i],sdb[0]);
-         vd+=1;
-      }
-   }
-}
-
-
-void dfl_vd2sd(complex_dble *vd,spinor_dble *sd)
-{
-   int Ns,nb,nbh,isw;
-   int n,m,i,vol;
-   block_t *b;
-   spinor_dble **sdb;
-   dfl_parms_t dfl;
-
-   dfl=dfl_parms();
-   Ns=dfl.Ns;
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
-   nbh=nb/2;
-   vol=(*b).vol;
-
-   for (n=0;n<nb;n++)
-   {
-      if (n<nbh)
-         m=n+isw*nbh;
-      else
-         m=n-isw*nbh;
-
-      sdb=b[m].sd;
-      set_sd2zero(vol,sdb[0]);
-
-      for (i=1;i<=Ns;i++)
-      {
-         mulc_spinor_add_dble(vol,sdb[0],sdb[i],*vd);
-         vd+=1;
-      }
-
-      assign_sdblk2sd(DFL_BLOCKS,m,ALL_PTS,0,sd);
-   }
-}
-
-
-void dfl_sub_vd2sd(complex_dble *vd,spinor_dble *sd)
-{
-   int Ns,nb,nbh,isw;
-   int n,m,i,vol;
-   complex_dble z;
-   block_t *b;
-   spinor_dble **sdb;
-   dfl_parms_t dfl;
-
-   dfl=dfl_parms();
-   Ns=dfl.Ns;
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
-   nbh=nb/2;
-   vol=(*b).vol;
-
-   for (n=0;n<nb;n++)
-   {
-      if (n<nbh)
-         m=n+isw*nbh;
-      else
-         m=n-isw*nbh;
-
-      assign_sd2sdblk(DFL_BLOCKS,m,ALL_PTS,sd,0);
-      sdb=b[m].sd;
-
-      for (i=1;i<=Ns;i++)
-      {
-         z.re=-(*vd).re;
-         z.im=-(*vd).im;
-         mulc_spinor_add_dble(vol,sdb[0],sdb[i],z);
-         vd+=1;
-      }
-
-      assign_sdblk2sd(DFL_BLOCKS,m,ALL_PTS,0,sd);
-   }
-}
 
 
 void dfl_s2v(spinor *s,complex *v)
@@ -263,50 +131,13 @@ void dfl_v2s(complex *v,spinor *s)
 }
 
 
-void dfl_sub_v2s(complex *v,spinor *s)
-{
-   int Ns,nb,nbh,isw;
-   int n,m,i,vol;
-   complex z;
-   block_t *b;
-   spinor **sb;
-   dfl_parms_t dfl;
-
-   dfl=dfl_parms();
-   Ns=dfl.Ns;
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
-   nbh=nb/2;
-   vol=(*b).vol;
-
-   for (n=0;n<nb;n++)
-   {
-      if (n<nbh)
-         m=n+isw*nbh;
-      else
-         m=n-isw*nbh;
-
-      assign_s2sblk(DFL_BLOCKS,m,ALL_PTS,s,0);
-      sb=b[m].s;
-
-      for (i=1;i<=Ns;i++)
-      {
-         z.re=-(*v).re;
-         z.im=-(*v).im;
-         mulc_spinor_add(vol,sb[0],sb[i],z);
-         v+=1;
-      }
-
-      assign_sblk2s(DFL_BLOCKS,m,ALL_PTS,0,s);
-   }
-}
-
-
 void dfl_subspace(spinor **mds)
 {
    int Ns,nb,nbh,isw;
    int n,m,i,j,vol;
    complex **vs,*v;
    complex_dble z;
+   complex_qflt cqsm;
    block_t *b;
    spinor **sb;
    spinor_dble **sdb;
@@ -342,12 +173,15 @@ void dfl_subspace(spinor **mds)
 
       for (i=1;i<=Ns;i++)
       {
-         assign_s2sdblk(DFL_BLOCKS,m,ALL_PTS,mds[i-1],i);
+         assign_s2sdblk(DFL_BLOCKS,m,ALL_PTS,mds[i-1],0);
          v=vs[i-1]+Ns*n;
 
          for (j=1;j<i;j++)
          {
-            z=spinor_prod_dble(vol,0,sdb[j],sdb[i]);
+            assign_s2sd(vol,sb[j],sdb[1]);
+            cqsm=spinor_prod_dble(vol,0,sdb[1],sdb[0]);
+            z.re=cqsm.re.q[0];
+            z.im=cqsm.im.q[0];
 
             (*v).re=(float)(z.re);
             (*v).im=(float)(z.im);
@@ -355,10 +189,10 @@ void dfl_subspace(spinor **mds)
 
             z.re=-(z).re;
             z.im=-(z).im;
-            mulc_spinor_add_dble(vol,sdb[i],sdb[j],z);
+            mulc_spinor_add_dble(vol,sdb[0],sdb[1],z);
          }
 
-         (*v).re=(float)(normalize_dble(vol,0,sdb[i]));
+         (*v).re=(float)(normalize_dble(vol,0,sdb[0]));
          (*v).im=0.0f;
          v+=1;
 
@@ -369,7 +203,7 @@ void dfl_subspace(spinor **mds)
             v+=1;
          }
 
-         assign_sd2s(vol,sdb[i],sb[i]);
+         assign_sd2s(vol,sdb[0],sb[i]);
       }
    }
 

@@ -29,9 +29,9 @@ RANDOM = ranlux ranlxs ranlxd gauss
 
 SU3FCTS = su3prod su3ren cm3x3 random_su3
 
-UFLDS = plaq_sum shift uflds udcom bstap
+UFLDS = bstap plaq_sum shift uflds udcom
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = endian error mutils qsum utils wspace
 
 MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(UFLDS) $(SU3FCTS) $(UTILS)
 
@@ -63,9 +63,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

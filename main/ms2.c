@@ -3,14 +3,14 @@
 *
 * File ms2.c
 *
-* Copyright (C) 2012, 2013, 2016 Martin Luescher
+* Copyright (C) 2012, 2013, 2016-2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Computation of the spectral range of the hermitian Dirac operator.
+* Computation of the spectral range of the Hermitian Dirac operator.
 *
-* Syntax: ms2 -i <input file> [-noexp]
+* Syntax: ms2 -i <input file>
 *
 * For usage instructions see the file README.ms2.
 *
@@ -46,18 +46,21 @@
 #define N2 (NPROC2*L2)
 #define N3 (NPROC3*L3)
 
-#define MAX(n,m) \
-   if ((n)<(m)) \
-      (n)=(m)
+static struct
+{
+   int type,nio_nodes,nio_streams;
+   int nb,ib,bs[4];
+   char cnfg_dir[NAME_SIZE];
+} iodat;
 
-static int my_rank,noexp,endian;
+static int my_rank,endian;
 static int first,last,step,np_ra,np_rb;
 static int *rlxs_state=NULL,*rlxd_state=NULL;
 static double ar[256];
 
-static char log_dir[NAME_SIZE],loc_dir[NAME_SIZE],cnfg_dir[NAME_SIZE];
-static char log_file[NAME_SIZE],log_save[NAME_SIZE],end_file[NAME_SIZE];
-static char cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
+static char line[NAME_SIZE],nbase[NAME_SIZE],log_dir[NAME_SIZE];
+static char log_file[NAME_SIZE],log_save[NAME_SIZE];
+static char cnfg_file[NAME_SIZE],end_file[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fend=NULL;
 
 static lat_parms_t lat;
@@ -71,75 +74,109 @@ static void read_dirs(void)
       find_section("Run name");
       read_line("name","%s",nbase);
 
-      find_section("Directories");
+      find_section("Log and data directories");
       read_line("log_dir","%s",log_dir);
+   }
 
-      if (noexp)
+   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(log_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+}
+
+
+static void read_iodat(void)
+{
+   int type,nion,nios;
+
+   if (my_rank==0)
+   {
+      find_section("Configurations");
+
+      read_line("type","%s",line);
+
+      if (strchr(line,'e')!=NULL)
+         type=0x1;
+      else if (strchr(line,'b')!=NULL)
+         type=0x2;
+      else if (strchr(line,'l')!=NULL)
+         type=0x4;
+      else
+         type=0x0;
+
+      error_root((strlen(line)!=1)||(type==0x0),1,"read_iodat [ms2.c]",
+                 "Improper configuration storage type");
+
+      read_line("cnfg_dir","%s",line);
+
+      if (type&0x6)
       {
-         read_line("loc_dir","%s",loc_dir);
-         cnfg_dir[0]='\0';
+         read_line("nio_nodes","%d",&nion);
+         read_line("nio_streams","%d",&nios);
       }
       else
       {
-         read_line("cnfg_dir","%s",cnfg_dir);
-         loc_dir[0]='\0';
+         nion=1;
+         nios=0;
       }
 
-      find_section("Configurations");
       read_line("first","%d",&first);
       read_line("last","%d",&last);
       read_line("step","%d",&step);
 
-      error_root((last<first)||(step<1)||(((last-first)%step)!=0),1,
-                 "read_dirs [ms2.c]","Improper configuration range");
+      error_root((first<1)||(last<first)||(step<1)||((last-first)%step!=0),1,
+                 "read_iodat [ms2.c]","Improper configuration range");
    }
 
-   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-
-   MPI_Bcast(log_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(line,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(&type,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nion,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nios,1,MPI_INT,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   iodat.type=type;
+   strcpy(iodat.cnfg_dir,line);
+   iodat.nio_nodes=nion;
+   iodat.nio_streams=nios;
+   iodat.bs[0]=0;
+   iodat.bs[1]=0;
+   iodat.bs[2]=0;
+   iodat.bs[3]=0;
 }
 
 
 static void setup_files(void)
 {
-   if (noexp)
-      error_root(name_size("%s/%sn%d_%d",loc_dir,nbase,last,NPROC-1)>=NAME_SIZE,
-                 1,"setup_files [ms2.c]","loc_dir name is too long");
-   else
-      error_root(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,
-                 1,"setup_files [ms2.c]","cnfg_dir name is too long");
-
-   check_dir_root(log_dir);
-   error_root(name_size("%s/%s.ms2.log~",log_dir,nbase)>=NAME_SIZE,
-              1,"setup_files [ms2.c]","log_dir name is too long");
+   error(name_size("%s/%s.ms2.log~",log_dir,nbase)>=NAME_SIZE,1,
+         "setup_files [ms2.c]","log_dir name is too long");
 
    sprintf(log_file,"%s/%s.ms2.log",log_dir,nbase);
    sprintf(end_file,"%s/%s.ms2.end",log_dir,nbase);
    sprintf(log_save,"%s~",log_file);
+
+   check_dir_root(log_dir);
 }
 
 
 static void read_lat_parms(void)
 {
+   int isw;
    double kappa,csw;
 
    if (my_rank==0)
    {
       find_section("Dirac operator");
       read_line("kappa","%lf",&kappa);
+      read_line("isw","%d",&isw);
       read_line("csw","%lf",&csw);
    }
 
    MPI_Bcast(&kappa,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   MPI_Bcast(&isw,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   lat=set_lat_parms(0.0,1.0,1,&kappa,csw);
+   lat=set_lat_parms(0.0,1.0,1,&kappa,isw,csw);
 }
 
 
@@ -278,12 +315,10 @@ static void read_infile(int argc,char *argv[])
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1)),1,"read_infile [ms2.c]",
-                 "Syntax: ms2 -i <input file> [-noexp]");
+                 "Syntax: ms2 -i <input file>");
 
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [ms2.c]",
                  "Machine has unknown endianness");
-
-      noexp=find_opt(argc,argv,"-noexp");
 
       fin=freopen(argv[ifile+1],"r",stdin);
       error_root(fin==NULL,1,"read_infile [ms2.c]",
@@ -291,9 +326,9 @@ static void read_infile(int argc,char *argv[])
    }
 
    MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);
 
    read_dirs();
+   read_iodat();
    setup_files();
    read_lat_parms();
    read_bc_parms();
@@ -318,18 +353,85 @@ static void read_infile(int argc,char *argv[])
 
 static void check_files(void)
 {
+   int ie,ns[4],bs[4];
+   int type,nion,nb,ib,n;
+   char *cnfg_dir;
+
    if (my_rank==0)
    {
-      fin=fopen(log_file,"r");
-      error_root(fin!=NULL,1,"check_files [ms2.c]",
+      ie=check_file(log_file,"r");
+      error_root(ie!=0,1,"check_files [ms2.c]",
                  "Attempt to overwrite old *.log file");
+   }
+
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+   iodat.nb=NPROC;
+   iodat.ib=0;
+
+   if (type==0x1)
+   {
+      error(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,1,
+            "check_files [ms2.c]","cnfg_dir name is too long");
+      check_dir_root(cnfg_dir);
+      sprintf(line,"%s/%sn%d",cnfg_dir,nbase,first);
+
+      lat_sizes(line,ns);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [ms2.c]","Lattice size mismatch");
+   }
+   else if (type==0x2)
+   {
+      error(name_size("%s/0/0/%sn%d_b0",cnfg_dir,nbase,first)>=NAME_SIZE,1,
+            "check_files [ms2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/0/0",cnfg_dir);
+      if ((cpr[0]==0)&&(cpr[1]==0)&&(cpr[2]==0)&&(cpr[3]==0))
+         check_dir(line);
+
+      sprintf(line,"%s/0/0/%sn%d_b0",cnfg_dir,nbase,first);
+      blk_sizes(line,ns,bs);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [ms2.c]","Lattice size mismatch");
+      iodat.bs[0]=bs[0];
+      iodat.bs[1]=bs[1];
+      iodat.bs[2]=bs[2];
+      iodat.bs[3]=bs[3];
+
+      ib=blk_index(ns,bs,&nb);
+      nion=iodat.nio_nodes;
+      n=nb/nion;
+      error_root(nb%nion!=0,1,"check_files [ms2.c]",
+                 "Number of blocks is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_b%d",cnfg_dir,nion-1,n-1,nbase,last,nb-1)
+            >=NAME_SIZE,1,"check_files [ms2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,ib/n,ib%n);
+      strcpy(cnfg_dir,line);
+      if (((cpr[0]*L0)%bs[0]==0)&&((cpr[1]*L1)%bs[1]==0)&&
+          ((cpr[2]*L2)%bs[2]==0)&&((cpr[3]*L3)%bs[3]==0))
+         check_dir(cnfg_dir);
+
+      iodat.nb=nb;
+      iodat.ib=ib;
+   }
+   else
+   {
+      nion=iodat.nio_nodes;
+      n=NPROC/nion;
+      error_root(NPROC%nion!=0,1,"check_files [ms2.c]",
+                 "Number of processes is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_%d",cnfg_dir,nion-1,n-1,nbase,
+                      last,NPROC-1)>=NAME_SIZE,1,
+                 "check_files [ms2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,my_rank/n,my_rank%n);
+      strcpy(cnfg_dir,line);
+      check_dir(cnfg_dir);
    }
 }
 
 
 static void print_info(void)
 {
-   int isap,idfl,n;
+   int isap,idfl,type,n;
    long ip;
 
    if (my_rank==0)
@@ -344,7 +446,7 @@ static void print_info(void)
       error_root(flog==NULL,1,"print_info [ms2.c]","Unable to open log file");
       printf("\n");
 
-      printf("Spectral range of the hermitian Dirac operator\n");
+      printf("Spectral range of the Hermitian Dirac operator\n");
       printf("----------------------------------------------\n\n");
 
       printf("Program version %s\n",openQCD_RELEASE);
@@ -353,29 +455,49 @@ static void print_info(void)
          printf("The machine is little endian\n");
       else
          printf("The machine is big endian\n");
-      if (noexp)
-         printf("Configurations are read in imported file format\n\n");
-      else
-         printf("Configurations are read in exported file format\n\n");
 
       printf("%dx%dx%dx%d lattice, ",N0,N1,N2,N3);
       printf("%dx%dx%dx%d local lattice\n",L0,L1,L2,L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-      printf("%dx%dx%dx%d process block size\n",
+      printf("%dx%dx%dx%d process block size\n\n",
              NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
-      printf("SF boundary conditions on the quark fields\n\n");
 
+      printf("Configuration storage type = ");
+      type=iodat.type;
+
+      if (type==0x1)
+         printf("exported\n");
+      else if (type==0x2)
+         printf("block-exported\n");
+      else
+         printf("local\n");
+
+      if (type&0x6)
+      {
+         printf("Parallel I/O parameters: "
+                "nio_nodes = %d, nio_streams = %d\n",
+                iodat.nio_nodes,iodat.nio_streams);
+      }
+
+      if (type==0x2)
+      {
+         printf("Block size = %dx%dx%dx%d\n",iodat.bs[0],
+                iodat.bs[1],iodat.bs[2],iodat.bs[3]);
+      }
+
+      printf("\n");
       printf("Dirac operator:\n");
       n=fdigits(lat.kappa[0]);
       printf("kappa = %.*f\n",IMAX(n,6),lat.kappa[0]);
       n=fdigits(lat.csw);
-      printf("csw = %.*f\n\n",IMAX(n,1),lat.csw);
+      printf("isw = %d, csw = %.*f\n\n",lat.isw,IMAX(n,1),lat.csw);
       print_bc_parms(2);
 
       printf("Power method:\n");
       printf("np_ra = %d\n",np_ra);
       printf("np_rb = %d\n\n",np_rb);
 
+      print_bc_parms(2);
       print_solver_parms(&isap,&idfl);
 
       if (isap)
@@ -391,6 +513,13 @@ static void print_info(void)
 }
 
 
+static void maxn(int *n,int m)
+{
+   if ((*n)<m)
+      (*n)=m;
+}
+
+
 static void dfl_wsize(int *nws,int *nwv,int *nwvd)
 {
    dfl_parms_t dp;
@@ -399,98 +528,92 @@ static void dfl_wsize(int *nws,int *nwv,int *nwvd)
    dp=dfl_parms();
    dpp=dfl_pro_parms();
 
-   MAX(*nws,dp.Ns+2);
-   MAX(*nwv,2*dpp.nkv+2);
-   MAX(*nwvd,4);
+   maxn(nws,dp.Ns+2);
+   maxn(nwv,2*dpp.nkv+2);
+   maxn(nwvd,4);
 }
 
 
-static void wsize(int *nws,int *nwsd,int *nwv,int *nwvd)
+static void solver_wsize(int isp,int nsds,int np,int *nws,int *nwv,int *nwvd)
 {
-   int nsd;
    solver_parms_t sp;
 
-   (*nws)=0;
-   (*nwsd)=0;
-   (*nwv)=0;
-   (*nwvd)=0;
-
-   sp=solver_parms(0);
+   sp=solver_parms(isp);
 
    if (sp.solver==CGNE)
+      maxn(nws,nsds+11);
+   else if (sp.solver==MSCG)
    {
-      nsd=1;
-      MAX(*nws,5);
-      MAX(*nwsd,nsd+3);
+      if (np>1)
+         maxn(nws,nsds+2*np+6);
+      else
+         maxn(nws,nsds+10);
    }
    else if (sp.solver==SAP_GCR)
-   {
-      nsd=2;
-      MAX(*nws,2*sp.nkv+1);
-      MAX(*nwsd,nsd+2);
-   }
+      maxn(nws,nsds+2*sp.nkv+5);
    else if (sp.solver==DFL_SAP_GCR)
    {
-      nsd=2;
-      MAX(*nws,2*sp.nkv+2);
-      MAX(*nwsd,nsd+4);
+      maxn(nws,nsds+2*sp.nkv+6);
       dfl_wsize(nws,nwv,nwvd);
    }
    else
-      error_root(1,1,"wsize [ms2.c]",
+      error_root(1,1,"solver_wsize [ms2.c]",
                  "Unknown or unsupported solver");
+}
+
+
+static void wsize(int *nws,int *nwv,int *nwvd)
+{
+   int nsds;
+
+   (*nws)=0;
+   (*nwv)=0;
+   (*nwvd)=0;
+
+   nsds=2;
+   solver_wsize(0,nsds,0,nws,nwv,nwvd);
+
+   if ((*nws)<4)
+      (*nws)=4;
 }
 
 
 static double power1(int *status)
 {
-   int nsd,k,l,stat[6];
+   int k,l,stat[6];
    double r;
-   spinor_dble **wsd;
+   spinor_dble *phi,**wsd;
    solver_parms_t sp;
    sap_parms_t sap;
 
    set_sw_parms(sea_quark_mass(0));
    sp=solver_parms(0);
 
-   if (sp.solver==CGNE)
+   if (sp.solver==DFL_SAP_GCR)
    {
-      nsd=1;
-      status[0]=0;
-   }
-   else if (sp.solver==SAP_GCR)
-   {
-      nsd=2;
-      sap=sap_parms();
-      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
-      status[0]=0;
-   }
-   else if (sp.solver==DFL_SAP_GCR)
-   {
-      nsd=2;
-      sap=sap_parms();
-      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
-
       for (l=0;l<3;l++)
          status[l]=0;
    }
    else
+      status[0]=0;
+
+   if ((sp.solver==SAP_GCR)||(sp.solver==DFL_SAP_GCR))
    {
-      nsd=1;
-      error_root(1,1,"power1 [ms2.c]",
-                 "Unknown or unsupported solver");
+      sap=sap_parms();
+      set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
    }
 
-   wsd=reserve_wsd(nsd);
-   random_sd(VOLUME/2,wsd[0],1.0);
-   bnd_sd2zero(EVEN_PTS,wsd[0]);
-   r=normalize_dble(VOLUME/2,1,wsd[0]);
+   wsd=reserve_wsd(1);
+   phi=wsd[0];
+   random_sd(VOLUME/2,phi,1.0);
+   bnd_sd2zero(EVEN_PTS,phi);
+   r=normalize_dble(VOLUME/2,1,phi);
 
    for (k=0;k<np_ra;k++)
    {
       if (sp.solver==CGNE)
       {
-         tmcgeo(sp.nmx,sp.res,0.0,wsd[0],wsd[0],stat);
+         tmcgeo(sp.nmx,sp.istop,sp.res,0.0,phi,phi,stat);
 
          error_root(stat[0]<0,1,"power1 [ms2.c]",
                     "CGNE solver failed (status = %d)",stat[0]);
@@ -500,12 +623,12 @@ static double power1(int *status)
       }
       else if (sp.solver==SAP_GCR)
       {
-         mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
-         sap_gcr(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
-         mulg5_dble(VOLUME/2,wsd[1]);
-         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));
-         sap_gcr(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+1);
+         mulg5_dble(VOLUME/2,phi);
+         set_sd2zero(VOLUME/2,phi+(VOLUME/2));
+         sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,0.0,phi,phi,stat);
+         mulg5_dble(VOLUME/2,phi);
+         set_sd2zero(VOLUME/2,phi+(VOLUME/2));
+         sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,0.0,phi,phi,stat+1);
 
          error_root((stat[0]<0)||(stat[1]<0),1,"power1 [ms2.c]",
                     "SAP_GCR solver failed (status = %d;%d)",
@@ -519,12 +642,12 @@ static double power1(int *status)
       }
       else if (sp.solver==DFL_SAP_GCR)
       {
-         mulg5_dble(VOLUME/2,wsd[0]);
-         set_sd2zero(VOLUME/2,wsd[0]+(VOLUME/2));
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[0],wsd[1],stat);
-         mulg5_dble(VOLUME/2,wsd[1]);
-         set_sd2zero(VOLUME/2,wsd[1]+(VOLUME/2));
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,0.0,wsd[1],wsd[0],stat+3);
+         mulg5_dble(VOLUME/2,phi);
+         set_sd2zero(VOLUME/2,phi+(VOLUME/2));
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,0.0,phi,phi,stat);
+         mulg5_dble(VOLUME/2,phi);
+         set_sd2zero(VOLUME/2,phi+(VOLUME/2));
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,0.0,phi,phi,stat+3);
 
          error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
                     "power1 [ms2.c]","DFL_SAP_GCR solver failed "
@@ -544,7 +667,7 @@ static double power1(int *status)
          status[2]+=(stat[5]!=0);
       }
 
-      r=normalize_dble(VOLUME/2,1,wsd[0]);
+      r=normalize_dble(VOLUME/2,1,phi);
    }
 
    release_wsd();
@@ -557,24 +680,27 @@ static double power2(void)
 {
    int k;
    double r;
-   spinor_dble **wsd;
+   spinor_dble *phi,*psi,**wsd;
 
    set_sw_parms(sea_quark_mass(0));
    sw_term(ODD_PTS);
 
    wsd=reserve_wsd(2);
-   random_sd(VOLUME/2,wsd[0],1.0);
-   bnd_sd2zero(EVEN_PTS,wsd[0]);
-   r=normalize_dble(VOLUME/2,1,wsd[0]);
+   phi=wsd[0];
+   psi=wsd[1];
+
+   random_sd(VOLUME/2,phi,1.0);
+   bnd_sd2zero(EVEN_PTS,phi);
+   r=normalize_dble(VOLUME/2,1,phi);
 
    for (k=0;k<np_rb;k++)
    {
-      Dwhat_dble(0.0,wsd[0],wsd[1]);
-      mulg5_dble(VOLUME/2,wsd[1]);
-      Dwhat_dble(0.0,wsd[1],wsd[0]);
-      mulg5_dble(VOLUME/2,wsd[0]);
+      Dwhat_dble(0.0,phi,psi);
+      mulg5_dble(VOLUME/2,psi);
+      Dwhat_dble(0.0,psi,phi);
+      mulg5_dble(VOLUME/2,phi);
 
-      r=normalize_dble(VOLUME/2,1,wsd[0]);
+      r=normalize_dble(VOLUME/2,1,phi);
    }
 
    release_wsd();
@@ -611,6 +737,52 @@ static void restore_ranlux(void)
 }
 
 
+static void read_ud(int icnfg)
+{
+   int type,nios,ib;
+   double wt1,wt2;
+   char *cnfg_dir;
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt1=MPI_Wtime();
+
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+   nios=iodat.nio_streams;
+   ib=iodat.ib;
+
+   if (type==0x1)
+   {
+      sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
+      import_cnfg(cnfg_file,0x0);
+   }
+   else if (type==0x2)
+   {
+      set_nio_streams(nios);
+      sprintf(cnfg_file,"%s/%sn%d_b%d",cnfg_dir,nbase,icnfg,ib);
+      blk_import_cnfg(cnfg_file,0x0);
+   }
+   else
+   {
+      save_ranlux();
+      set_nio_streams(nios);
+      sprintf(cnfg_file,"%s/%sn%d_%d",cnfg_dir,nbase,icnfg,my_rank);
+      read_cnfg(cnfg_file);
+      restore_ranlux();
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt2=MPI_Wtime();
+
+   if (my_rank==0)
+   {
+      printf("Configuration read from disk in %.2e sec\n\n",
+             wt2-wt1);
+      fflush(flog);
+   }
+}
+
+
 static void check_endflag(int *iend)
 {
    if (my_rank==0)
@@ -635,7 +807,7 @@ static void check_endflag(int *iend)
 int main(int argc,char *argv[])
 {
    int nc,iend,status[3];
-   int nws,nwsd,nwv,nwvd,n;
+   int nws,nwv,nwvd,n,bc;
    double ra,ramin,ramax,raavg;
    double rb,rbmin,rbmax,rbavg;
    double A,eps,delta,Ne,d1,d2;
@@ -646,16 +818,16 @@ int main(int argc,char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    read_infile(argc,argv);
+   check_machine();
+   geometry();
    check_files();
    print_info();
    dfl=dfl_parms();
-
    start_ranlux(0,1234);
-   geometry();
 
-   wsize(&nws,&nwsd,&nwv,&nwvd);
+   wsize(&nws,&nwv,&nwvd);
    alloc_ws(nws);
-   alloc_wsd(nwsd);
+   wsd_uses_ws();
    alloc_wv(nwv);
    alloc_wvd(nwvd);
 
@@ -676,21 +848,12 @@ int main(int argc,char *argv[])
       wt1=MPI_Wtime();
 
       if (my_rank==0)
+      {
          printf("Configuration no %d\n",nc);
-
-      if (noexp)
-      {
-         save_ranlux();
-         sprintf(cnfg_file,"%s/%sn%d_%d",loc_dir,nbase,nc,my_rank);
-         read_cnfg(cnfg_file);
-         restore_ranlux();
-      }
-      else
-      {
-         sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,nc);
-         import_cnfg(cnfg_file);
+         fflush(flog);
       }
 
+      read_ud(nc);
       set_ud_phase();
 
       if (dfl.Ns)
@@ -775,10 +938,19 @@ int main(int argc,char *argv[])
              rbmin,rbmax,rbavg/(double)(nc));
 
       ra=0.90*ramin;
-      rb=1.03*rbmax;
+      rb=1.10*rbmax;
       eps=ra/rb;
       eps=eps*eps;
-      Ne=0.5*(double)(NPROC0*L0-2)*(double)(NPROC1*NPROC2*NPROC3*L1*L2*L3);
+
+      bc=bc_type();
+      Ne=0.5*(double)(N1*N2*N3);
+
+      if (bc==0)
+         Ne*=(double)(N0-2);
+      else if ((bc==1)||(bc==2))
+         Ne*=(double)(N0-1);
+      else
+         Ne*=(double)(N0);
 
       printf("Zolotarev rational approximation:\n\n");
 

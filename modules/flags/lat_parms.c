@@ -10,10 +10,8 @@
 *
 * Lattice parameters and boundary conditions.
 *
-* The externally accessible functions are
-*
 *   lat_parms_t set_lat_parms(double beta,double c0,
-*                             int nk,double *kappa,double csw)
+*                             int nk,double *kappa,int isw,double csw)
 *     Sets the basic lattice parameters. The parameters are
 *
 *       beta           Inverse bare coupling (beta=6/g0^2).
@@ -24,6 +22,9 @@
 *       nk             Number of hopping parameter values.
 *
 *       kappa          Array of hopping parameter values.
+*
+*       isw            Implementation of the Sheikholeslami-Wohlert term
+*                      (0: traditional, 1: exponential).
 *
 *       csw            Coefficient of the Sheikholeslami-Wohlert term.
 *
@@ -116,14 +117,15 @@
 *
 *       m0             Bare quark mass.
 *
-*     The return value is a structure that contains the mass m0 and the
-*     improvement coefficients csw and cF[2], the latter being copied from
-*     the list of the lattice and boundary parameters, respectively.
+*     The return value is a structure that contains the mass m0, the type
+*     isw of the SW term and the improvement coefficients csw and cF[2],
+*     all except m0 being copied from the list of the lattice and boundary
+*     parameters, respectively.
 *
 *   sw_parms_t sw_parms(void)
 *     Returns the parameters currently set for the SW term. The values
-*     of the coefficients csw and cF[2] are copied from the lattice and
-*     boundary parameter list.
+*     of the SW type isw and the coefficients csw and cF[2] are copied from
+*     the lattice and boundary parameter lists.
 *
 *   tm_parms_t set_tm_parms(int eoflg)
 *     Sets the twisted-mass flag. The parameter is
@@ -138,17 +140,15 @@
 *   tm_parms_t tm_parms(void)
 *     Returns a structure containing the twisted-mass flag.
 *
-* Notes:
-*
 * To ensure the consistency of the data base, the parameters must be set
 * simultaneously on all processes. The data types lat_parms_t,..,tm_parms_t
 * are defined in the file flags.h.
 *
 * The programs set_lat_parms() and set_bc_parms() may be called at most once.
 * Moreover, they may not be called after the geometry arrays are set up. The
-* default values of the lattice parameters beta=0.0, c0=1.0, nk=0 and csw=1.0
-* are used if set_lat_parms() is not called. In the case of set_bc_parms(),
-* the default is open boundary conditions and cG=cF=1.0.
+* default values of the lattice parameters beta=0.0, c0=1.0, nk=0, isw=0 and
+* csw=1.0 are used if set_lat_parms() is not called. The default in the case
+* of set_bc_parms() are open boundary conditions with cG=cF=1.0.
 *
 * See the notes doc/gauge_action.pdf and doc/dirac.pdf for the detailed
 * description of the lattice action and the boundary conditions.
@@ -172,17 +172,17 @@
 #define N3 (NPROC3*L3)
 
 static int flg_lat=0,flg_bc=0;
-static lat_parms_t lat={0,0.0,1.0,0.0,NULL,NULL,1.0};
+static lat_parms_t lat={0,0,0.0,1.0,0.0,NULL,NULL,1.0};
 static bc_parms_t bc={0,{1.0,1.0},{1.0,1.0},{{0.0,0.0,0.0},{0.0,0.0,0.0}},
                       {0.0,0.0,0.0}};
-static sw_parms_t sw={DBL_MAX,1.0,{1.0,1.0}};
+static sw_parms_t sw={0,DBL_MAX,1.0,{1.0,1.0}};
 static tm_parms_t tm={0};
 
 
 lat_parms_t set_lat_parms(double beta,double c0,
-                          int nk,double *kappa,double csw)
+                          int nk,double *kappa,int isw,double csw)
 {
-   int iprms[1],ik,ie;
+   int iprms[2],ik,ie;
    double dprms[3],*k;
 
    error(flg_lat!=0,1,"set_lat_parms [lat_parms.c]",
@@ -194,19 +194,24 @@ lat_parms_t set_lat_parms(double beta,double c0,
    if (NPROC>1)
    {
       iprms[0]=nk;
+      iprms[1]=isw;
       dprms[0]=beta;
       dprms[1]=c0;
       dprms[2]=csw;
 
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(iprms,2,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-      error((iprms[0]!=nk)||(dprms[0]!=beta)||(dprms[1]!=c0)||(dprms[2]!=csw),1,
+      error((iprms[0]!=nk)||(iprms[1]!=isw)||(dprms[0]!=beta)||
+            (dprms[1]!=c0)||(dprms[2]!=csw),1,
             "set_lat_parms [lat_parms.c]","Parameters are not global");
    }
 
    error_root(nk<0,1,"set_lat_parms [lat_parms.c]",
               "Number of kappa values must be non-negative");
+
+   error_root((isw<0)||(isw>1),1,"set_lat_parms [lat_parms.c]",
+              "The SW type isw must be either 0 or 1");
 
    error_root(c0<=0.0,1,"set_lat_parms [lat_parms.c]",
               "Parameter c0 must be positive");
@@ -243,6 +248,7 @@ lat_parms_t set_lat_parms(double beta,double c0,
    }
 
    lat.nk=nk;
+   lat.isw=isw;
    lat.beta=beta;
    lat.c0=c0;
    lat.c1=0.125*(1.0-c0);
@@ -295,7 +301,7 @@ void print_lat_parms(void)
       }
 
       n=fdigits(lat.csw);
-      printf("csw = %.*f\n\n",IMAX(n,1),lat.csw);
+      printf("isw = %d, csw = %.*f\n\n",lat.isw,IMAX(n,1),lat.csw);
    }
 }
 
@@ -304,7 +310,7 @@ void write_lat_parms(FILE *fdat)
 {
    int my_rank,endian;
    int iw,ik;
-   stdint_t istd[5];
+   stdint_t istd[6];
    double dstd[4];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -317,6 +323,7 @@ void write_lat_parms(FILE *fdat)
       istd[2]=(stdint_t)(N2);
       istd[3]=(stdint_t)(N3);
       istd[4]=(stdint_t)(lat.nk);
+      istd[5]=(stdint_t)(lat.isw);
 
       dstd[0]=lat.beta;
       dstd[1]=lat.c0;
@@ -325,11 +332,11 @@ void write_lat_parms(FILE *fdat)
 
       if (endian==BIG_ENDIAN)
       {
-         bswap_int(5,istd);
+         bswap_int(6,istd);
          bswap_double(4,dstd);
       }
 
-      iw=fwrite(istd,sizeof(stdint_t),5,fdat);
+      iw=fwrite(istd,sizeof(stdint_t),6,fdat);
       iw+=fwrite(dstd,sizeof(double),4,fdat);
 
       for (ik=0;ik<lat.nk;ik++)
@@ -343,7 +350,7 @@ void write_lat_parms(FILE *fdat)
          iw+=fwrite(dstd,sizeof(double),2,fdat);
       }
 
-      error_root(iw!=(9+2*lat.nk),1,"write_lat_parms [lat_parms.c]",
+      error_root(iw!=(10+2*lat.nk),1,"write_lat_parms [lat_parms.c]",
                  "Incorrect write count");
    }
 }
@@ -353,7 +360,7 @@ void check_lat_parms(FILE *fdat)
 {
    int my_rank,endian;
    int ir,ik,ie;
-   stdint_t istd[5];
+   stdint_t istd[6];
    double dstd[4];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -361,12 +368,12 @@ void check_lat_parms(FILE *fdat)
 
    if (my_rank==0)
    {
-      ir=fread(istd,sizeof(stdint_t),5,fdat);
+      ir=fread(istd,sizeof(stdint_t),6,fdat);
       ir+=fread(dstd,sizeof(double),4,fdat);
 
       if (endian==BIG_ENDIAN)
       {
-         bswap_int(5,istd);
+         bswap_int(6,istd);
          bswap_double(4,dstd);
       }
 
@@ -376,6 +383,7 @@ void check_lat_parms(FILE *fdat)
       ie|=(istd[2]!=(stdint_t)(N2));
       ie|=(istd[3]!=(stdint_t)(N3));
       ie|=(istd[4]!=(stdint_t)(lat.nk));
+      ie|=(istd[5]!=(stdint_t)(lat.isw));
 
       ie|=(dstd[0]!=lat.beta);
       ie|=(dstd[1]!=lat.c0);
@@ -393,7 +401,7 @@ void check_lat_parms(FILE *fdat)
          ie|=(dstd[1]!=lat.m0[ik]);
       }
 
-      error_root(ir!=(9+2*lat.nk),1,"check_lat_parms [lat_parms.c]",
+      error_root(ir!=(10+2*lat.nk),1,"check_lat_parms [lat_parms.c]",
                  "Incorrect read count");
 
       error_root(ie!=0,1,"check_lat_parms [lat_parms.c]",
@@ -408,7 +416,7 @@ bc_parms_t set_bc_parms(int type,
                         double *phi,double *phi_prime,
                         double *theta)
 {
-   int iprms[1],ie;
+   int iprms[1],ie,i;
    double dprms[9];
 
    error(flg_bc!=0,1,"set_bc_parms [lat_parms.c]",
@@ -426,19 +434,15 @@ bc_parms_t set_bc_parms(int type,
       error(iprms[0]!=type,1,"set_bc_parms [lat_parms.c]",
             "Parameters are not global");
 
+      for (i=0;i<5;i++)
+         dprms[i]=0.0;
+
       if ((type>=0)&&(type<3))
       {
          dprms[0]=cG;
          dprms[1]=cF;
 
-         if (type==0)
-         {
-            dprms[2]=0.0;
-            dprms[3]=0.0;
-            dprms[4]=0.0;
-            dprms[5]=0.0;
-         }
-         else if (type==1)
+         if (type==1)
          {
             dprms[2]=phi[0];
             dprms[3]=phi[1];
@@ -452,14 +456,19 @@ bc_parms_t set_bc_parms(int type,
             dprms[4]=phi_prime[0];
             dprms[5]=phi_prime[1];
          }
+      }
 
-         dprms[6]=theta[0];
-         dprms[7]=theta[1];
-         dprms[8]=theta[2];
+      dprms[6]=theta[0];
+      dprms[7]=theta[1];
+      dprms[8]=theta[2];
 
-         MPI_Bcast(dprms,9,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      MPI_Bcast(dprms,9,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-         ie=((dprms[0]!=cG)||(dprms[1]!=cF));
+      ie=((dprms[6]!=theta[0])||(dprms[7]!=theta[1])||(dprms[8]!=theta[2]));
+
+      if ((type>=0)&&(type<3))
+      {
+         ie|=((dprms[0]!=cG)||(dprms[1]!=cF));
 
          if (type==1)
          {
@@ -471,11 +480,9 @@ bc_parms_t set_bc_parms(int type,
             ie|=((dprms[2]!=cG_prime)||(dprms[3]!=cF_prime));
             ie|=((dprms[4]!=phi_prime[0])||(dprms[5]!=phi_prime[1]));
          }
-
-         ie|=((dprms[6]!=theta[0])||(dprms[7]!=theta[1])||(dprms[8]!=theta[2]));
-
-         error(ie!=0,1,"set_bc_parms [lat_parms.c]","Parameters are not global");
       }
+
+      error(ie!=0,1,"set_bc_parms [lat_parms.c]","Parameters are not global");
    }
 
    error_root((type<0)||(type>3),1,"set_bc_parms [lat_parms.c]",
@@ -762,6 +769,7 @@ sw_parms_t set_sw_parms(double m0)
    }
 
    sw.m0=m0;
+   sw.isw=lat.isw;
    sw.csw=lat.csw;
    sw.cF[0]=bc.cF[0];
    sw.cF[1]=bc.cF[1];
@@ -772,6 +780,7 @@ sw_parms_t set_sw_parms(double m0)
 
 sw_parms_t sw_parms(void)
 {
+   sw.isw=lat.isw;
    sw.csw=lat.csw;
    sw.cF[0]=bc.cF[0];
    sw.cF[1]=bc.cF[1];

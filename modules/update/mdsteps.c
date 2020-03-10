@@ -3,15 +3,13 @@
 *
 * File mdsteps.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2017, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Molecular-dynamics integrator
+* Molecular-dynamics integrator.
 *
-* The externally accessible functions are
-* 
 *   void set_mdsteps(void)
 *     Constructs the integrator from the data available in the parameter
 *     data base (see the notes). The integrator is stored internally in
@@ -37,8 +35,6 @@
 *
 *     The full information is thus printed if ipr=0x7.
 *
-* Notes:
-*
 * The structure of the MD integrator is explained in the file README.mdint
 * in this directory. It is assumed here that the parameters of the integrator
 * have been entered to the parameter data base.
@@ -53,7 +49,7 @@
 *          current force field. If iop=itu+1, the momentum field is to be
 *          updated, using the current force, and the integration ends.
 *
-*  eps     Step sizes by which the forces (iop<itu) or the momentum field
+*  eps     Step size by which the force (iop<itu) or the momentum field
 *          in the update of the gauge field must be multiplied.
 *
 * The forces are described by the structures returned by force_parms(iop)
@@ -68,9 +64,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <string.h>
-#include <float.h>
 #include "mpi.h"
 #include "utils.h"
 #include "flags.h"
@@ -89,7 +83,7 @@ static void set_nsmx(int nlv)
 
    iend=0;
    ntu=1;
-   
+
    for (ilv=0;ilv<nlv;ilv++)
    {
       mdp=mdint_parms(ilv);
@@ -101,11 +95,11 @@ static void set_nsmx(int nlv)
       else if (mdp.integrator==OMF4)
          ntu*=5*mdp.nstep;
       else
-         error_root(1,1,"set_nsmx [mdsteps.c]","Unknown integrator");
+         error(1,1,"set_nsmx [mdsteps.c]","Unknown integrator");
 
       nfr=mdp.nfr;
       ifr=mdp.ifr;
-      
+
       for (i=0;i<nfr;i++)
       {
          if (ifr[i]>iend)
@@ -113,7 +107,7 @@ static void set_nsmx(int nlv)
       }
    }
 
-   iend+=2;   
+   iend+=2;
    nsmx=(ntu+1)*iend;
 }
 
@@ -121,7 +115,7 @@ static void set_nsmx(int nlv)
 static void alloc_mds(void)
 {
    int k;
-   
+
    if (mds!=NULL)
       free(mds);
 
@@ -153,61 +147,8 @@ static void copy_steps(int n,double c,mdstep_t *s,mdstep_t *r)
    for (i=0;i<n;i++)
    {
       r[i].iop=s[i].iop;
-      r[i].eps=c*s[i].eps;     
+      r[i].eps=c*s[i].eps;
    }
-}
-
-
-static void add_steps(int n,double c,mdstep_t *s,mdstep_t *r)
-{
-   int itu,i,j;
-
-   itu=iend-1;
-   
-   for (i=0;i<n;i++)
-   {
-      for (j=0;r[j].iop<itu;j++)
-      {
-         if (r[j].iop==s[i].iop)
-         {
-            r[j].eps+=c*s[i].eps;
-            break;
-         }
-      }
-
-      if (r[j].iop>=itu)
-      {
-         r[j].iop=s[i].iop;
-         r[j].eps=c*s[i].eps;
-      }
-   }
-}
-
-
-static int nfrc_steps(mdstep_t *s)
-{
-   int itu,n;
-
-   itu=iend-1;
-   n=0;
-   
-   while (s[n].iop<itu)
-      n+=1;
-
-   return n;
-}
-
-
-static int nall_steps(mdstep_t *s)
-{
-   int n;
-   
-   n=0;
-   
-   while (s[n].iop<iend)
-      n+=1;
-
-   return n;
 }
 
 
@@ -227,14 +168,14 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
    n=0;
    r0=mdp.lambda;
    r1=0.08398315262876693;
-   r2=0.2539785108410595; 
-   r3=0.6822365335719091; 
+   r2=0.2539785108410595;
+   r3=0.6822365335719091;
    r4=-0.03230286765269967;
-   eps=tau/(double)(nstep);   
+   eps=tau/(double)(nstep);
 
    set_steps2zero(nsmx,s);
    set_steps2zero(nsmx,ws);
-   
+
    for (i=0;i<nfr;i++)
    {
       for (j=0;j<n;j++)
@@ -245,7 +186,7 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
             break;
          }
       }
-      
+
       if (j==n)
       {
          ws[n].iop=ifr[i];
@@ -277,11 +218,11 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
       s+=n;
 
       for (i=1;i<=nstep;i++)
-      {      
+      {
          (*s).iop=itu;
          (*s).eps=0.5*eps;
          s+=1;
-         copy_steps(n,1.0-2.0*r0,ws,s);      
+         copy_steps(n,1.0-2.0*r0,ws,s);
          s+=n;
 
          (*s).iop=itu;
@@ -300,7 +241,7 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
       s+=n;
 
       for (i=1;i<=nstep;i++)
-      {       
+      {
          (*s).iop=itu;
          (*s).eps=r2*eps;
          s+=1;
@@ -328,7 +269,7 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
          (*s).iop=itu;
          (*s).eps=r2*eps;
          s+=1;
-         if (i<nstep)         
+         if (i<nstep)
             copy_steps(n,2.0*r1,ws,s);
          else
             copy_steps(n,r1,ws,s);
@@ -338,9 +279,64 @@ static void expand_level(int ilv,double tau,mdstep_t *s,mdstep_t *ws)
 }
 
 
+static int nfrc_steps(mdstep_t *s)
+{
+   int itu,n;
+
+   itu=iend-1;
+   n=0;
+
+   while (s[n].iop<itu)
+      n+=1;
+
+   return n;
+}
+
+
+static int nall_steps(mdstep_t *s)
+{
+   int n;
+
+   n=0;
+
+   while (s[n].iop<iend)
+      n+=1;
+
+   return n;
+}
+
+
+static void add_frc_steps(double c,mdstep_t *s,mdstep_t *r)
+{
+   int n,m,i,j;
+
+   n=nfrc_steps(s);
+   m=nfrc_steps(r);
+
+   for (i=0;i<n;i++)
+   {
+      for (j=0;j<m;j++)
+      {
+         if (r[j].iop==s[i].iop)
+         {
+            r[j].eps+=c*s[i].eps;
+            break;
+         }
+      }
+
+      if (j==m)
+      {
+         r[j].iop=s[i].iop;
+         r[j].eps=c*s[i].eps;
+         m+=1;
+      }
+   }
+}
+
+
 static void insert_level(mdstep_t *s1,mdstep_t *s2,mdstep_t *r)
 {
-   int itu,n,nfrc,nall;
+   int itu,nfrc,nall;
    double eps;
 
    set_steps2zero(nsmx,r);
@@ -349,22 +345,20 @@ static void insert_level(mdstep_t *s1,mdstep_t *s2,mdstep_t *r)
    nfrc=nfrc_steps(s1);
    nall=nall_steps(s1+nfrc);
 
-   n=nfrc_steps(s2);
-   copy_steps(n,1.0,s2,r);
-   s2+=n;   
-                  
+   add_frc_steps(1.0,s2,r);
+   s2+=nfrc_steps(s2);
+
    while ((*s2).iop==itu)
    {
       eps=(*s2).eps;
-      add_steps(nfrc,eps,s1,r);
+      add_frc_steps(eps,s1,r);
       r+=nfrc_steps(r);
       copy_steps(nall,eps,s1+nfrc,r);
       r+=nall-nfrc;
-      
+
       s2+=1;
-      n=nfrc_steps(s2);
-      add_steps(n,1.0,s2,r);
-      s2+=n;
+      add_frc_steps(1.0,s2,r);
+      s2+=nfrc_steps(s2);
    }
 }
 
@@ -386,12 +380,13 @@ static void swap_steps(mdstep_t *s,mdstep_t *r)
 
 static void sort_forces(void)
 {
-   int itu,n;
+   int itu,ie,n;
    int i,j,k,imn;
    mdstep_t *s;
    force_parms_t fp;
 
    itu=iend-1;
+   ie=0;
    s=mds;
 
    while ((*s).iop<iend)
@@ -411,14 +406,13 @@ static void sort_forces(void)
          }
       }
 
-      error_root(k!=1,1,"sort_forces [mdsteps.c]",
-                 "Incorrect gauge force count");
+      ie|=(k!=1);
 
       for (i=1;i<n;i++)
       {
          imn=s[i].iop;
          k=i;
-         
+
          for (j=(i+1);j<n;j++)
          {
             if (s[j].iop<imn)
@@ -431,11 +425,36 @@ static void sort_forces(void)
          if (k!=i)
             swap_steps(s+i,s+k);
       }
-      
+
       s+=n;
       if ((*s).iop==itu)
          s+=1;
    }
+
+   error(ie!=0,1,"sort_forces [mdsteps.c]","Incorrect gauge force count");
+}
+
+
+static void set_nlv(int *nlv,double *tau)
+{
+   hmc_parms_t hmc;
+   smd_parms_t smd;
+
+   hmc=hmc_parms();
+   smd=smd_parms();
+
+   if (hmc.nlv!=0)
+   {
+      (*nlv)=hmc.nlv;
+      (*tau)=hmc.tau;
+   }
+   else if (smd.nlv!=0)
+   {
+      (*nlv)=smd.nlv;
+      (*tau)=smd.eps;
+   }
+   else
+      error(1,1,"set_nlv [mdsteps.c]","Simulation parameters are not set");
 }
 
 
@@ -443,28 +462,24 @@ void set_mdsteps(void)
 {
    int nlv,ilv,n;
    double tau;
-   hmc_parms_t hmc;
 
-   hmc=hmc_parms();
-   nlv=hmc.nlv;
-   tau=hmc.tau;
-
+   set_nlv(&nlv,&tau);
    set_nsmx(nlv);
    alloc_mds();
    expand_level(nlv-1,tau,mds,mdw[0]);
-      
+
    for (ilv=(nlv-2);ilv>=0;ilv--)
    {
       n=nall_steps(mds);
-      copy_steps(n,1.0,mds,mdw[0]);      
+      copy_steps(n,1.0,mds,mdw[0]);
       expand_level(ilv,1.0,mdw[1],mdw[2]);
       insert_level(mdw[1],mdw[0],mds);
    }
 
    sort_forces();
-   nmds=nall_steps(mds)+1;   
+   nmds=nall_steps(mds)+1;
 }
-   
+
 
 mdstep_t *mdsteps(int *nop,int *itu)
 {
@@ -478,21 +493,26 @@ mdstep_t *mdsteps(int *nop,int *itu)
 static void print_ops(void)
 {
    int i,itu;
-   
-   printf("List of elementary operations:\n");
+   double t;
 
+   printf("List of elementary operations:\n");
    itu=iend-1;
-   
+   t=0.0;
+
    for (i=0;i<nmds;i++)
    {
       if (mds[i].iop<itu)
-         printf("TP: force %2d, eps = % .2e\n",mds[i].iop,mds[i].eps);
+         printf("TP: force %2d, eps = % .2e, t = %.2e\n",
+                mds[i].iop,mds[i].eps,t);
       else if (mds[i].iop==itu)
-         printf("TU:           eps = % .2e\n",mds[i].eps);
+      {
+         printf("TU:           eps = % .2e, t = %.2e\n",mds[i].eps,t);
+         t+=mds[i].eps;
+      }
       else if (mds[i].iop==iend)
          printf("END\n\n");
       else
-         error_root(1,1,"print_ops [mdsteps.c]","Unkown operation");
+         error_root(1,1,"print_ops [mdsteps.c]","Unknown operation");
    }
 }
 
@@ -501,7 +521,7 @@ static void print_times(double tau)
 {
    int i,j,it;
    double seps;
-   
+
    printf("Total integration times:\n");
 
    for (i=0;i<iend;i++)
@@ -519,7 +539,7 @@ static void print_times(double tau)
       }
 
       seps/=tau;
-            
+
       if (i==(iend-1))
          printf("TU:       sum(eps)/tau = %.3e\n",seps);
       else if (it==1)
@@ -532,18 +552,19 @@ static void print_times(double tau)
 
 void print_mdsteps(int ipr)
 {
-   int my_rank;
-   hmc_parms_t hmc;
+   int my_rank,nlv;
+   double tau;
+
+   set_nlv(&nlv,&tau);
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   hmc=hmc_parms();
 
    if (my_rank==0)
    {
       printf("Molecular-dynamics integrator:\n\n");
 
-      printf("Trajectory length = %.4e\n",hmc.tau);
-      printf("Number of levels = %d\n\n",hmc.nlv);
+      printf("Trajectory length tau = %.4e\n",tau);
+      printf("Number of levels = %d\n\n",nlv);
 
       print_mdint_parms();
 
@@ -554,6 +575,6 @@ void print_mdsteps(int ipr)
          print_ops();
 
       if (ipr&0x4)
-         print_times(hmc.tau);
+         print_times(tau);
    }
 }

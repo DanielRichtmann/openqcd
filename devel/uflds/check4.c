@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2005, 2007-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -308,6 +308,7 @@ int main(int argc,char *argv[])
                     "Syntax: check4 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;
@@ -408,10 +409,10 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("Comparison of plaq_wsum_dble() with plaq_action_slices():\n");
-      printf("Absolute difference of total action = %.1e\n",
-             fabs(3.0*nplaq2-0.5*act1-p2));
+      printf("Action = %.3e, absolute difference = %.1e\n",
+             act1,fabs(2.0*(3.0*nplaq2-p2)-act1));
       if ((bc==0)||(bc==3))
-         printf("Deviation from sum of action slices = %.1e\n\n",
+         printf("Absolute deviation from sum of action slices = %.1e\n\n",
                 fabs(d1));
       else
          printf("\n");
@@ -430,19 +431,23 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("Gauge invariance:\n");
-      printf("Relative difference (plaq_sum_dble)  = %.1e\n",d1/fabs(p1));
-      printf("Relative difference (plaq_wsum_dble) = %.1e\n",d2/fabs(p2));
-      printf("Relative difference (action slices)  = %.1e\n\n",
-             d3/((double)(N0)*asl2[1]));
+      printf("|Sum| = %.3e\n",fabs(p1));
+      printf("Absolute difference (plaq_sum_dble)  = %.1e\n",d1);
+      printf("Absolute difference (plaq_wsum_dble) = %.1e\n",d2);
+      printf("Absolute difference (action slices)  = %.1e\n\n",
+             d3/(double)(N0));
    }
-
-   if (my_rank==0)
-      printf("Translation invariance:\n");
 
    random_ud();
    p1=plaq_sum_dble(1);
    p2=plaq_wsum_dble(1);
    plaq_action_slices(asl1);
+
+   if (my_rank==0)
+   {
+      printf("Translation invariance:\n");
+      printf("|Sum| = %.3e\n\n",p1);
+   }
 
    for (n=0;n<8;n++)
    {
@@ -466,8 +471,8 @@ int main(int argc,char *argv[])
          printf("s=(% 3d,% 3d,% 3d,% 3d):\n",s[0],s[1],s[2],s[3]);
          printf("Absolute deviation (plaq_sum_dble)  = %.1e\n",d1);
          printf("Absolute deviation (plaq_wsum_dble) = %.1e\n",d2);
-         printf("Absolute difference (action slices) = %.1e\n\n",
-                d2/(double)(N0));
+         printf("Absolute deviation (action slices)  = %.1e\n\n",
+                d3/(double)(N0));
       }
    }
 
@@ -481,8 +486,8 @@ int main(int argc,char *argv[])
       {
          printf("\n");
          printf("Comparison of plaq_sum_dble() and plaq_wsum_dble():\n");
-         printf("Absolute deviation = %.1e\n\n",
-                fabs(p1-p2-9.0*(double)(N1*N2*N3)));
+         printf("|Sum| = %.3e, Absolute deviation = %.1e\n\n",
+                fabs(p1),fabs((p1-9.0*(double)(N1*N2*N3))-p2));
       }
    }
 

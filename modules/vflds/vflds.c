@@ -11,8 +11,6 @@
 * Allocation and initialization of the global vector fields related to
 * the deflation subspace.
 *
-* The externally accessible functions are
-*
 *   complex **vflds(void)
 *     Returns the base address of the global single-precision vector fields
 *     (see the notes). The fields are allocated and initialized to zero if
@@ -23,10 +21,8 @@
 *     (see the notes). The fields are allocated and initialized to zero if
 *     they are not already allocated.
 *
-* Notes:
-*
 * The vector fields made available through the programs in this module
-* are arrays complex numbers. Eventually they contain the global modes
+* are arrays of complex numbers. Eventually they contain the global modes
 * used to deflate the little Dirac operator that represents the action
 * of the Wilson-Dirac operator in the deflation subspace.
 *

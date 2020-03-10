@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2011, 2016 Martin Luescher
+* Copyright (C) 2011, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of assign_pauli() and apply_sw()
+* Check of assign_pauli() and apply_sw().
 *
 *******************************************************************************/
 
@@ -31,12 +31,16 @@ typedef union
 } spin_t;
 
 static pauli m[2*NM] ALIGNED16;
-static pauli_dble md[2*NM] ALIGNED16;
 static spin_t sp1[NM] ALIGNED16;
 static spin_t sp2[NM] ALIGNED16;
 static spin_t rp1[NM] ALIGNED16;
 static spin_t rp2[NM] ALIGNED16;
 static complex mv[36] ALIGNED16;
+#if (defined AVX)
+static pauli_dble md[2*NM] ALIGNED32;
+#else
+static pauli_dble md[2*NM] ALIGNED16;
+#endif
 
 
 static void random_pauli_dble(void)
@@ -159,7 +163,9 @@ int main(void)
    printf("Check of assign_pauli() and apply_sw()\n");
    printf("--------------------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 

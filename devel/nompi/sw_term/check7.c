@@ -3,12 +3,12 @@
 *
 * File check7.c
 *
-* Copyright (C) 2005, 2009, 2011, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of det_pauli_dble()
+* Check of det_pauli_dble().
 *
 *******************************************************************************/
 
@@ -24,10 +24,17 @@
 #define NM 10000
 
 static double dd[6] ALIGNED16;
+#if (defined AVX)
+static complex_dble aa[36] ALIGNED32;
+static complex_dble bb[36] ALIGNED32;
+static complex_dble vv[36] ALIGNED32;
+static complex_dble ww[36] ALIGNED32;
+#else
 static complex_dble aa[36] ALIGNED16;
 static complex_dble bb[36] ALIGNED16;
 static complex_dble vv[36] ALIGNED16;
 static complex_dble ww[36] ALIGNED16;
+#endif
 
 
 static complex_dble random_dd(double mu)
@@ -210,7 +217,9 @@ int main(void)
    printf("Check of det_pauli_dble()\n");
    printf("-------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 

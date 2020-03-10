@@ -3,16 +3,14 @@
 *
 * File rwtm.c
 *
-* Copyright (C) 2012-2014 Martin Luescher
+* Copyright (C) 2012-2014, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Twisted-mass reweighting factors.
 *
-* The externally accessible functions are
-*
-*   double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
+*   qflt rwtm1(double mu1,double mu2,int isp,qflt *sqn,int *status)
 *     Generates a random pseudo-fermion field with normal distribution,
 *     assigns its square norm to sqn and returns -ln(r1) (see the notes).
 *     The twisted-mass Dirac equation is solved using the solver specified
@@ -23,7 +21,7 @@
 *     solver program (when the DFL_SAP_GCR solver is used, status[2] reports
 *     the number of deflation subspace regenerations that were required).
 *
-*   double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
+*   qflt rwtm2(double mu1,double mu2,int isp,qflt *sqn,int *status)
 *     Generates a random pseudo-fermion field with normal distribution,
 *     assigns its square norm to sqn and returns -ln(r2) (see the notes).
 *     The twisted-mass Dirac equation is solved using the solver specified
@@ -35,7 +33,8 @@
 *     status[2] reports the number of deflation subspace regenerations that
 *     were required).
 *
-* Notes:
+* The quadruple-precision types qflt is defined in su3.h. See doc/qsum.pdf
+* for further explanations.
 *
 * Twisted-mass reweighting of the quark determinant was introduced in
 *
@@ -62,9 +61,12 @@
 *
 *  0<=mu1<mu2.
 *
-* The bare quark mass is taken to be the one last set by set_sw_parms()
-* [flags/lat_parms.c] and it is assumed that the chosen solver parameters
-* have been set by set_solver_parms() [flags/solver_parms.c].
+* It is taken for granted that the solver parameters have been set by
+* set_solver_parms() [flags/solver_parms.c] and that the deflation subspace
+* has been properly set up if the DFL_SAP_GCR solver is used. The bare quark
+* mass is the one last set by set_sw_parms() [flags/lat_parms.c]. If phase-
+* periodic boundary conditions are chosen, the calling program must ensure
+* that the gauge field is phase-set.
 *
 * The programs in this module perform global communications and must be
 * called simultaneously on all MPI processes. They require a workspace of
@@ -92,7 +94,7 @@
 #include "global.h"
 
 
-static void check_parms(double mu1,double mu2,int isp)
+static void check_args(double mu1,double mu2,int isp)
 {
    int iprms[1];
    double dprms[2];
@@ -107,15 +109,15 @@ static void check_parms(double mu1,double mu2,int isp)
       MPI_Bcast(dprms,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
       error((iprms[0]!=isp)||(dprms[0]!=mu1)||(dprms[1]!=mu2),1,
-            "check_parms [rwtm.c]","Parameters are not global");
+            "check_args [rwtm.c]","Parameters are not global");
    }
 
-   error_root((mu1<0.0)||(mu2<=mu1),1,"check_parms [rwtm.c]",
+   error_root((mu1<0.0)||(mu2<=mu1),1,"check_args [rwtm.c]",
               "Twisted masses mu1,mu2 are out of range");
 }
 
 
-static double set_eta(spinor_dble *eta)
+static qflt set_eta(spinor_dble *eta)
 {
    random_sd(VOLUME,eta,1.0);
    bnd_sd2zero(ALL_PTS,eta);
@@ -124,14 +126,14 @@ static double set_eta(spinor_dble *eta)
 }
 
 
-double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
+qflt rwtm1(double mu1,double mu2,int isp,qflt *sqn,int *status)
 {
-   double lnr;
+   qflt lnr;
    spinor_dble *eta,*phi,**wsd;
    solver_parms_t sp;
    sap_parms_t sap;
 
-   check_parms(mu1,mu2,isp);
+   check_args(mu1,mu2,isp);
    wsd=reserve_wsd(2);
    eta=wsd[0];
    phi=wsd[1];
@@ -140,7 +142,7 @@ double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
 
    if (sp.solver==CGNE)
    {
-      tmcg(sp.nmx,sp.res,mu1,eta,phi,status);
+      tmcg(sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root(status[0]<0,1,"rwtm1 [rwtm.c]",
                  "CGNE solver failed (mu = %.2e, parameter set no %d, "
@@ -153,7 +155,7 @@ double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
       sap=sap_parms();
       set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
       mulg5_dble(VOLUME,eta);
-      sap_gcr(sp.nkv,sp.nmx,sp.res,mu1,eta,phi,status);
+      sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root(status[0]<0,1,"rwtm1 [rwtm.c]",
                  "SAP_GCR solver failed (mu = %.2e, parameter set no %d, "
@@ -166,7 +168,7 @@ double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
       sap=sap_parms();
       set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
       mulg5_dble(VOLUME,eta);
-      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,eta,phi,status);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root((status[0]<0)||(status[1]<0),1,
                  "rwtm1 [rwtm.c]","DFL_SAP_GCR solver failed "
@@ -178,25 +180,28 @@ double rwtm1(double mu1,double mu2,int isp,double *sqn,int *status)
    }
    else
    {
-      lnr=0.0;
+      lnr.q[0]=0.0;
+      lnr.q[1]=0.0;
       error_root(1,1,"rwtm1 [rwtm.c]","Unknown solver");
    }
 
    release_wsd();
 
-   return (mu2*mu2-mu1*mu1)*lnr;
+   scl_qflt((mu2*mu2)-(mu1*mu1),lnr.q);
+
+   return lnr;
 }
 
 
-double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
+qflt rwtm2(double mu1,double mu2,int isp,qflt *sqn,int *status)
 {
    int stat[3];
-   double lnr1,lnr2;
+   qflt lnr1,lnr2;
    spinor_dble *eta,*phi,**wsd;
    solver_parms_t sp;
    sap_parms_t sap;
 
-   check_parms(mu1,mu2,isp);
+   check_args(mu1,mu2,isp);
    wsd=reserve_wsd(2);
    eta=wsd[0];
    phi=wsd[1];
@@ -205,13 +210,13 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
 
    if (sp.solver==CGNE)
    {
-      tmcg(sp.nmx,sp.res,mu1,eta,phi,status);
+      tmcg(sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root(status[0]<0,1,"rwtm2 [rwtm.c]",
                  "CGNE solver failed (mu = %.2e, parameter set no %d, "
                  "status = %d)",mu1,isp,status[0]);
 
-      tmcg(sp.nmx,sp.res,sqrt(2.0)*mu2,eta,eta,stat);
+      tmcg(sp.nmx,sp.istop,sp.res,sqrt(2.0)*mu2,eta,eta,stat);
 
       error_root(stat[0]<0,1,"rwtm2 [rwtm.c]",
                  "CGNE solver failed (mu = %.2e, parameter set no %d, "
@@ -221,7 +226,10 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       if (mu1>0.0)
          lnr1=norm_square_dble(VOLUME,1,phi);
       else
-         lnr1=0.0;
+      {
+         lnr1.q[0]=0.0;
+         lnr1.q[1]=0.0;
+      }
 
       lnr2=spinor_prod_re_dble(VOLUME,1,eta,phi);
    }
@@ -230,14 +238,14 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       sap=sap_parms();
       set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
       mulg5_dble(VOLUME,eta);
-      sap_gcr(sp.nkv,sp.nmx,sp.res,mu1,eta,phi,status);
+      sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root(status[0]<0,1,"rwtm2 [rwtm.c]",
                  "SAP_GCR solver failed (mu = %.2e, parameter set no %d, "
                  "status = %d)",mu1,isp,status[0]);
 
       mulg5_dble(VOLUME,phi);
-      sap_gcr(sp.nkv,sp.nmx,sp.res,sqrt(2.0)*mu2,phi,eta,stat);
+      sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,sqrt(2.0)*mu2,phi,eta,stat);
 
       error_root(stat[0]<0,2,"rwtm2 [rwtm.c]",
                  "SAP_GCR solver failed (mu = %.2e, parameter set no %d, "
@@ -246,7 +254,7 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
 
       if (mu1>0.0)
       {
-         sap_gcr(sp.nkv,sp.nmx,sp.res,mu1,phi,phi,stat);
+         sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,phi,phi,stat);
          error_root(stat[0]<0,3,"rwtm2 [rwtm.c]",
                     "SAP_GCR solver failed (mu = %.2e, parameter set no %d, "
                     "status = %d)",mu1,isp,stat[0]);
@@ -257,7 +265,8 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       else
       {
          status[0]=(status[0]+1)/2;
-         lnr1=0.0;
+         lnr1.q[0]=0.0;
+         lnr1.q[1]=0.0;
       }
 
       lnr2=norm_square_dble(VOLUME,1,eta);
@@ -267,7 +276,7 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       sap=sap_parms();
       set_sap_parms(sap.bs,sp.isolv,sp.nmr,sp.ncy);
       mulg5_dble(VOLUME,eta);
-      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,eta,phi,status);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,eta,phi,status);
 
       error_root((status[0]<0)||(status[1]<0),1,
                  "rwtm2 [rwtm.c]","DFL_SAP_GCR solver failed "
@@ -276,7 +285,7 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       status[2]=(status[2]!=0);
 
       mulg5_dble(VOLUME,phi);
-      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,sqrt(2.0)*mu2,phi,eta,stat);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,sqrt(2.0)*mu2,phi,eta,stat);
 
       error_root((stat[0]<0)||(stat[1]<0),2,
                  "rwtm2 [rwtm.c]","DFL_SAP_GCR solver failed "
@@ -288,7 +297,7 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
 
       if (mu1>0.0)
       {
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu1,phi,phi,stat);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,mu1,phi,phi,stat);
 
          error_root((stat[0]<0)||(stat[1]<0),3,
                     "rwtm2 [rwtm.c]","DFL_SAP_GCR solver failed "
@@ -305,15 +314,18 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
       {
          status[0]=(status[0]+1)/2;
          status[1]=(status[1]+1)/2;
-         lnr1=0.0;
+         lnr1.q[0]=0.0;
+         lnr1.q[1]=0.0;
       }
 
       lnr2=norm_square_dble(VOLUME,1,eta);
    }
    else
    {
-      lnr1=0.0;
-      lnr2=0.0;
+      lnr1.q[0]=0.0;
+      lnr1.q[1]=0.0;
+      lnr2.q[0]=0.0;
+      lnr2.q[1]=0.0;
       error_root(1,1,"rwtm2 [rwtm.c]","Unknown solver");
    }
 
@@ -321,6 +333,10 @@ double rwtm2(double mu1,double mu2,int isp,double *sqn,int *status)
 
    mu1=mu1*mu1;
    mu2=mu2*mu2;
+   scl_qflt(mu1*(mu2-mu1),lnr1.q);
+   scl_qflt(2.0*mu2*mu2,lnr2.q);
+   add_qflt(lnr1.q,lnr2.q,lnr1.q);
+   scl_qflt((mu2-mu1)/(2.0*mu2-mu1),lnr1.q);
 
-   return ((mu2-mu1)/(2.0*mu2-mu1))*(mu1*(mu2-mu1)*lnr1+2.0*mu2*mu2*lnr2);
+   return lnr1;
 }

@@ -37,13 +37,13 @@ SFLDS = sflds Pbnd
 
 SU3FCTS = su3prod su3ren cm3x3 random_su3
 
-SW_TERM = pauli pauli_dble swflds sw_term
+SW_TERM = pauli pauli_dble swalg swexp swflds sw_term
 
 TCHARGE = ftcom ftensor
 
 UFLDS = uflds udcom shift
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = endian error mutils qsum utils wspace
 
 MODULES = $(FLAGS) $(RANDOM) $(LATTICE) $(BLOCK) $(UFLDS) $(SFLDS) \
           $(LINALG) $(SU3FCTS) $(UTILS) $(TCHARGE) $(SW_TERM) $(SAP)
@@ -77,9 +77,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

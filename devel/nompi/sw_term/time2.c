@@ -3,12 +3,12 @@
 *
 * File time2.c
 *
-* Copyright (C) 2005, 2011, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of mul_pauli_dble()
+* Timing of mul_pauli_dble().
 *
 *******************************************************************************/
 

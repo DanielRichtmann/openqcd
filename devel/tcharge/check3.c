@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2009-2013 Martin Luescher
+* Copyright (C) 2009-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the program tcharge_slices().
+* Check of the programs tcharge_slices() and tcharge_fld().
 *
 *******************************************************************************/
 
@@ -27,6 +27,7 @@
 #include "uflds.h"
 #include "forces.h"
 #include "wflow.h"
+#include "msfcts.h"
 #include "tcharge.h"
 #include "global.h"
 
@@ -41,9 +42,10 @@ static double eps,Q1,Q2,Q[N0],Q0[N0];
 
 int main(int argc,char *argv[])
 {
-   int my_rank,i,imax,t;
+   int my_rank,iact,i,imax,t;
    double phi[2],phi_prime[2],theta[3];
-   double nplaq,act,dev;
+   double nplaq,act,dev,dmax,*f;
+   qflt rqsm;
    FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -55,8 +57,8 @@ int main(int argc,char *argv[])
       fin=freopen("check3.in","r",stdin);
 
       printf("\n");
-      printf("Check of the program tcharge_slices()\n");
-      printf("-------------------------------------\n\n");
+      printf("Check of the programs tcharge_slices() and tcharge_fld()\n");
+      printf("--------------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -78,12 +80,13 @@ int main(int argc,char *argv[])
                     "Syntax: check3 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&dn,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   set_lat_parms(6.0,1.0,0,NULL,1.0);
+   set_lat_parms(6.0,1.0,0,NULL,0,1.0);
 
    phi[0]=0.123;
    phi[1]=-0.534;
@@ -92,12 +95,17 @@ int main(int argc,char *argv[])
    theta[0]=0.0;
    theta[1]=0.0;
    theta[2]=0.0;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,1.0,1.0,1.0,1.0,phi,phi_prime,theta);
    print_bc_parms(0);
 
    start_ranlux(0,123456);
    geometry();
    alloc_wfd(2);
+   f=malloc(VOLUME*sizeof(*f));
+   error(f==NULL,1,"main [check3.c]","Unable to allocate field array");
 
    if (bc==0)
       nplaq=(double)(6*N0-6)*(double)(N1*N2*N3);
@@ -106,12 +114,14 @@ int main(int argc,char *argv[])
 
    random_ud();
    imax=n/dn;
+   dmax=0.0;
 
    for (i=0;i<imax;i++)
    {
       fwd_euler(dn,eps);
 
-      act=action0(1)/nplaq;
+      rqsm=action0(1);
+      act=rqsm.q[0]/nplaq;
       Q1=tcharge();
       Q2=tcharge_slices(Q);
       dev=fabs(Q1-Q2);
@@ -145,11 +155,19 @@ int main(int argc,char *argv[])
 
       error(t!=N0,1,"main [check3.c]",
             "Charge slices are not globally the same");
+
+      tcharge_fld(f);
+      Q2=(double)(VOLUME)*(double)(NPROC)*avg_fld(f);
+      dev=fabs(Q1-Q2);
+      if (dev>dmax)
+         dmax=dev;
    }
 
    if (my_rank==0)
    {
       printf("\n");
+      printf("Check of tcharge_fld():\n"
+             "Maximal absolute deviation of the total charge = %.1e\n\n",dmax);
       fclose(flog);
    }
 

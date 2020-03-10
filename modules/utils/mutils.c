@@ -3,14 +3,16 @@
 *
 * File mutils.c
 *
-* Copyright (C) 2005, 2007, 2008, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Utility functions used in main programs
+* Utility functions used in main programs.
 *
-* The externally accessible functions are
+*   void check_machine(void)
+*     Checks the endianess of the machine, the basic data sizes and the
+*     IEEE 754 compliance of the floating-point arithmetic on process 0.
 *
 *   int find_opt(int argc,char *argv[],char *opt)
 *     On process 0, this program compares the string opt with the arguments
@@ -24,25 +26,30 @@
 *     few times the machine precision DBL_EPSILON.
 *
 *   void check_dir(char* dir)
-*     This program checks whether the directory dir is locally accessible,
-*     from each process, and aborts the main program with an informative
-*     error message if this is not the case. The program must be called
-*     simultaneously on all processes, but the argument may depend on the
-*     process.
+*     This program checks whether the directory "dir" is accessible and
+*     aborts the main program with an informative error message if this
+*     is not the case. The program may be called on any subset of MPI
+*     processes with varying arguments.
 *
 *   void check_dir_root(char* dir)
-*     On process 0, this program checks whether the directory dir is
+*     On process 0, this program checks whether the directory "dir" is
 *     accessible and aborts the main program with an informative error
 *     message if this is not the case. When called on other processes,
 *     the program does nothing.
 *
+*   int check_file(char* file,char* mode)
+*     Returns 1 if the file "file" can be opened with mode "mode" and
+*     0 otherwise. The program may be called locally and does not perform
+*     any communications.
+*
 *   int name_size(char *format,...)
-*     On process 0, this program returns the length of the string that
-*     would be printed by calling sprintf(*,format,...). The format
-*     string can be any combination of literal text and the conversion
-*     specifiers %s, %d and %.nf (where n is a positive integer). When
-*     called on other processes, the program does nothing and returns
-*     the value of NAME_SIZE.
+*     Returns the length of the string that would be printed by calling
+*     sprintf(*,format,...). The format string can be any combination of
+*     literal text and the conversion specifiers %s, %d and %.nf (where
+*     1<=n<=32). These must correspond to the string, integer and double
+*     arguments after the format string. The lengths of the strings must
+*     be less than NAME_SIZE. An error occurs if any of these conditions
+*     is violated or if the calculated length is larger than INT_MAX.
 *
 *   long find_section(char *title)
 *     On process 0, this program scans stdin for a line starting with
@@ -93,10 +100,12 @@
 *     Copies the file "in" to the file "out" in binary mode. An error occurs
 *     if the file copy is not successful.
 *
-* Notes:
+* The programs in this module do not involve any communications and can be
+* called locally.
 *
-* Except for check_dir(), the programs in this module do not involve any
-* communications and can be called locally.
+* See the notes doc/qsum.pdf for possible explanations and remedies if
+* check_machine() complains about the floating-point arithmetic being not
+* IEEE 754 compliant.
 *
 * The programs find_section() and read_line() serve to read structured
 * input parameter files (such as the *.in in the directory main; see
@@ -139,9 +148,89 @@
 #include "utils.h"
 #include "global.h"
 
+static int nsmx=0;
 static char text[512];
 static char line[NAME_SIZE+1];
-static char inum[3*sizeof(int)+4];
+static char *numstr;
+
+
+void check_machine(void)
+{
+   int my_rank,np,ie;
+   double l0,l1,l2,l3;
+   double x,y1,y2,y3;
+   double q1[2],q2[2],q3[2];
+
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+   MPI_Comm_size(MPI_COMM_WORLD,&np);
+
+   if (my_rank==0)
+   {
+      error_root(np!=NPROC,1,"check_machine [mutils.c]",
+                 "Actual number of MPI processes does not match NPROC");
+      error_root(endianness()==UNKNOWN_ENDIAN,1,"check_machine [mutils.c]",
+                 "Unknown endianness");
+      error_root((FLT_RADIX!=2)||(FLT_MANT_DIG!=24)||(FLT_MIN_EXP!=-125)||
+                 (FLT_MAX_EXP!=128)||((double)(FLT_EPSILON)!=ldexp(1.0,-23)),
+                 1,"check_machine [mutils.c]",
+                 "'float' data format is not IEEE 754 compliant");
+      error_root((DBL_MANT_DIG!=53)||(DBL_MIN_EXP!=-1021)||
+                 (DBL_MAX_EXP!=1024)||((double)(DBL_EPSILON)!=ldexp(1.0,-52)),
+                 1,"check_machine [mutils.c]",
+                 "'double' data format is not IEEE 754 compliant");
+      error_root((sizeof(stdint_t)!=4)||(sizeof(float)!=4)||
+                 (sizeof(double)!=8)||(sizeof(qflt)!=16),1,
+                 "check_machine [mutils.c]","Unexpected basic data sizes");
+      error_root((sizeof(su3_dble)!=144)||(sizeof(su3_alg_dble)!=64)||
+                 (sizeof(spinor_dble)!=192),1,"check_machine [mutils.c]",
+                 "Field element structures are not properly packed");
+
+      x=1.0;
+      y1=0.5*DBL_EPSILON;
+      y2=y1*(1.0+DBL_EPSILON);
+      y3=y1*(1.0-0.5*DBL_EPSILON);
+      y1=(x+y1)-x;
+      y2=(x+y2)-x;
+      y3=(x+y3)-x;
+
+      ie=(y1!=0.0);
+      ie|=(y2!=DBL_EPSILON);
+      ie|=(y3!=0.0);
+
+      q1[0]=123456789012345.0;
+      q1[1]=0.0012345;
+      q2[0]=ldexp(1.0,-8)*q1[0];
+      q2[1]=0.0;
+
+      add_qflt(q1,q2,q3);
+      acc_qflt(q2[0],q1);
+      q2[0]=-q2[0];
+      add_qflt(q2,q3,q3);
+      acc_qflt(q2[0],q1);
+
+      ie|=(q1[0]!=q3[0]);
+      ie|=(q1[1]!=q3[1]);
+
+      q3[0]-=123456789012345.0;
+      q3[1]-=0.0012345;
+
+      ie|=(q3[0]!=0.0);
+      ie|=(q3[1]!=-ldexp(1.0,-61));
+
+      error_root(ie,1,"check_machine [mutils.c]",
+                 "Floating-point arithmetic is not IEEE 754 compliant\n"
+                 "or a non-default rounding is used");
+
+      l0=(double)(L0+1);
+      l1=(double)(L1+1);
+      l2=(double)(L2+1);
+      l3=(double)(L3+1);
+      ie|=((4.0*l0*l1*l2*l3)>(double)(INT_MAX));
+
+      error_root(ie,1,"check_machine [mutils.c]",
+                 "Local lattice size is out of range");
+   }
+}
 
 
 int find_opt(int argc,char *argv[],char *opt)
@@ -201,8 +290,8 @@ void check_dir(char* dir)
 
    nc=strlen(dir);
    tmp_file=malloc((nc+7+3*sizeof(int))*sizeof(char));
-   error(tmp_file==NULL,1,"check_dir [mutils.c]",
-         "Unable to allocate name string");
+   error_loc(tmp_file==NULL,1,"check_dir [mutils.c]",
+             "Unable to allocate name string");
    sprintf(tmp_file,"%s/.tmp_%d",dir,my_rank);
 
    n=0;
@@ -262,75 +351,144 @@ void check_dir_root(char* dir)
 }
 
 
+int check_file(char* file,char* mode)
+{
+   FILE *tmp;
+
+   tmp=fopen(file,mode);
+
+   if (tmp==NULL)
+      return 0;
+   else
+   {
+      fclose(tmp);
+      return 1;
+   }
+}
+
+
+static void alloc_numstr(int ns)
+{
+   if (ns>nsmx)
+   {
+      if (nsmx>0)
+         free(numstr);
+
+      numstr=malloc(ns*sizeof(char));
+      error_loc(numstr==NULL,1,"alloc_numstr [mutils.c]",
+                "Unable to allocate auxiliary string");
+      nsmx=ns;
+   }
+}
+
+
+static size_t num_size(int n,double r)
+{
+   int ns;
+   double a;
+
+   ns=n+5;
+   a=fabs(r);
+
+   if (a>=10.0)
+      ns+=(int)(log10(a));
+
+   alloc_numstr(ns);
+   sprintf(numstr,"%.*f",n,r);
+
+   return strlen(numstr);
+}
+
+
 int name_size(char *format,...)
 {
-   int my_rank,nlen,ie,n;
-   double dmy;
-   char *pp,*pc;
+   int n,ie;
+   size_t nf,nl,ns,nmx;
+   char *pc;
    va_list args;
 
-   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+   alloc_numstr(3*sizeof(int)+4);
 
-   if (my_rank==0)
+   va_start(args,format);
+   pc=format;
+   nmx=(size_t)(INT_MAX);
+   nf=strlen(format);
+   nl=0;
+   ie=0;
+
+   while ((strchr(pc,'%')!=NULL)&&(ie==0))
    {
-      va_start(args,format);
-      pc=format;
-      nlen=strlen(format);
-      ie=0;
-      n=0;
+      pc=strchr(pc,'%')+1;
 
-      for (;;)
+      if (pc[0]=='s')
       {
-         pp=strchr(pc,'%');
+         strncpy(line,va_arg(args,char*),NAME_SIZE);
+         line[NAME_SIZE]='\0';
+         ns=strlen(line);
 
-         if (pp==NULL)
-            break;
-
-         pc=pp+1;
-
-         if (pc[0]=='s')
-            nlen+=(strlen(va_arg(args,char*))-2);
-         else if (pc[0]=='d')
+         if (ns<NAME_SIZE)
          {
-            sprintf(inum,"%d",va_arg(args,int));
-            nlen+=(strlen(inum)-2);
-         }
-         else if (pc[0]=='.')
-         {
-            if (sscanf(pc,".%d",&n)!=1)
-            {
+            nf-=2;
+
+            if ((nmx-ns)>=nl)
+               nl+=ns;
+            else
                ie=1;
-               break;
-            }
-
-            sprintf(inum,".%df",n);
-            pp=strstr(pc,inum);
-
-            if (pp!=pc)
-            {
-               ie=2;
-               break;
-            }
-
-            nlen+=(n+1-strlen(inum));
-            dmy=va_arg(args,double);
-            if (dmy<0.0)
-               nlen+=1;
          }
          else
-         {
-            ie=3;
-            break;
-         }
+            ie=1;
       }
+      else if (pc[0]=='d')
+      {
+         sprintf(numstr,"%d",va_arg(args,int));
+         ns=strlen(numstr);
+         nf-=2;
 
-      va_end(args);
-      error_root(ie!=0,1,"name_size [mutils.c]",
-                 "Incorrect format string %s (ie=%d)",format,ie);
-      return nlen;
+         if ((nmx-ns)>=nl)
+            nl+=ns;
+         else
+            ie=1;
+      }
+      else if (pc[0]=='.')
+      {
+         if (sscanf(pc,".%d",&n)==1)
+         {
+            sprintf(numstr,".%df",n);
+
+            if ((n>=1)&&(n<=32)&&(pc==strstr(pc,numstr)))
+            {
+               ns=num_size(n,va_arg(args,double));
+
+               if (n<10)
+                  nf-=4;
+               else
+                  nf-=5;
+
+               if ((nmx-ns)>=nl)
+                  nl+=ns;
+               else
+                  ie=1;
+            }
+            else
+               ie=1;
+         }
+         else
+            ie=1;
+      }
+      else
+         ie=1;
    }
 
-   return NAME_SIZE;
+   va_end(args);
+
+   if ((ie==0)&&((nmx-nf)>=nl))
+      return (int)(nl+nf);
+   else
+   {
+      error_loc(1,1,"name_size [mutils.c]",
+                "Improper format string or string data");
+      return INT_MAX;
+   }
 }
 
 

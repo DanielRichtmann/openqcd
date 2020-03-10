@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2005, 2008, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -37,7 +37,9 @@ int main(int argc,char *argv[])
    int my_rank,bc,i;
    double phi[2],phi_prime[2],theta[3];
    double mu,d;
+   qflt rqsm;
    complex_dble z1,z2;
+   complex_qflt cqsm;
    spinor_dble **psd;
    sw_parms_t swp;
    FILE *flog=NULL;
@@ -68,7 +70,8 @@ int main(int argc,char *argv[])
                     "Syntax: check6 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -106,8 +109,12 @@ int main(int argc,char *argv[])
    Dw_dble(-mu,psd[1],psd[3]);
    mulg5_dble(VOLUME,psd[3]);
 
-   z1=spinor_prod_dble(VOLUME,1,psd[0],psd[3]);
-   z2=spinor_prod_dble(VOLUME,1,psd[2],psd[1]);
+   cqsm=spinor_prod_dble(VOLUME,1,psd[0],psd[3]);
+   z1.re=cqsm.re.q[0];
+   z1.im=cqsm.im.q[0];
+   cqsm=spinor_prod_dble(VOLUME,1,psd[2],psd[1]);
+   z2.re=cqsm.re.q[0];
+   z2.im=cqsm.im.q[0];
 
    d=sqrt((z1.re-z2.re)*(z1.re-z2.re)+
           (z1.im-z2.im)*(z1.im-z2.im));
@@ -125,18 +132,18 @@ int main(int argc,char *argv[])
 
    bnd_sd2zero(EVEN_PTS,psd[0]);
    mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1]);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwee_dble() changes the input field in unexpected ways");
 
    mulr_spinor_add_dble(VOLUME/2,psd[2]+(VOLUME/2),psd[3]+(VOLUME/2),-1.0);
    assign_sd2sd(VOLUME/2,psd[2],psd[4]);
    bnd_sd2zero(EVEN_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME/2,psd[2],psd[4],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[2]);
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwee_dble() changes the output field where it should not");
 
    for (i=0;i<4;i++)
@@ -148,18 +155,18 @@ int main(int argc,char *argv[])
 
    bnd_sd2zero(ODD_PTS,psd[0]);
    mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1]);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwoo_dble() changes the input field in unexpected ways");
 
    mulr_spinor_add_dble(VOLUME/2,psd[2],psd[3],-1.0);
    assign_sd2sd(VOLUME/2,psd[2]+(VOLUME/2),psd[4]+(VOLUME/2));
    bnd_sd2zero(ODD_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME/2,psd[2]+(VOLUME/2),psd[4]+(VOLUME/2),-1.0);
-   d=norm_square_dble(VOLUME,1,psd[2]);
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwoo_dble() changes the output field where it should not");
 
    for (i=0;i<4;i++)
@@ -171,18 +178,18 @@ int main(int argc,char *argv[])
 
    bnd_sd2zero(EVEN_PTS,psd[0]);
    mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1]);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwoe_dble() changes the input field in unexpected ways");
 
    mulr_spinor_add_dble(VOLUME/2,psd[2],psd[3],-1.0);
    assign_sd2sd(VOLUME/2,psd[2]+(VOLUME/2),psd[4]+(VOLUME/2));
    bnd_sd2zero(ODD_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME/2,psd[2]+(VOLUME/2),psd[4]+(VOLUME/2),-1.0);
-   d=norm_square_dble(VOLUME,1,psd[2]);
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwoe_dble() changes the output field where it should not");
 
    for (i=0;i<4;i++)
@@ -194,18 +201,18 @@ int main(int argc,char *argv[])
 
    bnd_sd2zero(ODD_PTS,psd[0]);
    mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1]);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dweo_dble() changes the input field in unexpected ways");
 
    mulr_spinor_add_dble(VOLUME/2,psd[2]+(VOLUME/2),psd[3]+(VOLUME/2),-1.0);
    assign_sd2sd(VOLUME/2,psd[2],psd[4]);
    bnd_sd2zero(EVEN_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME/2,psd[2],psd[4],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[2]);
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dweo_dble() changes the output field where it should not");
 
    for (i=0;i<4;i++)
@@ -217,18 +224,18 @@ int main(int argc,char *argv[])
 
    bnd_sd2zero(EVEN_PTS,psd[0]);
    mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1]);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwhat_dble() changes the input field in unexpected ways");
 
    mulr_spinor_add_dble(VOLUME/2,psd[2]+(VOLUME/2),psd[3]+(VOLUME/2),-1.0);
    assign_sd2sd(VOLUME/2,psd[2],psd[4]);
    bnd_sd2zero(EVEN_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME/2,psd[2],psd[4],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[2]);
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
 
-   error(d!=0.0,1,"main [check6.c]",
+   error(rqsm.q[0]!=0.0,1,"main [check6.c]",
          "Dwhat_dble() changes the output field where it should not");
 
    for (i=0;i<4;i++)
@@ -248,8 +255,10 @@ int main(int argc,char *argv[])
    mulr_spinor_add_dble(VOLUME/2,psd[3]+(VOLUME/2),psd[4]+(VOLUME/2),1.0);
 
    mulr_spinor_add_dble(VOLUME,psd[3],psd[1],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[3])/norm_square_dble(VOLUME,1,psd[1]);
-   d=sqrt(d);
+   rqsm=norm_square_dble(VOLUME,1,psd[3]);
+   d=rqsm.q[0];
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
+   d=sqrt(d/rqsm.q[0]);
 
    if (my_rank==0)
       printf("Deviation of Dw_dble() from Dwee_dble(),..    = %.1e\n",d);
@@ -266,8 +275,10 @@ int main(int argc,char *argv[])
    Dweo_dble(psd[1],psd[1]);
 
    mulr_spinor_add_dble(VOLUME/2,psd[1],psd[2],-1.0);
-   d=norm_square_dble(VOLUME/2,1,psd[1])/norm_square_dble(VOLUME/2,1,psd[2]);
-   d=sqrt(d);
+   rqsm=norm_square_dble(VOLUME/2,1,psd[1]);
+   d=rqsm.q[0];
+   rqsm=norm_square_dble(VOLUME/2,1,psd[2]);
+   d=sqrt(d/rqsm.q[0]);
 
    if (my_rank==0)
       printf("Deviation of Dwhat_dble() from Dwee_dble(),.. = %.1e\n",d);
@@ -288,8 +299,10 @@ int main(int argc,char *argv[])
    mulr_spinor_add_dble(VOLUME/2,psd[1]+(VOLUME/2),psd[3]+(VOLUME/2),-1.0);
    Dwoo_dble(0.0,psd[2],psd[3]);
    mulr_spinor_add_dble(VOLUME/2,psd[1]+(VOLUME/2),psd[3]+(VOLUME/2),-1.0);
-   d=norm_square_dble(VOLUME,1,psd[1])/norm_square_dble(VOLUME,1,psd[2]);
-   d=sqrt(d);
+   rqsm=norm_square_dble(VOLUME,1,psd[1]);
+   d=rqsm.q[0];
+   rqsm=norm_square_dble(VOLUME,1,psd[2]);
+   d=sqrt(d/rqsm.q[0]);
 
    if (my_rank==0)
    {

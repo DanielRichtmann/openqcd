@@ -3,8 +3,8 @@ Main program qcd1
 
 SYNTAX
 
-qcd1 -i <filename> [-noloc] [-noexp] [-rmold] [-noms]
-                   [-c <filename> [-a [-norng]]]
+qcd1 -i <filename> [-c <filename> [-a [-norng]]|[-mask <int>]]
+                   [-rmold] [-noms]
 
 
 DESCRIPTION
@@ -31,47 +31,47 @@ through an input file. The options are
                  a fully qualified name or be specified relative to the
                  working directory.
 
--noloc           Normally the generated configurations are saved to the
-                 local disks on the nodes of the machine. In addition they
-                 are exported from process 0 using the export function (see
-                 archive/archive.c). Initial configurations can be imported
-                 or be read from the local disks. This option specifies that
-                 the local disks should not be used.
-
--noexp           Do not export the generated field configurations.
-
--rmold           Remove old configurations and keep only the one which
-                 was last saved to disk. The initial configuration
-                 given on the command line is not removed unless the
-                 -a option is set.
-
--noms            Do not measure any observables except for the average
-                 plaquette.
-
 -c <filename>    This option instructs the program to read the initial
                  gauge-field configuration from the specified file. The
                  file must be in one of the configuration directories
                  listed in the input file and its name must be of the form
-                 described below. The run starts from a random gauge-field
-                 configuration if this option is omitted.
+                 described below. The run starts from a random field if
+                 this option is omitted.
+
+-mask <int>      In a new run starting from an initial configuration that
+                 was generated on a smaller lattice, the integer "mask"
+                 passed through this option determines the type of field
+                 extension to be applied in directions mu=0,..,3. Namely
+                 if mask&(2^mu)=0, the field is periodically extended and
+                 otherwise anti-periodically. Periodic extension is applied
+                 in all directions if the option is omitted.
 
 -a               This option specifies that the run is a continuation of a
                  previous run. The -c <filename> option is required in this
-                 case and must point to the last configuration saved by
-                 the previous run. All output data are appended to the
-                 previous output files.
+                 case and must point to the last configuration saved by the
+                 previous run. All output data are appended to the previous
+                 output files.
 
--norng           Continuation runs normally start from the saved state
-                 of the random number generators. This option specifies
-                 that the traditional initialization of the generators is
-                 to be used (see section RANDOM NUMBER GENERATOR below).
-                 NOTE: starting from the saved state is not possible if
-                 the process grid sizes NPROC0,..,NPROC3 are changed.
+-norng           Continuation runs normally start from the saved state of
+                 the random number generators. This option specifies that
+                 the generators should be reinitialized using the level and
+                 seed specified in the input parameter file. An error occurs
+                 if these values coincide with previously used ones.
+                 NOTE: Starting from the saved state is not possible if the
+                 process grid sizes NPROC0,..,NPROC3 are changed.
 
-The concurrent use of the options -noloc and -noexp (in which case the
-generated configurations would not be saved anywhere) is considered to be an
-error and is not permitted. In a sequence of continuation runs, the -noms
-option must be set in either all or none of the runs.
+-rmold           Remove old configurations and keep only the one which
+                 was last saved to disk. The initial configuration given
+                 on the command line is not removed unless the -a option
+                 is set.
+
+-noms            Do not measure the observables constructed using the
+                 Wilson flow.
+
+The type of I/O programs to be used for the field configurations is specified
+in the input parameter file (see README.io for the available types). In a
+sequence of continuation runs, the -noms option must be set in either all or
+none of the runs.
 
 
 INPUT PARAMETERS
@@ -82,59 +82,81 @@ command line. An example of a valid input file is qcd1.in in this directory.
 The parameter values specified in this file are:
 
 [Run name]
-name         Snoopy137             # Run name = configuration base name
+name         Snoopy137             # Run name = configuration base name.
 
-[Directories]
-log_dir      ../data/qcd1/log      # Log file directory
-dat_dir      ../data/qcd1/dat      # Data file directory
-loc_dir      /ndata/qcd1/cnfg      # Local configuration directory
-cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory
+[Log directories]
+log_dir      ../data/qcd1/log      # Log file directory.
+dat_dir      ../data/qcd1/dat      # Data file directory.
+
+[Initial configuration]
+type         e                     # Configuration storage type (e=exported,
+                                   # b=block-exported, l=local).
+init_dir     /data/qcd1/cnfg       # Configuration directory.
+nio_nodes    12                    # Number of top level subdirectories used
+                                   # for block-exported and/or local storage.
+nio_streams  8                     # Number of parallel I/O streams (block-
+                                   # exported and/or local storage).
+
+[Configurations]
+types        eb                    # Configuration storage types (a combination
+                                   # of e=exported, b=block-exported, l=local).
+cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory.
+block_dir    /data/qcd1/blk        # Block-exported configuration directory.
+local_dir    /ndata/qcd1/cnfg      # Local configuration directory.
+bs           16 8 8 24             # Block size to be used for block-exported
+                                   # configurations.
+nio_nodes    16                    # Number of top level subdirectories used
+                                   # for block-exported and/or local storage.
+nio_streams  12                    # Number of parallel I/O streams (block-
+                                   # exported and/or local storage).
 
 [Lattice parameters]
-beta         6.0                   # Inverse gauge coupling
+beta         6.0                   # Inverse gauge coupling.
 c0           1.6667                # Coefficient of the plaquette term
-                                   # in the gauge action
-kappa        0.1300                # List of sea-quark hopping parameters
+                                   # in the gauge action.
+kappa        0.1300                # List of sea-quark hopping parameters.
+isw          0                     # Form of the SW term (0: traditional,
+                                   # 1: exponential).
 csw          1.234                 # Coefficient of the SW term in the
-                                   # Dirac operator
+                                   # Dirac operator.
 
 [Boundary conditions]
 type         2                     # Type of boundary condition (0: open,
-                                   # 1: SF, 2: open-SF, 3: periodic)
+                                   # 1: SF, 2: open-SF, 3: periodic).
 phi          0.12 -0.56            # Boundary values of the gauge field at
-                                   # time 0
+                                   # time 0.
 phi'         0.92 0.76             # Boundary values of the gauge field at
-                                   # time NPROC0*L0
+                                   # time NPROC0*L0.
 cG           1.10                  # Gauge action improvement coefficient at
-                                   # time 0
+                                   # time 0.
 cG'          1.05                  # Gauge action improvement coefficient at
-                                   # time NPROC0*L0
+                                   # time NPROC0*L0.
 cF           0.95                  # Fermion action improvement coefficient
-                                   # at time 0
+                                   # at time 0.
 cF'          0.90                  # Fermion action improvement coefficient
-                                   # at time NPROC0*L0
+                                   # at time NPROC0*L0.
 theta        0.5 1.0 -0.5          # Angles specifying the phase-periodic bc
-                                   # of the quark fields in space
+                                   # of the quark fields in space.
 
 [Random number generator]
-level        0                     # Ranlux level
-seed         73099                 # Ranlux seed
+level        0                     # Ranlux level.
+seed         73099                 # Ranlux seed.
 
 [HMC parameters]
 actions      0 1 2                 # Gauge and pseudo-fermion actions included
-                                   # in the simulation
-npf          2                     # Number of pseudo-fermion fields
-mu           0.01 1.0              # List of twisted-mass parameters
+                                   # in the simulation.
+npf          2                     # Number of pseudo-fermion fields.
+mu           0.01 1.0              # List of twisted-mass parameters.
 nlv          3                     # Number of levels of the integrator for
-                                   # the molecular-dynamics (MD) equations
-tau          0.5                   # MD trajectory length
+                                   # the molecular-dynamics (MD) equations.
+tau          0.5                   # MD trajectory length.
 
 [MD trajectories]
-nth          320                   # Number of thermalization trajectories
-ntr          32000                 # Total number of trajectories
-dtr_log      4                     # Separation of log entries
-dtr_ms       8                     # Separation of measurements
-dtr_cnfg     32                    # Separation of configuration saves
+nth          320                   # Number of thermalization trajectories.
+ntr          32000                 # Total number of trajectories.
+dtr_log      4                     # Separation of log entries.
+dtr_ms       8                     # Separation of measurements.
+dtr_cnfg     32                    # Separation of configuration saves.
 
 Then follow the parameters of the integrator levels, the actions, the MD
 forces and the solvers for the Dirac equation. Their format is described in
@@ -156,14 +178,27 @@ Finally, if measurements using the Wilson flow are to be made, the section
 
 [Wilson flow]
 integrator   RK3                   # EULER: Euler, RK2: 2nd order Runge-Kutta
-                                   # RK3: 3rd order Runge-Kutta
-eps          2.0e-2                # Integration step size
-nstep        100                   # Total number of integration steps
-dnms         10                    # Number of steps between measurements
+                                   # RK3: 3rd order Runge-Kutta.
+eps          2.0e-2                # Integration step size.
+ntot         100                   # Total number of integration steps.
+dnms         10                    # Number of steps between measurements.
 
 is required.
 
 The chosen parameter values must satisfy the following constraints:
+
+- In the case of storage of type "b", the block size bs must divide the
+  lattice and the local lattice must divide the block size. Moreover,
+  nio_nodes and nio_streams must divide the number nb of blocks.
+
+- In the case of storage of type "l", nio_nodes and nio_streams must divide
+  the number NPROC of MPI processes.
+
+- For initial configurations, the values of nio_nodes and nio_streams are
+  read from the section "Initial configuration". They must satisfy the
+  same constraints as for the produced configurations, but the block size
+  is read from the configuration files and need not coincide with the ones
+  specified in the section "Configurations" except in continuation runs.
 
 - "nth" and "ntr" must be integer multiples of "dtr_cnfg".
 
@@ -174,87 +209,50 @@ The chosen parameter values must satisfy the following constraints:
 - "dtr_cnfg" must be a multiple of "dtr_ms" and the latter must be
   a multiple of "dtr_log".
 
-- The number "nstep" of Wilson flow integration steps must be a multiple
+- The number "ntot" of Wilson flow integration steps must be a multiple
   of "dnms".
 
-Depending on the specified options, the values of some parameters are ignored.
-In particular,
+Depending on the specified parameters and options, the values of some
+parameters are ignored. In particular, only the relevant configuration
+directories (those corresponding to the chosen configuration storage types)
+need to be given and the parameter "lambda" in the "MD integrator" section is
+only required if the 2nd order OMF integrator is used.
 
-- "loc_dir" is not used if the -noloc option is set.
-
-- "cnfg_dir" is not used if -noexp is set and if the starting
-   configuration is not of the exported configuration type.
-
-- "lambda" is only required if the 2nd order OMF integrator is used.
-
-- The section "Wilson flow" and the parameter "dtr_ms" can be omitted
-  if the -noms option is set.
-
-Superfluous sections and parameters may be deleted or commented out. If
-present they are not read by the program and have no effect on the run. In
-particular, the constraints mentioned above involving these parameters need
-not be satisfied.
+Superfluous sections (such as the section "Wilson flow" if the option -noms
+is set) and parameters may be deleted or commented out. If present they are
+ignored by the program and have no effect on the run.
 
 
-INITIAL FIELD CONFIGURATION
+CONFIGURATION DIRECTORY STRUCTURE
 
-The initial field configuration specified on the command line with the -c
-option can be in imported or exported form (see archive/archive.c). In the
-case of imported configurations, each MPI process reads a file of the form
-
-  <name>_<int>
-
-where <int> is the process number. On the command line, imported and exported
-configurations are distinguished by an asterix (*) like
-
-  <name>*      Imported configuration
-
-  <name>       Exported configuration
-
-where it goes without saying that the string <name> must not contain an
-asterix at its end.
-
-Configurations in imported form are read from the directory loc_dir on the
-local disks of the machine. The sizes of the current lattice and those read
-from the files must be the same in this case.
-
-If the configuration is in exported form, it is read from the directory
-cnfg_dir on a disk accessible from process 0. The sizes of the current lattice
-need not be the same as those read from the configuration file, but must be
-integer multiples of the latter. The field is periodically extended if the
-lattice sizes do not match (see archive/archive.c for further explanations).
+The configuration directory tree is expected to be of the form described in
+README.ym1.
 
 
 FILES
 
-The program writes the results of the calculations to the files
+The program stores the results to a number of files with the following file
+names:
 
-  <run name>.log       Log file
-  <run name>.par       Parameter file
-  <run name>.dat       Data file
-  <run name>.ms.dat    Measurement data file
-  <run name>.rng       Exported state of the random number generators
+  <name>.log       Log file.
+  <name>.par       Parameter file.
+  <name>.dat       Data file.
+  <name>.ms.dat    Measurement data file.
+  <name>.rng       Exported state of the random number generators.
 
-  <run name>.log~      Backup log file
-  <run name>.par~      Backup parameter file
-  <run name>.dat~      Backup data file
-  <run name>.ms.dat~   Backup measurement data file
-  <run name>.rng~      Backup random number generator state file
+  <name>.log~      Backup log file.
+  <name>.par~      Backup parameter file.
+  <name>.dat~      Backup data file.
+  <name>.ms.dat~   Backup measurement data file.
+  <name>.rng~      Backup random number generator state file.
 
-  <run name>n3_0       Imported configuration file written by process 0
-  <run name>n3_1       Imported configuration file written by process 1
-  <run name>n3_2       Imported configuration file written by process 2
-     .....                       .....
+  <name>n3         Configuration file of storage type "e".
+  <name>n3_b8      Configuration file of storage type "b".
+  <name>n3_27      Configuration file of storage type "l".
 
-  <run name>n3         Exported configuration file
-
-Here n3 identifies configuration number 3. The directories in which these
-files are stored are the ones specified in the input file.
-
-The directories "log_dir", "dat_dir" and "cnfg_dir" must be accessible from
-process 0, while each process must be able to access the directory "loc_dir"
-(unless the option -noloc is set). The "loc_dir" directory seen from different
-processes may or may not be physically the same.
+Here n3 identifies configuration number 3, the suffix _b8 signals that the
+file contains the gauge-field variables on block number 8 and the suffix _27
+that it is a storage type "l" file written by the MPI process with rank 27.
 
 Configurations are saved after the first "nth" trajectories and then after
 every "dtr_cnfg" trajectories. The backup copies *.log~, *.dat~ and *.rng~ of
@@ -272,26 +270,28 @@ EXAMPLES
 
 The command
 
-   qcd1 -i qcd1.in -c <name>*
+  qcd1 -i qcd1.in -c <name>
 
-starts a new run from the specified configuration <name> which is searched for
-in the "loc_dir" directory on the local disks of the machine. If instead the
-run should be a continuation run, starting from the last configuration of a
-previous run, the command would be
+starts a new run from the specified configuration <name>, which is searched
+for in the "init_dir" directory specified in the input parameter file. The
+storage type of the initial configuration must be specified there too, as well
+as the associated directory structure determined by the parameter nio_nodes.
+Only the initial gauge field is required, the initial momentum and pseudo-
+fermion fields being chosen randomly with the proper Gaussian distributions.
 
-   qcd1 -i qcd1.in -c <run name>n3* -a
+If the -c option is omitted, a completely new run is started instead, with the
+gauge field variables set to uniformly distributed random SU(3) matrices.
 
-In this case the *.log, *.par, *.dat and *.rng files of the previous run must
-be found in the directories "log_dir" and "dat_dir", respectively. Using these
-files, and the configuration name given on the command line, a number of
-checks are performed to ensure that the run is indeed a continuation of the
-previous one.
+With the command
 
-In these two examples, the configuration filenames could also be <name> and
-<run name>n3 (i.e. without a "*") in which case the program assumes that the
-configuration is an exported one. The configuration is then searched for in
-the directory "cnfg_dir" by process 0 only. If the -c option is omitted, the
-gauge field variables are set to uniformly distributed random SU(3) matrices.
+  qcd1 -i qcd1.in -c <name> -a
+
+a continuation run is launched. In this case the *.log, *.par, *.dat and *.rng
+files of the previous run must be found in the directories "log_dir" and
+"dat_dir", respectively. Using these files, and the configuration name given
+on the command line, a number of checks are performed to ensure that the run
+is indeed a continuation of the previous one. In particular, all algorithmic
+parameters must have the same values.
 
 
 RUN DATA
@@ -341,7 +341,7 @@ trajectories. No measurements are performed in the thermalization phase (i.e.
 at trajectory numbers less than "nth").
 
 Each time a measurement is made, the Wilson flow is integrated from flow time
-0 to time "nstep"*"eps" in steps of eps using the specified integrator. After
+0 to time "ntot"*"eps" in steps of eps using the specified integrator. After
 every "dnms" integration steps, the time-slice sums of the densities of the
 Wilson plaquette action, the Yang-Mills action and the topological charge are
 computed (see uflds/plaq_sum.c, tcharge/ftensor.c and tcharge/tcharge.c).
@@ -355,7 +355,7 @@ static struct
    double eps;
 } file_head;
 
-where dn="dnms", nn="nstep"/"dnms" and tmax=NPROC0*L0. After the header data,
+where dn="dnms", nn="ntot"/"dnms" and tmax=NPROC0*L0. After the header data,
 the data file contains a sequence of data structures
 
 static struct
@@ -401,27 +401,23 @@ initialization of the generator is as follows:
 - In the case of a new run, the program reads the parameters "level" and
   "seed" from the input file and uses these to initialize the generator.
 
-- Continuation runs starting from an imported field configuration read
-  the state of the generator from the configuration files.
+- Continuation runs starting from field configurations with storage format
+  "l" read the state of the generator from the configuration files.
 
-- Continuation runs starting from an exported field configuration do
-  the following:
+- Continuation runs starting from field configuration with storage format "e"
+  or "b" do the following:
 
   o If the option -norng is set, the parameters "level" and "seed" are read
     from the input parameter file and the generator is initialized using
-    "seed"^n (bitwise exclusive or) as the seed value, where n is the number
-    of the last field configuration saved in the previous run.
+    these.
 
-  o Otherwise the state of the generator is read from the file <run name>.rng.
+  o Otherwise the state of the generator is read from the file <name>.rng.
     The generator is thus reset to the state it had at the end of the previous
     run. Note that the process grid NPROC0x..xNPROC3 must be unchanged in this
-    case from one run to the next (an error occurs if it is not).
+    case.
 
-In a sequence of continuation runs, it is therefore recommended to leave the
-process grid unchanged and to make no use of the option -norng. If the process
-grid is changed at some point, the next run must start from an exported field
-configuration and the option -norng must be set. In all cases, the parameters
-"level" and "seed" on the input parameter file may be left unchanged.
+  In a sequence of such continuation runs, it is therefore recommended to
+  leave the process grid unchanged and to make no use of the option -norng.
 
 
 SAFETY MEASURES AND ERROR REPORTING

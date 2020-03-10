@@ -1,7 +1,6 @@
 
-Generic functions for MD force calculations
+Generic functions for MD force calculations.
 
-check1        Check of det2xt and prod2xt
+check1        Check of det2xt and prod2xt.
 
-check2        Check of prod2xv
-
+check2        Check of prod2xv.

@@ -3,7 +3,7 @@
 *
 * File time4.c
 *
-* Copyright (C) 2013, 2016 Martin Luescher
+* Copyright (C) 2013, 2016, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -78,7 +78,11 @@ int main(int argc,char *argv[])
 
 #if (defined x64)
 #if (defined AVX)
-      printf("Using AVX instructions\n");
+#if (defined FMA3)
+   printf("Using AVX and FMA3 instructions\n");
+#else
+   printf("Using AVX instructions\n");
+#endif
 #else
       printf("Using SSE3 instructions and 16 xmm registers\n");
 #endif
@@ -106,7 +110,7 @@ int main(int argc,char *argv[])
                     "Syntax: time3 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -124,7 +128,7 @@ int main(int argc,char *argv[])
    start_ranlux(0,12345);
    geometry();
    set_dfl_parms(bs,4);
-   alloc_bgr(DFL_BLOCKS);
+   alloc_bgr(TEST_BLOCKS);
 
    set_sw_parms(-0.0123);
    mu=0.0785;
@@ -132,10 +136,10 @@ int main(int argc,char *argv[])
    random_ud();
    set_ud_phase();
    sw_term(NO_PTS);
-   assign_ud2udblk(DFL_BLOCKS,0);
-   assign_swd2swdblk(DFL_BLOCKS,0,NO_PTS);
+   assign_ud2udblk(TEST_BLOCKS,0);
+   assign_swd2swdblk(TEST_BLOCKS,0,NO_PTS);
 
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
+   b=blk_list(TEST_BLOCKS,&nb,&isw);
    random_sd((*b).vol,(*b).sd[0],1.0);
 
    nt=(int)(2.0e6f/(double)(VOLUME));
@@ -151,8 +155,8 @@ int main(int argc,char *argv[])
       {
          for (n=0;n<nb;n++)
          {
-            Dw_blk_dble(DFL_BLOCKS,n,mu,0,1);
-            Dw_blk_dble(DFL_BLOCKS,n,mu,1,2);
+            Dw_blk_dble(TEST_BLOCKS,n,mu,0,1);
+            Dw_blk_dble(TEST_BLOCKS,n,mu,1,2);
          }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -183,8 +187,8 @@ int main(int argc,char *argv[])
       {
          for (n=0;n<nb;n++)
          {
-            Dwhat_blk_dble(DFL_BLOCKS,n,mu,0,1);
-            Dwhat_blk_dble(DFL_BLOCKS,n,mu,1,2);
+            Dwhat_blk_dble(TEST_BLOCKS,n,mu,0,1);
+            Dwhat_blk_dble(TEST_BLOCKS,n,mu,1,2);
          }
       }
       MPI_Barrier(MPI_COMM_WORLD);

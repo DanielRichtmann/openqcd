@@ -1,0 +1,8 @@
+
+Discrete Fourier transform
+
+check1       Check of small DFT's (n=1,2,3,4,5).
+
+check2       Check of the round-robin code in the communication routines.
+
+check3       Check of the program dft_shuf().

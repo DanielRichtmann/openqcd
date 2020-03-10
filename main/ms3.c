@@ -3,14 +3,14 @@
 *
 * File ms3.c
 *
-* Copyright (C) 2012, 2013 Martin Luescher
+* Copyright (C) 2012, 2013, 2017, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Computation of Wilson-flow observables.
 *
-* Syntax: ms3 -i <input file> [-noexp] [-a]
+* Syntax: ms3 -i <input file> [-a]
 *
 * For usage instructions see the file README.ms3.
 *
@@ -51,18 +51,24 @@ static struct
    double **Wsl,**Ysl,**Qsl;
 } data;
 
-static int my_rank,noexp,append,endian;
+static struct
+{
+   int type,nio_nodes,nio_streams;
+   int nb,ib,bs[4];
+   char cnfg_dir[NAME_SIZE];
+} iodat;
+
+static int my_rank,append,endian;
 static int first,last,step;
 static int ipgrd[2],flint;
 static double *Wact,*Yact,*Qtop;
 
-static char line[NAME_SIZE];
+static char line[NAME_SIZE],nbase[NAME_SIZE];
 static char log_dir[NAME_SIZE],dat_dir[NAME_SIZE];
-static char loc_dir[NAME_SIZE],cnfg_dir[NAME_SIZE];
-static char log_file[NAME_SIZE],log_save[NAME_SIZE],end_file[NAME_SIZE];
-static char par_file[NAME_SIZE],par_save[NAME_SIZE];
+static char log_file[NAME_SIZE],log_save[NAME_SIZE];
 static char dat_file[NAME_SIZE],dat_save[NAME_SIZE];
-static char cnfg_file[NAME_SIZE],nbase[NAME_SIZE];
+static char par_file[NAME_SIZE],par_save[NAME_SIZE];
+static char cnfg_file[NAME_SIZE],end_file[NAME_SIZE];
 static FILE *fin=NULL,*flog=NULL,*fdat=NULL,*fend=NULL;
 
 static bc_parms_t bcp;
@@ -71,7 +77,7 @@ static bc_parms_t bcp;
 static void alloc_data(void)
 {
    int nn,tmax;
-   int in;
+   int in,k;
    double **pp,*p;
 
    nn=file_head.nn;
@@ -79,9 +85,10 @@ static void alloc_data(void)
 
    pp=amalloc(3*(nn+1)*sizeof(*pp),3);
    p=amalloc(3*(nn+1)*(tmax+1)*sizeof(*p),4);
-
    error((pp==NULL)||(p==NULL),1,"alloc_data [ms3.c]",
          "Unable to allocate data arrays");
+   for (k=0;k<(3*(nn+1)*(tmax+1));k++)
+      p[k]=0.0;
 
    data.Wsl=pp;
    data.Ysl=pp+nn+1;
@@ -287,58 +294,86 @@ static void read_dirs(void)
       find_section("Run name");
       read_line("name","%s",nbase);
 
-      find_section("Directories");
+      find_section("Log and data directories");
       read_line("log_dir","%s",log_dir);
       read_line("dat_dir","%s",dat_dir);
+   }
 
-      if (noexp)
+   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(log_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(dat_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+}
+
+
+static void read_iodat(void)
+{
+   int type,nion,nios;
+
+   if (my_rank==0)
+   {
+      find_section("Configurations");
+
+      read_line("type","%s",line);
+
+      if (strchr(line,'e')!=NULL)
+         type=0x1;
+      else if (strchr(line,'b')!=NULL)
+         type=0x2;
+      else if (strchr(line,'l')!=NULL)
+         type=0x4;
+      else
+         type=0x0;
+
+      error_root((strlen(line)!=1)||(type==0x0),1,"read_iodat [ms3.c]",
+                 "Improper configuration storage type");
+
+      read_line("cnfg_dir","%s",line);
+
+      if (type&0x6)
       {
-         read_line("loc_dir","%s",loc_dir);
-         cnfg_dir[0]='\0';
+         read_line("nio_nodes","%d",&nion);
+         read_line("nio_streams","%d",&nios);
       }
       else
       {
-         read_line("cnfg_dir","%s",cnfg_dir);
-         loc_dir[0]='\0';
+         nion=1;
+         nios=0;
       }
 
-      find_section("Configurations");
       read_line("first","%d",&first);
       read_line("last","%d",&last);
       read_line("step","%d",&step);
 
-      error_root((last<first)||(step<1)||(((last-first)%step)!=0),1,
-                 "read_dirs [ms3.c]","Improper configuration range");
+      error_root((first<1)||(last<first)||(step<1)||((last-first)%step!=0),1,
+                 "read_iodat [ms3.c]","Improper configuration range");
    }
 
-   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-
-   MPI_Bcast(log_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(dat_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(loc_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(line,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(&type,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nion,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nios,1,MPI_INT,0,MPI_COMM_WORLD);
 
    MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   iodat.type=type;
+   strcpy(iodat.cnfg_dir,line);
+   iodat.nio_nodes=nion;
+   iodat.nio_streams=nios;
+   iodat.bs[0]=0;
+   iodat.bs[1]=0;
+   iodat.bs[2]=0;
+   iodat.bs[3]=0;
 }
 
 
 static void setup_files(void)
 {
-   if (noexp)
-      error_root(name_size("%s/%sn%d_%d",loc_dir,nbase,last,NPROC-1)>=NAME_SIZE,
-                 1,"setup_files [ms3.c]","loc_dir name is too long");
-   else
-      error_root(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,
-                 1,"setup_files [ms3.c]","cnfg_dir name is too long");
-
-   check_dir_root(log_dir);
-   check_dir_root(dat_dir);
-   error_root(name_size("%s/%s.ms3.log~",log_dir,nbase)>=NAME_SIZE,
-              1,"setup_files [ms3.c]","log_dir name is too long");
-   error_root(name_size("%s/%s.ms3.dat~",dat_dir,nbase)>=NAME_SIZE,
-              1,"setup_files [ms3.c]","dat_dir name is too long");
+   error(name_size("%s/%s.ms3.log~",log_dir,nbase)>=NAME_SIZE,1,
+         "setup_files [ms3.c]","log_dir name is too long");
+   error(name_size("%s/%s.ms3.dat~",dat_dir,nbase)>=NAME_SIZE,1,
+         "setup_files [ms3.c]","dat_dir name is too long");
 
    sprintf(log_file,"%s/%s.ms3.log",log_dir,nbase);
    sprintf(par_file,"%s/%s.ms3.par",dat_dir,nbase);
@@ -347,6 +382,9 @@ static void setup_files(void)
    sprintf(log_save,"%s~",log_file);
    sprintf(par_save,"%s~",par_file);
    sprintf(dat_save,"%s~",dat_file);
+
+   check_dir_root(log_dir);
+   check_dir_root(dat_dir);
 }
 
 
@@ -390,7 +428,7 @@ static void read_bc_parms(void)
 
 static void read_wflow_parms(void)
 {
-   int nstep,dnms,ie,ir,iw;
+   int ntot,dnms,ie,ir,iw;
    stdint_t istd[3];
    double eps,dstd[1];
 
@@ -399,7 +437,7 @@ static void read_wflow_parms(void)
       find_section("Wilson flow");
       read_line("integrator","%s",line);
       read_line("eps","%lf",&eps);
-      read_line("nstep","%d",&nstep);
+      read_line("ntot","%d",&ntot);
       read_line("dnms","%d",&dnms);
 
       if (strcmp(line,"EULER")==0)
@@ -411,18 +449,18 @@ static void read_wflow_parms(void)
       else
          error_root(1,1,"read_wflow_parms [ms3.c]","Unknown integrator");
 
-      error_root((dnms<1)||(nstep<dnms)||((nstep%dnms)!=0),1,
+      error_root((dnms<1)||(ntot<dnms)||((ntot%dnms)!=0),1,
                  "read_wflow_parms [ms3.c]",
-                 "nstep must be a multiple of dnms");
+                 "ntot must be a multiple of dnms");
    }
 
    MPI_Bcast(&flint,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&eps,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   MPI_Bcast(&nstep,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&ntot,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&dnms,1,MPI_INT,0,MPI_COMM_WORLD);
 
    file_head.dn=dnms;
-   file_head.nn=nstep/dnms;
+   file_head.nn=ntot/dnms;
    file_head.tmax=N0;
    file_head.eps=eps;
 
@@ -443,7 +481,7 @@ static void read_wflow_parms(void)
 
          ie=0;
          ie|=(istd[0]!=(stdint_t)(flint));
-         ie|=(istd[1]!=(stdint_t)(nstep));
+         ie|=(istd[1]!=(stdint_t)(ntot));
          ie|=(istd[2]!=(stdint_t)(dnms));
          ie|=(dstd[0]!=eps);
 
@@ -453,7 +491,7 @@ static void read_wflow_parms(void)
       else
       {
          istd[0]=(stdint_t)(flint);
-         istd[1]=(stdint_t)(nstep);
+         istd[1]=(stdint_t)(ntot);
          istd[2]=(stdint_t)(dnms);
          dstd[0]=eps;
 
@@ -484,12 +522,11 @@ static void read_infile(int argc,char *argv[])
       endian=endianness();
 
       error_root((ifile==0)||(ifile==(argc-1)),1,"read_infile [ms3.c]",
-                 "Syntax: ms3 -i <input file> [-noexp] [-a]");
+                 "Syntax: ms3 -i <input file> [-a]");
 
       error_root(endian==UNKNOWN_ENDIAN,1,"read_infile [ms3.c]",
                  "Machine has unknown endianness");
 
-      noexp=find_opt(argc,argv,"-noexp");
       append=find_opt(argc,argv,"-a");
 
       fin=freopen(argv[ifile+1],"r",stdin);
@@ -498,10 +535,10 @@ static void read_infile(int argc,char *argv[])
    }
 
    MPI_Bcast(&endian,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&noexp,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&append,1,MPI_INT,0,MPI_COMM_WORLD);
 
    read_dirs();
+   read_iodat();
    setup_files();
 
    if (my_rank==0)
@@ -647,7 +684,10 @@ static void check_old_dat(int fst,int lst,int stp)
 
 static void check_files(void)
 {
+   int ie,ns[4],bs[4];
+   int type,nion,nb,ib,n;
    int fst,lst,stp;
+   char *cnfg_dir;
 
    ipgrd[0]=0;
    ipgrd[1]=0;
@@ -668,10 +708,10 @@ static void check_files(void)
       }
       else
       {
-         fin=fopen(log_file,"r");
-         fdat=fopen(dat_file,"rb");
+         ie=check_file(log_file,"r");
+         ie|=check_file(dat_file,"rb");
 
-         error_root((fin!=NULL)||(fdat!=NULL),1,"check_files [ms3.c]",
+         error_root(ie!=0,1,"check_files [ms3.c]",
                     "Attempt to overwrite old *.log or *.dat file");
 
          fdat=fopen(dat_file,"wb");
@@ -681,12 +721,76 @@ static void check_files(void)
          fclose(fdat);
       }
    }
+
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+   iodat.nb=NPROC;
+   iodat.ib=0;
+
+   if (type==0x1)
+   {
+      error(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,1,
+            "check_files [ms3.c]","cnfg_dir name is too long");
+      check_dir_root(cnfg_dir);
+
+      sprintf(line,"%s/%sn%d",cnfg_dir,nbase,first);
+      lat_sizes(line,ns);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [ms3.c]","Lattice size mismatch");
+   }
+   else if (type==0x2)
+   {
+      error(name_size("%s/0/0/%sn%d_b0",cnfg_dir,nbase,first)>=NAME_SIZE,1,
+            "check_files [ms3.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/0/0",cnfg_dir);
+      if ((cpr[0]==0)&&(cpr[1]==0)&&(cpr[2]==0)&&(cpr[3]==0))
+         check_dir(line);
+
+      sprintf(line,"%s/0/0/%sn%d_b0",cnfg_dir,nbase,first);
+      blk_sizes(line,ns,bs);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [ms3.c]","Lattice size mismatch");
+      iodat.bs[0]=bs[0];
+      iodat.bs[1]=bs[1];
+      iodat.bs[2]=bs[2];
+      iodat.bs[3]=bs[3];
+
+      ib=blk_index(ns,bs,&nb);
+      nion=iodat.nio_nodes;
+      n=nb/nion;
+      error_root(nb%nion!=0,1,"check_files [ms3.c]",
+                 "Number of blocks is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_b%d",cnfg_dir,nion-1,n-1,
+                      nbase,last,nb-1)>=NAME_SIZE,1,
+            "check_files [ms3.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,ib/n,ib%n);
+      strcpy(cnfg_dir,line);
+      if (((cpr[0]*L0)%bs[0]==0)&&((cpr[1]*L1)%bs[1]==0)&&
+          ((cpr[2]*L2)%bs[2]==0)&&((cpr[3]*L3)%bs[3]==0))
+         check_dir(cnfg_dir);
+
+      iodat.nb=nb;
+      iodat.ib=ib;
+   }
+   else
+   {
+      nion=iodat.nio_nodes;
+      n=NPROC/nion;
+      error_root(NPROC%nion!=0,1,"check_files [ms3.c]",
+                 "Number of processes is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_%d",cnfg_dir,nion-1,n-1,nbase,
+                      last,NPROC-1)>=NAME_SIZE,1,
+            "check_files [ms3.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,my_rank/n,my_rank%n);
+      strcpy(cnfg_dir,line);
+      check_dir(cnfg_dir);
+   }
 }
 
 
 static void print_info(void)
 {
-   int n;
+   int n,type;
    long ip;
 
    if (my_rank==0)
@@ -719,10 +823,6 @@ static void print_info(void)
          printf("The machine is little endian\n");
       else
          printf("The machine is big endian\n");
-      if (noexp)
-         printf("Configurations are read in imported file format\n\n");
-      else
-         printf("Configurations are read in exported file format\n\n");
 
       if ((ipgrd[0]!=0)&&(ipgrd[1]!=0))
          printf("Process grid and process block size changed:\n");
@@ -740,6 +840,31 @@ static void print_info(void)
                 NPROC0_BLK,NPROC1_BLK,NPROC2_BLK,NPROC3_BLK);
       }
 
+      printf("Configuration storage type = ");
+      type=iodat.type;
+
+      if (type==0x1)
+         printf("exported\n");
+      else if (type==0x2)
+         printf("block-exported\n");
+      else
+         printf("local\n");
+
+      if (type&0x6)
+      {
+         printf("Parallel I/O parameters: "
+                "nio_nodes = %d, nio_streams = %d\n",
+                iodat.nio_nodes,iodat.nio_streams);
+      }
+
+      if (type==0x2)
+      {
+         printf("Block size = %dx%dx%dx%d\n",iodat.bs[0],
+                iodat.bs[1],iodat.bs[2],iodat.bs[3]);
+      }
+
+      printf("\n");
+
       if (append==0)
       {
          print_bc_parms(0);
@@ -753,7 +878,7 @@ static void print_info(void)
             printf("3rd order RK integrator\n");
          n=fdigits(file_head.eps);
          printf("eps = %.*f\n",IMAX(n,1),file_head.eps);
-         printf("nstep = %d\n",file_head.dn*file_head.nn);
+         printf("ntot = %d\n",file_head.dn*file_head.nn);
          printf("dnms = %d\n\n",file_head.dn);
       }
 
@@ -764,15 +889,116 @@ static void print_info(void)
 }
 
 
+static void read_ud(int icnfg)
+{
+   int type,nios,ib;
+   double wt1,wt2;
+   char *cnfg_dir;
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt1=MPI_Wtime();
+
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+   nios=iodat.nio_streams;
+   ib=iodat.ib;
+
+   if (type==0x1)
+   {
+      sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
+      import_cnfg(cnfg_file,0x0);
+   }
+   else if (type==0x2)
+   {
+      set_nio_streams(nios);
+      sprintf(cnfg_file,"%s/%sn%d_b%d",cnfg_dir,nbase,icnfg,ib);
+      blk_import_cnfg(cnfg_file,0x0);
+   }
+   else
+   {
+      set_nio_streams(nios);
+      sprintf(cnfg_file,"%s/%sn%d_%d",cnfg_dir,nbase,icnfg,my_rank);
+      read_cnfg(cnfg_file);
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt2=MPI_Wtime();
+
+   if (my_rank==0)
+   {
+      printf("Configuration read from disk in %.2e sec\n\n",
+             wt2-wt1);
+      fflush(flog);
+   }
+}
+
+
+static void integrate_wflow(double t0,double t1,double eps)
+{
+   int ns;
+   double dt,del;
+
+   if (t0<1.0)
+   {
+      if (t1>1.0)
+         dt=1.0-t0;
+      else
+         dt=t1-t0;
+
+      if (flint==0)
+         del=eps*0.1;
+      else if (flint==1)
+         del=eps*0.31623;
+      else
+         del=eps*0.46416;
+   }
+   else
+   {
+      dt=t1-t0;
+      del=eps;
+   }
+
+   ns=(int)(dt/del);
+   dt=dt-(double)(ns)*del;
+
+   if (flint==0)
+   {
+      if (ns>0)
+         fwd_euler(ns,del);
+      if (dt>0.0)
+         fwd_euler(1,dt);
+   }
+   else if (flint==1)
+   {
+      if (ns>0)
+         fwd_rk2(ns,del);
+      if (dt>0.0)
+         fwd_rk2(1,dt);
+   }
+   else
+   {
+      if (ns>0)
+         fwd_rk3(ns,del);
+      if (dt>0.0)
+         fwd_rk3(1,dt);
+   }
+
+   if ((t0<1.0)&&(t1>1.0))
+      integrate_wflow(1.0,t1,eps);
+}
+
+
 static void set_data(int nc)
 {
    int in,dn,nn;
-   double eps;
+   double eps,dt,t;
 
    data.nc=nc;
    dn=file_head.dn;
    nn=file_head.nn;
    eps=file_head.eps;
+   dt=(double)(dn)*eps;
+   t=0.0;
 
    for (in=0;in<nn;in++)
    {
@@ -780,12 +1006,8 @@ static void set_data(int nc)
       Yact[in]=ym_action_slices(data.Ysl[in]);
       Qtop[in]=tcharge_slices(data.Qsl[in]);
 
-      if (flint==0)
-         fwd_euler(dn,eps);
-      else if (flint==1)
-         fwd_rk2(dn,eps);
-      else
-         fwd_rk3(dn,eps);
+      integrate_wflow(t,t+dt,eps);
+      t+=dt;
    }
 
    Wact[in]=plaq_action_slices(data.Wsl[in]);
@@ -859,11 +1081,12 @@ int main(int argc,char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    read_infile(argc,argv);
+   check_machine();
    alloc_data();
+   geometry();
    check_files();
    print_info();
 
-   geometry();
    if (flint)
       alloc_wfd(1);
 
@@ -876,19 +1099,12 @@ int main(int argc,char *argv[])
       wt1=MPI_Wtime();
 
       if (my_rank==0)
+      {
          printf("Configuration no %d\n",nc);
-
-      if (noexp)
-      {
-         sprintf(cnfg_file,"%s/%sn%d_%d",loc_dir,nbase,nc,my_rank);
-         read_cnfg(cnfg_file);
-      }
-      else
-      {
-         sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,nc);
-         import_cnfg(cnfg_file);
+         fflush(flog);
       }
 
+      read_ud(nc);
       set_data(nc);
       save_data();
       print_log();

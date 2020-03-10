@@ -9,9 +9,7 @@
 * License (GPL)
 *
 * Generic initialization and assignment programs for complex single- and
-* double-precision fields
-*
-* The externally accessible functions are
+* double-precision fields.
 *
 *   void set_v2zero(int n,complex *v)
 *     Sets the single-precision field v to zero.
@@ -52,8 +50,6 @@
 *   void diff_vd2v(int n,complex_dble *vd,complex_dble *wd,complex *w)
 *     Assigns the difference vd-wd of the double-precision fields vd
 *     and wd to the single-precision field w.
-*
-* Notes:
 *
 * All these programs operate on arrays of complex fields, whose base
 * addresses are passed through the arguments. The length of the arrays

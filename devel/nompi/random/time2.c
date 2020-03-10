@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Timing of ranlxd and gauss_dble
+* Timing of ranlxd and gauss_dble.
 *
 *******************************************************************************/
 

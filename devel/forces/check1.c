@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2012, 2013, 2016 Martin Luescher
+* Copyright (C) 2012-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -329,7 +329,8 @@ static void random_vec(int *svec)
 int main(int argc,char *argv[])
 {
    int my_rank,n,s[4];
-   double phi[2],phi_prime[2],theta[3],p1,p2;
+   double phi[2],phi_prime[2],theta[3],act;
+   qflt act0,act1;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -354,7 +355,8 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
-   set_lat_parms(3.5,0.33,0,NULL,1.0);
+   check_machine();
+   set_lat_parms(3.5,0.33,0,NULL,0,1.0);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -378,33 +380,37 @@ int main(int argc,char *argv[])
    error((g==NULL)||((BNDRY!=0)&&(gbuf==NULL)),1,"main [check1.c]",
          "Unable to allocate auxiliary arrays");
 
-   p1=action0(1);
-   p2=bnd_action();
+   act0=action0(1);
+   act=bnd_action();
 
    if (my_rank==0)
    {
-      printf("Action after initialization = %.15e\n",p1);
-      printf("Expected value              = %.15e\n\n",p2);
+      printf("Action after initialization = %.15e\n",act0.q[0]);
+      printf("Expected value              = %.15e\n\n",act);
    }
 
    random_ud();
-   p1=action0(1);
+   act0=action0(1);
    random_g();
    transform_ud();
-   p2=action0(1);
+   act1=action0(1);
+   act1.q[0]=-act1.q[0];
+   act1.q[1]=-act1.q[1];
+   add_qflt(act0.q,act1.q,act1.q);
 
    if (my_rank==0)
    {
       printf("Random gauge field:\n");
-      printf("Action = %.12e\n",p1);
+      printf("Action = %.12e\n",act0.q[0]);
       printf("Gauge invariance: relative difference = %.1e\n\n",
-             fabs(1.0-p2/p1));
+             fabs(act1.q[0]/act0.q[0]));
    }
 
    if (my_rank==0)
       printf("Translation invariance:\n");
 
-   p1=action0(1);
+   random_ud();
+   act0=action0(1);
 
    for (n=0;n<8;n++)
    {
@@ -412,12 +418,15 @@ int main(int argc,char *argv[])
       if (bc!=3)
          s[0]=0;
       shift_ud(s);
-      p2=action0(1);
+      act1=action0(1);
+      act1.q[0]=-act1.q[0];
+      act1.q[1]=-act1.q[1];
+      add_qflt(act0.q,act1.q,act1.q);
 
       if (my_rank==0)
       {
          printf("s=(% d, % d,% d,% d), ",s[0],s[1],s[2],s[3]);
-         printf("relative deviation = %.1e\n",fabs(1.0-p2/p1));
+         printf("relative deviation = %.1e\n",fabs(act1.q[0]/act0.q[0]));
       }
    }
 

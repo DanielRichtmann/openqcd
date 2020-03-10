@@ -3,14 +3,12 @@
 *
 * File tcharge.c
 *
-* Copyright (C) 2010-2013, 2016 Martin Luescher
+* Copyright (C) 2010-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Computation of the topological charge using the symmetric field tensor.
-*
-* The externally accessible functions are
 *
 *   double tcharge(void)
 *     Returns the "field-theoretic" topological charge Q of the global
@@ -22,7 +20,9 @@
 *     density of the double-precision gauge field at time x0=0,1,...,N0-1
 *     (where N0=NPROC0*L0). The program returns the total charge.
 *
-* Notes:
+*   void tcharge_fld(double *f)
+*     Assigns the density field q to the observable field f such that
+*     f[ix]=q(x), where 0<=ix<VOLUME is the index of the point x.
 *
 * The topological charge density q(x) is defined by
 *
@@ -35,9 +35,11 @@
 *  F_{mu,nu}^a(x)=-2*tr{F_{mu,nu}(x)*T^a}, a=1,..,8,
 *
 * are the SU(3) components of the symmetric field tensor returned by the
-* program ftensor() [ftensor.c]. At the boundaries of the lattice (if any),
-* the charge density is set to zero. The total charge Q is the sum of q(x)
-* over all points x with time component in the range
+* program ftensor() [ftensor.c].
+*
+* At the boundaries of the lattice (if any), the density q(x) is set to zero.
+* The total charge Q is the sums of q(x) over all points x with time component
+* in the range
 *
 *  0<x0<NPROC0*L0-1        (open bc),
 *
@@ -60,13 +62,14 @@
 #include "flags.h"
 #include "utils.h"
 #include "lattice.h"
+#include "su3fcts.h"
 #include "tcharge.h"
 #include "global.h"
 
 #define N0 (NPROC0*L0)
 
-static int isx[L0],init=0;
-static double qsl0[N0];
+static double *qcsl[N0];
+static qflt rqcsl[N0];
 static u3_alg_dble **ft;
 
 
@@ -98,15 +101,7 @@ static double density(int ix)
 double tcharge(void)
 {
    int bc,ix,t,tmx;
-   double pi,Q;
-
-   if (init==0)
-   {
-      for (t=0;t<L0;t++)
-         isx[t]=init_hsum(1);
-
-      init=1;
-   }
+   double pi,Q,fact;
 
    ft=ftensor();
    bc=bc_type();
@@ -114,7 +109,9 @@ double tcharge(void)
       tmx=N0-1;
    else
       tmx=N0;
-   reset_hsum(isx[0]);
+   qcsl[0]=rqcsl[0].q;
+   qcsl[0][0]=0.0;
+   qcsl[0][1]=0.0;
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -123,33 +120,24 @@ double tcharge(void)
       if (((t>0)&&(t<tmx))||(bc==3))
       {
          Q=density(ix);
-         add_to_hsum(isx[0],&Q);
+         acc_qflt(Q,qcsl[0]);
       }
    }
 
    if (NPROC>1)
-      global_hsum(isx[0],&Q);
-   else
-      local_hsum(isx[0],&Q);
+      global_qsum(1,qcsl,qcsl);
 
    pi=4.0*atan(1.0);
+   fact=1.0/(8.0*pi*pi);
 
-   return Q/(8.0*pi*pi);
+   return fact*qcsl[0][0];
 }
 
 
 double tcharge_slices(double *qsl)
 {
-   int bc,ix,t,t0,tmx;
-   double pi,fact,Q;
-
-   if (init==0)
-   {
-      for (t=0;t<L0;t++)
-         isx[t]=init_hsum(1);
-
-      init=1;
-   }
+   int bc,ix,t,tmx;
+   double pi,Q,fact;
 
    ft=ftensor();
    bc=bc_type();
@@ -157,10 +145,13 @@ double tcharge_slices(double *qsl)
       tmx=N0-1;
    else
       tmx=N0;
-   t0=cpr[0]*L0;
 
-   for (t=0;t<L0;t++)
-      reset_hsum(isx[t]);
+   for (t=0;t<N0;t++)
+   {
+      qcsl[t]=rqcsl[t].q;
+      qcsl[t][0]=0.0;
+      qcsl[t][1]=0.0;
+   }
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -168,39 +159,51 @@ double tcharge_slices(double *qsl)
 
       if (((t>0)&&(t<tmx))||(bc==3))
       {
-         t-=t0;
          Q=density(ix);
-         add_to_hsum(isx[t],&Q);
+         acc_qflt(Q,qcsl[t]);
       }
    }
 
-   for (t=0;t<N0;t++)
-      qsl0[t]=0.0;
+   if (NPROC>1)
+      global_qsum(N0,qcsl,qcsl);
 
    pi=4.0*atan(1.0);
    fact=1.0/(8.0*pi*pi);
 
-   for (t=0;t<L0;t++)
-   {
-      local_hsum(isx[t],&Q);
-      qsl0[t+t0]=fact*Q;
-   }
-
-   if (NPROC>1)
-   {
-      MPI_Reduce(qsl0,qsl,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(qsl,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
-   else
-   {
-      for (t=0;t<N0;t++)
-         qsl[t]=qsl0[t];
-   }
-
-   Q=0.0;
-
    for (t=0;t<N0;t++)
-      Q+=qsl[t];
+   {
+      qsl[t]=fact*qcsl[t][0];
 
-   return Q;
+      if (t>0)
+         add_qflt(qcsl[t],qcsl[0],qcsl[0]);
+   }
+
+   return fact*qcsl[0][0];
+}
+
+
+void tcharge_fld(double *f)
+{
+   int bc,ix,t,tmx;
+   double pi,fact;
+
+   ft=ftensor();
+   bc=bc_type();
+   if (bc==0)
+      tmx=N0-1;
+   else
+      tmx=N0;
+
+   pi=4.0*atan(1.0);
+   fact=1.0/(8.0*pi*pi);
+
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if (((t>0)&&(t<tmx))||(bc==3))
+         f[ix]=fact*density(ix);
+      else
+         f[ix]=0.0;
+   }
 }

@@ -3,15 +3,13 @@
 *
 * File chrono.c
 *
-* Copyright (C) 2007, 2011, 2012 Martin Luescher
+* Copyright (C) 2007, 2011, 2012, 2017, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Programs needed for the propagation of solutions of the Dirac equation
-* along the molecular-dynamics trajectories
-*
-* The externally accessible functions are
+* along the molecular-dynamics trajectories.
 *
 *   void setup_chrono(void)
 *     Allocates the required memory space for the stacks of previous
@@ -26,21 +24,26 @@
 *     Advances the molecular-dynamics time by dt.
 *
 *   void add_chrono(int icr,spinor_dble *psi)
-*     Adds the solution psi obtained at the current molecular-dynamics 
-*     time to the stack number icr of previously calculated solutions. 
+*     Adds the solution psi obtained at the current molecular-dynamics
+*     time to the stack number icr of previously calculated solutions.
+*     If the MD time has not changed since the last addition, the last
+*     saved field is replaced by psi.
 *
 *   int get_chrono(int icr,spinor_dble *psi)
-*     Extrapolates the solutions stored in the stack number icr to the  
+*     Extrapolates the solutions stored in the stack number icr to the
 *     current molecular-dynamics time. The program returns 0 and leaves
 *     psi unchanged if the stack does not contain any previous solutions.
 *     Otherwise the program assigns the extrapolated solution to psi and
 *     returns 1.
 *
-*   void reset_chrono(void)
-*     Sets the molecular-dynamics time and all counters of previously
-*     computed solutions to zero.
+*   void reset_chrono(int n)
+*     Deletes the stored solutions in all stacks except for the last n
+*     solutions. All previous solutions are kept in the stacks that
+*     currently contain less than n solutions. If n=0 the stacks are
+*     all reset to their initial state.
 *
-* Notes:
+*   size_t chrono_msize(void)
+*     Returns the total local size in bytes of the stacks of solutions.
 *
 * The propagation of the solutions of the Dirac equation was proposed by
 *
@@ -49,19 +52,22 @@
 *
 * Here the solutions are propagated using a polynomial extrapolation. The
 * maximal number of solutions to be kept in memory can be chosen for each
-* solution stack separately.
+* solution stack separately. How many stacks should be allocated, and how
+* many fields are kept in each case, is inferred from the force parameters
+* in the parameter data base (see flags/force_parms.c).
 *
-* Each quark force specified in the parameter data base may have up to 4
-* solution stacks associated with it (see flags/force_parms.c). In all
-* cases, the chronological propagation of the solutions can be turned off
-* by setting the maximal numbers of fields to be kept in memory to zero.
-* Internally the stacks are labeled by an index icr>=0, where the empty
-* stack has index icr=0 and all other stacks have index icr>0. The stack
-* indices are included in the force parameter sets.
+* The stacks are labeled by an index icr=0,1,2,.., where the empty stack
+* has index icr=0 and all other stacks have index icr>0. The indices are
+* included in the force parameter sets and are set internally when the
+* force parameters are entered in the data base.
 *
-* The module includes a clock that serves to keep track of the molecular-
-* dynamics times at which the Dirac equation is solved. The clock is
-* advanced by the molecular-dynamics integrator (see update/mdint.c).
+* Depending on the type of force, only the part of the fields on the even
+* sites of the lattice are stored and propagated in time.
+*
+* This module includes a clock that serves to keep track of the molecular-
+* dynamics times at which the Dirac equation is solved. The clock is never
+* reset. It starts at time 0 and is advanced by the molecular-dynamics
+* integrator (see update/update.c).
 *
 * All programs in this module should be called simultaneously on all MPI
 * processes.
@@ -72,8 +78,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
-#include <float.h>
 #include "mpi.h"
 #include "su3.h"
 #include "flags.h"
@@ -85,8 +89,7 @@
 
 typedef struct
 {
-   int ncr;
-   int isd,nsd;
+   int ncr,vol,isd,nsd;
    double *ta;
    spinor_dble **sd;
 } stack_t;
@@ -96,57 +99,68 @@ static double mdt=0.0;
 static stack_t *st=NULL;
 
 
-static void init_stacks(void)
+static int check_levels(void)
 {
-   int ncr,icr,k;
-   double *ta;
-   spinor_dble **sd;
+   int nlv,ilv,ie;
+   hmc_parms_t hmc;
+   smd_parms_t smd;
+   mdint_parms_t mdp;
 
-   for (icr=0;icr<nst;icr++)
+   hmc=hmc_parms();
+   smd=smd_parms();
+
+   if (hmc.nlv>0)
+      nlv=hmc.nlv;
+   else if (smd.nlv>0)
+      nlv=smd.nlv;
+   else
+      nlv=0;
+
+   ie=0;
+
+   for (ilv=0;ilv<nlv;ilv++)
    {
-      st[icr].isd=0;
-      st[icr].nsd=0;
-      
-      ncr=st[icr].ncr;
-      ta=st[icr].ta;
-      sd=st[icr].sd;
-
-      for (k=0;k<ncr;k++)
-      {
-         ta[k]=0.0;
-         set_sd2zero(VOLUME,sd[k]);
-      }
+      mdp=mdint_parms(ilv);
+      ie|=(mdp.nstep==0);
    }
+
+   error((nlv==0)||(ie!=0),1,"check_levels [chrono.c]",
+         "Simulation or the MD integrator parameters are not set");
+
+   return nlv;
 }
 
 
 static void free_stacks(void)
 {
-   if (nst>0)
+   int icr;
+
+   for (icr=1;icr<nst;icr++)
    {
-      free(st[1].ta);
-      afree(st[1].sd[0]);
-      free(st[1].sd);
-      free(st);
-      
-      nst=0;
-      st=NULL;
+      free(st[icr].ta);
+      afree(st[icr].sd[0]);
+      free(st[icr].sd);
    }
+
+   if (nst>0)
+      free(st);
+
+   nst=0;
+   st=NULL;
 }
 
 
-static void alloc_stacks(void)
+static void alloc_stacks(int nlv)
 {
-   int i,j,k;
-   hmc_parms_t hmc;
+   int ilv,icr,j,k,ie;
    mdint_parms_t mdp;
    force_parms_t fp;
 
-   hmc=hmc_parms();
-   
-   for (i=0;i<hmc.nlv;i++)
+   nst=0;
+
+   for (ilv=0;ilv<nlv;ilv++)
    {
-      mdp=mdint_parms(i);
+      mdp=mdint_parms(ilv);
 
       for (j=0;j<mdp.nfr;j++)
       {
@@ -158,94 +172,96 @@ static void alloc_stacks(void)
                nst=fp.icr[k];
          }
       }
-   }  
+   }
 
-   if (nst>0)
+   nst+=1;
+   st=malloc(nst*sizeof(*st));
+   error(st==NULL,1,"alloc_stacks [chrono.c]",
+         "Unable to allocate stack structures");
+
+   for (j=0;j<nst;j++)
    {
-      nst+=1;
-      st=malloc(nst*sizeof(*st));
-      error(st==NULL,1,"alloc_stacks [chrono.c]",
-            "Unable to allocate stack structures");
+      st[j].ncr=0;
+      st[j].vol=0;
+      st[j].isd=0;
+      st[j].nsd=0;
+      st[j].ta=NULL;
+      st[j].sd=NULL;
+   }
 
-      for (i=0;i<nst;i++)
-      {
-         st[i].ncr=0;
-         st[i].ta=NULL;
-         st[i].sd=NULL;
-      }
-      
-      for (i=0;i<hmc.nlv;i++)
-      {
-         mdp=mdint_parms(i);
+   ie=0;
 
-         for (j=0;j<mdp.nfr;j++)
+   for (ilv=0;ilv<nlv;ilv++)
+   {
+      mdp=mdint_parms(ilv);
+
+      for (j=0;j<mdp.nfr;j++)
+      {
+         fp=force_parms(mdp.ifr[j]);
+
+         for (k=0;k<4;k++)
          {
-            fp=force_parms(mdp.ifr[j]);
-
-            for (k=0;k<4;k++)
+            if (fp.icr[k]>0)
+            {
+               ie|=((fp.force==FRG)||(fp.force==FORCES));
+               ie|=((fp.ncr[k]==0)||(st[fp.icr[k]].ncr!=0));
                st[fp.icr[k]].ncr=fp.ncr[k];
+
+               if ((fp.force==FRF_TM1)||(fp.force==FRF_TM2))
+                  st[fp.icr[k]].vol=VOLUME;
+               else
+                  st[fp.icr[k]].vol=VOLUME/2;
+            }
+            else
+               ie|=(fp.ncr[k]!=0);
          }
       }
    }
+
+   for (icr=1;icr<nst;icr++)
+      ie|=(st[icr].ncr==0);
+
+   error(ie!=0,1,"alloc_stacks [chrono.c]",
+         "Unexpected entries in the force parameter data base");
 }
 
 
 void setup_chrono(void)
 {
-   int ncr,icr,k;
+   int nlv,ncr,vol,icr,k;
    double *ta;
    spinor_dble **sd,*s;
-   
+
+   nlv=check_levels();
    free_stacks();
-   alloc_stacks();
+   alloc_stacks(nlv);
 
-   if (nst>0)
+   for (icr=1;icr<nst;icr++)
    {
-      ncr=0;
+      ncr=st[icr].ncr;
+      vol=st[icr].vol;
 
-      for (icr=0;icr<nst;icr++)
-         ncr+=st[icr].ncr;
+      ta=malloc(ncr*sizeof(*ta));
+      sd=malloc(ncr*sizeof(*sd));
+      s=amalloc(ncr*vol*sizeof(*s),ALIGN);
 
-      if (ncr>0)
+      if ((ta==NULL)||(sd==NULL)||(s==NULL))
+         break;
+
+      st[icr].ta=ta;
+      st[icr].sd=sd;
+
+      for (k=0;k<ncr;k++)
       {
-         ta=malloc(ncr*sizeof(*ta));
-         sd=malloc(ncr*sizeof(*sd));
-         s=amalloc(ncr*VOLUME*sizeof(*s),ALIGN);
-
-         error((ta==NULL)||(sd==NULL)||(s==NULL),1,"alloc_stacks [chrono.c]",
-               "Unable to allocate field stacks");
+         ta[k]=0.0;
+         sd[k]=s;
+         set_sd2zero(vol,s);
+         s+=vol;
       }
-      else
-      {
-         ta=NULL;
-         sd=NULL;
-         s=NULL;
-      }
-
-      for (icr=1;icr<nst;icr++)
-      {
-         ncr=st[icr].ncr;
-
-         if (ncr>0)
-         {
-            st[icr].ta=ta;
-            st[icr].sd=sd;
-            
-            for (k=0;k<ncr;k++)
-            {
-               sd[k]=s;
-               s+=VOLUME;
-            }
-
-            ta+=ncr;
-            sd+=ncr;
-         }
-      }
-      
-      init_stacks();
    }
 
-   mdt=0.0;
+   error(icr<nst,1,"setup_chrono [chrono.c]",
+         "Unable to allocate field stacks");
 }
 
 
@@ -263,104 +279,169 @@ void step_mdtime(double dt)
 
 void add_chrono(int icr,spinor_dble *psi)
 {
-   int ncr,isd,jsd,nsd;
-   
+   int ncr,vol,isd,nsd;
+   int ird,iprms[1];
+
+   error_root((icr<0)||(icr>=nst),1,"add_chrono [chrono.c]",
+              "Unknown field stack");
+
+   if (NPROC>1)
+   {
+      iprms[0]=icr;
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      error(iprms[0]!=icr,1,"add_chrono [chrono.c]",
+            "Parameter icr is not global");
+   }
+
    if ((icr>0)&&(icr<nst))
    {
       ncr=st[icr].ncr;
+      vol=st[icr].vol;
       isd=st[icr].isd;
       nsd=st[icr].nsd;
 
-      if (nsd==ncr)
+      if (nsd>0)
       {
-         st[icr].ta[isd]=mdt;
-         assign_sd2sd(VOLUME,psi,st[icr].sd[isd]);
+         ird=isd-1;
+         if (ird<0)
+            ird=ncr-1;
 
-         isd+=1;
-         if (isd==ncr)
-            isd=0;
-         st[icr].isd=isd;
+         if (mdt==st[icr].ta[ird])
+         {
+            assign_sd2sd(vol,psi,st[icr].sd[ird]);
+            return;
+         }
       }
+
+      st[icr].ta[isd]=mdt;
+      assign_sd2sd(vol,psi,st[icr].sd[isd]);
+
+      if (isd<(ncr-1))
+         st[icr].isd+=1;
       else
-      {         
-         jsd=isd+nsd;
-         if (jsd>=ncr)
-            jsd-=ncr;
-         
-         st[icr].ta[jsd]=mdt;
-         assign_sd2sd(VOLUME,psi,st[icr].sd[jsd]);
+         st[icr].isd=0;
+
+      if (nsd<ncr)
          st[icr].nsd+=1;
-      }
    }
-   else
-      error_loc(1,1,"add_chrono [chrono.c]","Unknown field stack");
 }
 
 
 int get_chrono(int icr,spinor_dble *psi)
 {
-   int ncr,nsd,isd;
-   int k,l,ksd,lsd;
+   int ncr,vol,nsd,isd;
+   int k,l,ksd,lsd,ird,iprms[1];
    double *ta,c;
    spinor_dble **sd;
+
+   if (nst==0)
+      return 0;
+
+   error_root((icr<0)||(icr>=nst),1,"get_chrono [chrono.c]",
+              "Unknown field stack");
+
+   if (NPROC>1)
+   {
+      iprms[0]=icr;
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      error(iprms[0]!=icr,1,"get_chrono [chrono.c]",
+            "Parameter icr is not global");
+   }
 
    if ((icr>0)&&(icr<nst))
    {
       nsd=st[icr].nsd;
 
-      if (nsd==0)
-         return 0;
-
-      ncr=st[icr].ncr;      
-      isd=st[icr].isd;
-      ta=st[icr].ta;
-      sd=st[icr].sd;
-
-      set_sd2zero(VOLUME,psi);
-
-      for (k=0;k<nsd;k++)
+      if (nsd>0)
       {
-         ksd=isd+k;
-         if (ksd>=ncr)
-            ksd-=ncr;
-         c=1.0;
+         ncr=st[icr].ncr;
+         vol=st[icr].vol;
+         isd=st[icr].isd;
+         ta=st[icr].ta;
+         sd=st[icr].sd;
 
-         for (l=0;l<nsd;l++)
+         ird=isd-1;
+         if (ird<0)
+            ird=ncr-1;
+
+         if ((nsd==1)||(ta[ird]==mdt))
+            assign_sd2sd(vol,sd[ird],psi);
+         else
          {
-            if (l!=k)
-            {
-               lsd=isd+l;
-               if (lsd>=ncr)
-                  lsd-=ncr;
+            set_sd2zero(vol,psi);
+            ksd=ird;
 
-               c*=((mdt-ta[lsd])/(ta[ksd]-ta[lsd]));
+            for (k=0;k<nsd;k++)
+            {
+               c=1.0;
+               lsd=ird;
+
+               for (l=0;l<nsd;l++)
+               {
+                  if (l!=k)
+                     c*=((mdt-ta[lsd])/(ta[ksd]-ta[lsd]));
+
+                  lsd-=1;
+                  if (lsd<0)
+                     lsd=ncr-1;
+               }
+
+               mulr_spinor_add_dble(vol,psi,sd[ksd],c);
+
+               ksd-=1;
+               if (ksd<0)
+                  ksd=ncr-1;
             }
          }
 
-         mulr_spinor_add_dble(VOLUME,psi,sd[ksd],c);
+         return 1;
       }
-
-      return 1;
    }
-   else if (icr==0)
-      return 0;
-   else
+
+   return 0;
+}
+
+
+void reset_chrono(int n)
+{
+   int icr,nsd,iprms[1];
+
+   error_root(n<0,1,"reset_chrono [chrono.c]",
+              "Parameter n is out of range");
+
+   if (NPROC>1)
    {
-      error_loc(1,1,"get_chrono [chrono.c]","Unknown field stack");
-      return 0;
+      iprms[0]=n;
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      error(iprms[0]!=n,1,"reset_chrono [chrono.c]",
+            "Parameter n is not global");
+   }
+
+   if (n>=0)
+   {
+      for (icr=1;icr<nst;icr++)
+      {
+         nsd=st[icr].nsd;
+
+         if (nsd>n)
+            st[icr].nsd=n;
+
+         if (n==0)
+            st[icr].isd=0;
+      }
    }
 }
 
 
-void reset_chrono(void)
+size_t chrono_msize(void)
 {
    int icr;
+   size_t nall;
 
-   for (icr=0;icr<nst;icr++)
-   {
-      st[icr].isd=0;
-      st[icr].nsd=0;
-   }
+   nall=0;
 
-   mdt=0.0;
+   for (icr=1;icr<nst;icr++)
+      nall+=(size_t)(st[icr].ncr)*(size_t)(st[icr].vol);
+
+   return nall*sizeof(spinor_dble);
 }

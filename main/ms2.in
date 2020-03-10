@@ -2,18 +2,21 @@
 [Run name]
 name         Snoopy137
 
-[Directories]
+[Log and data directories]
 log_dir      ../data/ms2/log
-loc_dir      /ndata/qcd1/cnfg
-cnfg_dir     /data/qcd1/cnfg
 
 [Configurations]
+type         e
+cnfg_dir     /data/qcd1/cnfg
+nio_nodes    12
+nio_streams  8
 first        1
 last         4
 step         1
 
 [Dirac operator]
 kappa        0.1300
+isw          0
 csw          1.234
 
 [Boundary conditions]
@@ -35,6 +38,7 @@ isolv        1
 nmr          4
 ncy          5
 nmx          128
+istop        0
 res          1.0e-8
 
 [SAP]

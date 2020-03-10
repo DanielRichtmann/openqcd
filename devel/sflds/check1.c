@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011, 2013 Martin Luescher
+* Copyright (C) 2005-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -49,6 +49,7 @@ int main(int argc,char *argv[])
    int my_rank,ie,k,i,ix;
    float *r;
    double *rd,var,var_all,d,dmax;
+   qflt rqsm;
    spinor **ps;
    spinor_dble **psd;
    spin_t *sps;
@@ -70,6 +71,7 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
    }
 
+   check_machine();
    start_ranlux(0,12345);
    geometry();
    alloc_ws(2*NFLDS);
@@ -202,8 +204,8 @@ int main(int argc,char *argv[])
    for (k=0;k<NFLDS;k++)
    {
       set_sd2zero(VOLUME,psd[k]);
-      d=norm_square_dble(VOLUME,1,psd[k]);
-      ie|=(d!=0.0);
+      rqsm=norm_square_dble(VOLUME,1,psd[k]);
+      ie|=(rqsm.q[0]!=0.0);
    }
 
    error(ie!=0,1,"main [check1.c]",
@@ -272,11 +274,13 @@ int main(int argc,char *argv[])
 
       diff_s2s(VOLUME,ps[k],ps[k+NFLDS]);
       mulr_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],-1.0);
-      d=norm_square_dble(VOLUME,1,psd[k+NFLDS]);
+      rqsm=norm_square_dble(VOLUME,1,psd[k+NFLDS]);
+      d=rqsm.q[0];
       assign_s2sd(VOLUME,ps[k+NFLDS],psd[k]);
       mulr_spinor_add_dble(VOLUME,psd[k+NFLDS],psd[k],1.0);
 
-      d=norm_square_dble(VOLUME,1,psd[k+NFLDS])/d;
+      rqsm=norm_square_dble(VOLUME,1,psd[k+NFLDS]);
+      d=rqsm.q[0]/d;
       if (d>dmax)
          dmax=d;
    }
@@ -297,12 +301,14 @@ int main(int argc,char *argv[])
       assign_sd2sd(VOLUME,psd[k],psd[k+NFLDS]);
 
       add_s2sd(VOLUME,ps[k],psd[k]);
-      d=norm_square_dble(VOLUME,1,psd[k]);
+      rqsm=norm_square_dble(VOLUME,1,psd[k]);
+      d=rqsm.q[0];
       mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
       assign_s2sd(VOLUME,ps[k],psd[k+NFLDS]);
       mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
 
-      d=norm_square_dble(VOLUME,1,psd[k])/d;
+      rqsm=norm_square_dble(VOLUME,1,psd[k]);
+      d=rqsm.q[0]/d;
       if (d>dmax)
          dmax=d;
    }
@@ -319,11 +325,13 @@ int main(int argc,char *argv[])
 
       diff_sd2s(VOLUME,psd[k],psd[k+NFLDS],ps[k]);
       mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
-      d=norm_square_dble(VOLUME,1,psd[k]);
+      rqsm=norm_square_dble(VOLUME,1,psd[k]);
+      d=rqsm.q[0];
       assign_s2sd(VOLUME,ps[k],psd[k+NFLDS]);
       mulr_spinor_add_dble(VOLUME,psd[k],psd[k+NFLDS],-1.0);
 
-      d=norm_square_dble(VOLUME,1,psd[k])/d;
+      rqsm=norm_square_dble(VOLUME,1,psd[k]);
+      d=rqsm.q[0]/d;
       if (d>dmax)
          dmax=d;
    }

@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2011, 2013, 2016, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -446,6 +446,7 @@ int main(int argc,char *argv[])
    set_dfl_parms(bs,2);
    alloc_bgr(SAP_BLOCKS);
    alloc_bgr(DFL_BLOCKS);
+   alloc_bgr(TEST_BLOCKS);
 
    set_ud();
    assign_ud2ubgr(SAP_BLOCKS);
@@ -470,6 +471,24 @@ int main(int argc,char *argv[])
 
    print_flags();
    print_grid_flags(DFL_BLOCKS);
+
+   error(ie,1,"main [check3.c]",
+         "assign_ud2udblk() is incorrect");
+
+   b=blk_list(TEST_BLOCKS,&nb,&isw);
+   random_ud();
+   assign_ud2udblk(TEST_BLOCKS,0);
+   set_ud();
+   ie=0;
+
+   for (n=0;n<nb;n++)
+   {
+      assign_ud2udblk(TEST_BLOCKS,n);
+      ie|=check_udblk(b+n);
+   }
+
+   print_flags();
+   print_grid_flags(TEST_BLOCKS);
 
    error(ie,1,"main [check3.c]",
          "assign_ud2udblk() is incorrect");

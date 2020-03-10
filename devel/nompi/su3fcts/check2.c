@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2009, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2009, 2011, 2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -23,7 +23,7 @@ static su3_dble Q ALIGNED16;
 static su3_dble u ALIGNED16;
 static su3_dble v ALIGNED16;
 static su3_alg_dble X ALIGNED16;
-static u3_alg_dble Y;
+static u3_alg_dble Y,A,B,C;
 
 
 static void random_su3alg(su3_alg_dble *X)
@@ -84,6 +84,32 @@ static void X2u(su3_alg_dble *X,su3_dble *u)
    (*u).c23.im= (*X).c8;
    (*u).c32.re=-(*X).c7;
    (*u).c32.im= (*X).c8;
+}
+
+
+static void Y2u(u3_alg_dble *Y,su3_dble *u)
+{
+   (*u).c11.re=0.0;
+   (*u).c11.im= (*Y).c1;
+   (*u).c22.re=0.0;
+   (*u).c22.im= (*Y).c2;
+   (*u).c33.re=0.0;
+   (*u).c33.im= (*Y).c3;
+
+   (*u).c12.re= (*Y).c4;
+   (*u).c12.im= (*Y).c5;
+   (*u).c21.re=-(*Y).c4;
+   (*u).c21.im= (*Y).c5;
+
+   (*u).c13.re= (*Y).c6;
+   (*u).c13.im= (*Y).c7;
+   (*u).c31.re=-(*Y).c6;
+   (*u).c31.im= (*Y).c7;
+
+   (*u).c23.re= (*Y).c8;
+   (*u).c23.im= (*Y).c9;
+   (*u).c32.re=-(*Y).c8;
+   (*u).c32.im= (*Y).c9;
 }
 
 
@@ -237,6 +263,34 @@ int main(void)
    printf("X.c23.re: %.2e\n",d);
    d=fabs(u.c23.im-X.c8);
    printf("X.c23.im: %.2e\n\n",d);
+
+   printf("lieprod_u3alg:\n");
+   random_u3alg(&A);
+   random_u3alg(&B);
+   random_u3alg(&C);
+   lieprod_u3alg(&A,&B,&C);
+   Y2u(&A,&u);
+   Y2u(&B,&v);
+   prod2u3alg(&u,&v,&Y);
+
+   d=fabs(C.c1-Y.c1);
+   printf("Z.c1: %.2e\n",d);
+   d=fabs(C.c2-Y.c2);
+   printf("Z.c2: %.2e\n",d);
+   d=fabs(C.c3-Y.c3);
+   printf("Z.c3: %.2e\n",d);
+   d=fabs(C.c4-Y.c4);
+   printf("Z.c4: %.2e\n",d);
+   d=fabs(C.c5-Y.c5);
+   printf("Z.c5: %.2e\n",d);
+   d=fabs(C.c6-Y.c6);
+   printf("Z.c6: %.2e\n",d);
+   d=fabs(C.c7-Y.c7);
+   printf("Z.c7: %.2e\n",d);
+   d=fabs(C.c8-Y.c8);
+   printf("Z.c8: %.2e\n",d);
+   d=fabs(C.c9-Y.c9);
+   printf("Z.c9: %.2e\n\n",d);
 
    exit(0);
 }

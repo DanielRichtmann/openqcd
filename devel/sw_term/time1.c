@@ -3,7 +3,7 @@
 *
 * File time1.c
 *
-* Copyright (C) 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2011-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -30,9 +30,10 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,bc,count,nt;
+   int my_rank,bc,is,count,nt;
    double phi[2],phi_prime[2],theta[3];
    double wt1,wt2,wdt;
+   sw_parms_t swp;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -50,22 +51,33 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
 #if (defined AVX)
-      printf("Using AVX instructions\n\n");
+#if (defined FMA3)
+      printf("Using AVX and FMA3 instructions\n");
+#else
+      printf("Using AVX instructions\n");
+#endif
 #elif (defined x64)
       printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
       bc=find_opt(argc,argv,"-bc");
+      is=find_opt(argc,argv,"-sw");
 
       if (bc!=0)
          error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
-                    "Syntax: time1 [-bc <type>]");
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
+
+      if (is!=0)
+         error_root(sscanf(argv[is+1],"%d",&is)!=1,1,"main [time1.c]",
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&is,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   set_lat_parms(5.5,1.0,0,NULL,is,1.978);
    print_lat_parms();
 
-   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
@@ -80,6 +92,19 @@ int main(int argc,char *argv[])
    geometry();
    set_sw_parms(-0.0123);
    random_ud();
+
+   swp=sw_parms();
+
+   if (my_rank==0)
+   {
+      if (swp.isw)
+      {
+         printf("Exponential variant of the SW term\n");
+         printf("m0=%.4e, csw=%.4e, N=%d\n\n",swp.m0,swp.csw,sw_order());
+      }
+      else
+         printf("Traditional form of the SW term\n");
+   }
 
    nt=(int)(5.0e5/(double)(VOLUME));
    if (nt<2)
@@ -107,8 +132,18 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("Time per lattice point: %4.3f micro sec",wdt);
-      printf(" (%d Mflops [%d bit arithmetic])\n",
-             (int)(9936.0/wdt),(int)(sizeof(spinor_dble))/3);
+
+      if (swp.isw)
+      {
+         printf(" (%d Mflops [%d bit arithmetic])\n",
+                (int)((12552.0+2.0*((double)(sw_order())-5.0)*10.0)/wdt),
+                (int)(sizeof(spinor_dble))/3);
+      }
+      else
+      {
+         printf(" (%d Mflops [%d bit arithmetic])\n",
+                (int)(9936.0/wdt),(int)(sizeof(spinor_dble))/3);
+      }
    }
 
    nt=(int)(2.0e6/(double)(VOLUME));

@@ -49,11 +49,13 @@ extern void diff_sd2s(int vol,spinor_dble *sd,spinor_dble *rd,spinor *r);
 /* SCOM_C */
 extern void cps_int_bnd(int is,spinor *s);
 extern void cps_ext_bnd(int is,spinor *s);
-   
+
 /* SDCOM_C */
 extern void cpsd_int_bnd(int is,spinor_dble *sd);
 extern void cpsd_ext_bnd(int is,spinor_dble *sd);
 
+/* UNORM_C */
+extern float unorm(int vol,int icom,spinor *s);
+extern double unorm_dble(int vol,int icom,spinor_dble *sd);
+
 #endif
-
-

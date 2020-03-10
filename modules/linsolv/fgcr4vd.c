@@ -3,14 +3,12 @@
 *
 * File fgcr4vd.c
 *
-* Copyright (C) 2007, 2011, 2013 Martin Luescher
+* Copyright (C) 2007-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Generic flexible GCR solver program for the little Dirac equation.
-*
-* The externally accessible function is
 *
 *   double fgcr4vd(int vol,int icom,
 *                  void (*Dop)(complex_dble *v,complex_dble *w),
@@ -20,8 +18,6 @@
 *     Solution of the little equation D*psi=eta for given source eta, using
 *     the preconditioned GCR algorithm. See the notes for the explanation
 *     of the parameters of the program.
-*
-* Notes:
 *
 * This program uses single-precision arithmetic to reduce the execution
 * time, but obtains the solution with double-precision accuracy.

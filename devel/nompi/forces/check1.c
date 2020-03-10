@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of det2xt and prod2xt
+* Check of det2xt and prod2xt.
 *
 *******************************************************************************/
 
@@ -42,11 +42,11 @@ static const spinor_dble sd0={{{0.0,0.0},{0.0,0.0},{0.0,0.0}},
                               {{0.0,0.0},{0.0,0.0},{0.0,0.0}},
                               {{0.0,0.0},{0.0,0.0},{0.0,0.0}}};
 static su3_dble Q ALIGNED16;
-static spin_t s1 ALIGNED16;
-static spin_t s2 ALIGNED16;
-static spin_t s3 ALIGNED16;
-static spin_t s4 ALIGNED16;
-static pauli_dble m[2] ALIGNED16;
+static spin_t s1 ALIGNED32;
+static spin_t s2 ALIGNED32;
+static spin_t s3 ALIGNED32;
+static spin_t s4 ALIGNED32;
+static pauli_dble m[2] ALIGNED32;
 
 
 static su3_vector_dble mul_cplx(complex_dble z,su3_vector_dble s)

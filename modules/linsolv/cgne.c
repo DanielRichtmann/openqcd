@@ -3,24 +3,20 @@
 *
 * File cgne.c
 *
-* Copyright (C) 2005, 2008, 2011 Martin Luescher
+* Copyright (C) 2005-2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic CG solver program for the lattice Dirac equation
-*
-* The externally accessible function is
+* Generic CG solver program for the lattice Dirac equation.
 *
 *   double cgne(int vol,int icom,void (*Dop)(spinor *s,spinor *r),
 *               void (*Dop_dble)(spinor_dble *s,spinor_dble *r),
-*               spinor **ws,spinor_dble **wsd,int nmx,double res,
+*               spinor **ws,spinor_dble **wsd,int nmx,int istop,double res,
 *               spinor_dble *eta,spinor_dble *psi,int *status)
 *     Solution of the (normal) Dirac equation D^dag*D*psi=eta for given
 *     source eta, using the CG algorithm. See the notes for the explanation
 *     of the parameters of the program.
-
-* Notes:
 *
 * This program uses single-precision arithmetic to reduce the execution
 * time but obtains the solution with double-precision accuracy.
@@ -29,22 +25,22 @@
 * Dirac operator are assumed to have the following properties:
 *
 *   void Dop(spinor *s,spinor *r)
-*     Application the operator D or its hermitian conjugate D^dag to the 
-*     single-precision Dirac field s and assignement of the result to r.
+*     Application the operator D or its Hermitian conjugate D^dag to the
+*     single-precision Dirac field s and assignment of the result to r.
 *     D and D^dag are applied alternatingly, i.e. the first call of the
 *     program applies D, the next call D^dag, then D again and so on. In
 *     all cases the source field s is unchanged.
 *
 *   void Dop_dble(spinor *s,spinor *r)
-*     Application the operator D or its hermitian conjugate D^dag to the 
-*     double-precision Dirac field s and assignement of the result to r.
+*     Application the operator D or its Hermitian conjugate D^dag to the
+*     double-precision Dirac field s and assignment of the result to r.
 *     D and D^dag are applied alternatively, i.e. the first call of the
 *     program applies D, the next call D^dag, then D again and so on. In
 *     all cases the source field s is unchanged.
 *
 * The other parameters of the program cgne() are:
 *
-*   vol     Number of spinors in the Dirac fields.         
+*   vol     Number of spinors in the Dirac fields.
 *
 *   icom    Indicates whether the equation to be solved is a local
 *           equation (icom=0) or a global one (icom=1). Scalar products
@@ -52,6 +48,8 @@
 *           communications are performed if icom=0.
 *
 *   nmx     Maximal total number of CG iterations that may be applied.
+*
+*   istop   Stopping criterion (0: L_2 norm based, 1: uniform norm based).
 *
 *   res     Desired maximal relative residue |eta-D^dag*D*psi|/|eta| of
 *           the calculated solution.
@@ -64,19 +62,22 @@
 *
 *   eta     Source field (unchanged on exit).
 *
-*   psi     Calculated approximate solution of the Dirac equation
+*   psi     Calculated approximate solution of the normal Dirac equation
 *           D^dag*D*psi=eta.
 *
-*   status  On exit, this parameter reports the total number of CG
-*           iterations that were required, or a negative value if the
-*           program failed.
+*   status  If the program terminates normally, status reports the total
+*           number of CG iterations that were required for the solution of
+*           the Dirac equation. Otherwise status is set to -1.
+*
+* All spinor fields must have vol elements and possibly further elements,
+* as required for the programs Dop() and Dop_dble() to work correctly when
+* applied to these fields.
 *
 * Independently of whether the program succeeds in solving the Dirac equation
-* to the desired accuracy, the program returns the norm of the residue of
-* the field psi.
+* or not, the program returns the norm of the residue of the field psi.
 *
-* Some debugging output is printed to stdout on process 0 if CGNE_DBG is
-* defined at compilation time.
+* Some debugging output is printed to stdout on process 0 if the macro
+* CGNE_DBG is defined.
 *
 *******************************************************************************/
 
@@ -109,7 +110,7 @@ static void update_g(int vol)
    spinor *r,*s,*sm;
 
    c=-ai;
-   
+
    __asm__ __volatile__ ("movss %0, %%xmm6 \n\t"
                          "shufps $0x0, %%xmm6, %%xmm6 \n\t"
                          "movaps %%xmm6, %%xmm7 \n\t"
@@ -130,8 +131,8 @@ static void update_g(int vol)
 
       s+=4;
       _prefetch_spinor(s);
-      s-=3;      
-      
+      s-=3;
+
       __asm__ __volatile__ ("mulps %%xmm6, %%xmm0 \n\t"
                             "mulps %%xmm7, %%xmm1 \n\t"
                             "mulps %%xmm8, %%xmm2 \n\t"
@@ -140,7 +141,7 @@ static void update_g(int vol)
                             "mulps %%xmm8, %%xmm5 \n\t"
                             "addps %0, %%xmm0 \n\t"
                             "addps %2, %%xmm1 \n\t"
-                            "addps %4, %%xmm2"                            
+                            "addps %4, %%xmm2"
                             :
                             :
                             "m" ((*r).c1.c1),
@@ -148,7 +149,7 @@ static void update_g(int vol)
                             "m" ((*r).c1.c3),
                             "m" ((*r).c2.c1),
                             "m" ((*r).c2.c2),
-                            "m" ((*r).c2.c3)                            
+                            "m" ((*r).c2.c3)
                             :
                             "xmm0", "xmm1", "xmm2", "xmm3",
                             "xmm4", "xmm5");
@@ -156,7 +157,7 @@ static void update_g(int vol)
       r+=4;
       _prefetch_spinor(r);
       r-=4;
-      
+
       __asm__ __volatile__ ("addps %0, %%xmm3 \n\t"
                             "addps %2, %%xmm4 \n\t"
                             "addps %4, %%xmm5"
@@ -170,7 +171,7 @@ static void update_g(int vol)
                             "m" ((*r).c4.c3)
                             :
                             "xmm3", "xmm4", "xmm5");
-      
+
       _sse_spinor_store(*r);
 
       r+=1;
@@ -188,8 +189,8 @@ static void update_xp(int vol)
                          "shufps $0x0, %%xmm9, %%xmm9 \n\t"
                          "movaps %%xmm6, %%xmm7 \n\t"
                          "movaps %%xmm9, %%xmm10 \n\t"
-                         "movaps %%xmm6, %%xmm8 \n\t"                         
-                         "movaps %%xmm9, %%xmm11"                         
+                         "movaps %%xmm6, %%xmm8 \n\t"
+                         "movaps %%xmm9, %%xmm11"
                          :
                          :
                          "m" (ai),
@@ -197,7 +198,7 @@ static void update_xp(int vol)
                          :
                          "xmm6", "xmm7", "xmm8", "xmm9",
                          "xmm10", "xmm11");
-   
+
    r=psr;
    s=psp;
    t=psx;
@@ -209,8 +210,8 @@ static void update_xp(int vol)
 
       s+=4;
       _prefetch_spinor(s);
-      s-=4;  
-      
+      s-=4;
+
       __asm__ __volatile__ ("mulps %%xmm6, %%xmm0 \n\t"
                             "mulps %%xmm7, %%xmm1 \n\t"
                             "mulps %%xmm8, %%xmm2 \n\t"
@@ -250,13 +251,13 @@ static void update_xp(int vol)
                             :
                             "xmm3", "xmm4", "xmm5");
 
-      _sse_spinor_store(*t); 
+      _sse_spinor_store(*t);
       _sse_spinor_load(*s);
 
       r+=4;
       _prefetch_spinor(r);
       r-=4;
-      
+
       __asm__ __volatile__ ("mulps %%xmm9, %%xmm0 \n\t"
                             "mulps %%xmm10, %%xmm1 \n\t"
                             "mulps %%xmm11, %%xmm2 \n\t"
@@ -277,7 +278,7 @@ static void update_xp(int vol)
                             :
                             "xmm0", "xmm1", "xmm2", "xmm3",
                             "xmm4", "xmm5");
-      
+
       __asm__ __volatile__ ("addps %0, %%xmm3 \n\t"
                             "addps %2, %%xmm4 \n\t"
                             "addps %4, %%xmm5"
@@ -291,7 +292,7 @@ static void update_xp(int vol)
                             "m" ((*r).c4.c3)
                             :
                             "xmm3", "xmm4", "xmm5");
-      
+
       _sse_spinor_store(*s);
 
       r+=1;
@@ -314,9 +315,9 @@ static void update_g(int vol)
    for (;s<sm;s++)
    {
       _vector_mulr_assign((*r).c1,c,(*s).c1);
-      _vector_mulr_assign((*r).c2,c,(*s).c2);      
+      _vector_mulr_assign((*r).c2,c,(*s).c2);
       _vector_mulr_assign((*r).c3,c,(*s).c3);
-      _vector_mulr_assign((*r).c4,c,(*s).c4);      
+      _vector_mulr_assign((*r).c4,c,(*s).c4);
 
       r+=1;
    }
@@ -342,7 +343,7 @@ static void update_xp(int vol)
       _vector_mulr_add((*s).c1,bi,(*r).c1);
       _vector_mulr_add((*s).c2,bi,(*r).c2);
       _vector_mulr_add((*s).c3,bi,(*r).c3);
-      _vector_mulr_add((*s).c4,bi,(*r).c4);      
+      _vector_mulr_add((*s).c4,bi,(*r).c4);
 
       r+=1;
       s+=1;
@@ -428,86 +429,106 @@ static void cg_reset(int vol,int icom,void (*Dop)(spinor *s,spinor *r),
 
 double cgne(int vol,int icom,void (*Dop)(spinor *s,spinor *r),
             void (*Dop_dble)(spinor_dble *s,spinor_dble *r),
-            spinor **ws,spinor_dble **wsd,int nmx,double res,
+            spinor **ws,spinor_dble **wsd,int nmx,int istop,double res,
             spinor_dble *eta,spinor_dble *psi,int *status)
 {
-   int ncg,iprms[2];
+   int ncg,iprms[3];
    double xn,rn,tol,dprms[1];
 
-   if ((icom==1)&&(NPROC>1))
+   if ((NPROC>1)&&(icom==1))
    {
       iprms[0]=vol;
       iprms[1]=nmx;
+      iprms[2]=istop;
       dprms[0]=res;
 
-      MPI_Bcast(iprms,2,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(iprms,3,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-      error((iprms[0]!=vol)||(iprms[1]!=nmx)||(dprms[0]!=res),1,
-            "cgne [cgne.c]","Parameters are not global");
+      error((iprms[0]!=vol)||(iprms[1]!=nmx)||(iprms[2]!=istop)||
+            (dprms[0]!=res),1,"cgne [cgne.c]","Parameters are not global");
+   }
 
-      error_root((vol<=0)||(nmx<1)||(res<=DBL_EPSILON),1,
-                 "cgne [cgne.c]","Improper choice of vol,nmx or res");
-   }
-   else
-   {
-      if ((vol<=0)||(nmx<1)||(res<=DBL_EPSILON))
-      {
-         error_loc(1,1,"cgne [cgne.c]",
-                   "Improper choice of vol,nmx or res");
-         (*status)=0;
-         return 1.0;
-      }
-   }
+   error_loc((vol<=0)||(nmx<1)||(res<=DBL_EPSILON)||(istop<0)||(istop>1),1,
+             "cgne [cgne.c]","Parameters are out of range");
 
    cg_init(vol,icom,ws,wsd,eta,psi);
-   rn=sqrt((double)(rsq));
-   tol=res*rn;
-   (*status)=0;
+   xn=0.0;
 
-   xn=(double)(norm_square(vol,icom,psx));
-   xn=sqrt(xn);
+   if (istop)
+      rn=(double)(unorm(vol,icom,psr));
+   else
+      rn=sqrt((double)(rsq));
+
+   tol=res*rn;
+   status[0]=0;
+
+#ifdef CGNE_DBG
+   message("\n");
+   message("[cgne]: New call, res = %.1e, tol = %.1e, ||eta|| = %.1e\n",
+           res,tol,rn);
+#endif
 
    while (rn>tol)
    {
-#ifdef CGNE_DBG
-      message("[cgne]: rn_old = %.2e\n",rn);
-#endif
       ncg=0;
 
-      for (;;)
+      while (1)
       {
          cg_step(vol,icom,Dop);
          ncg+=1;
-         (*status)+=1;
+         status[0]+=1;
 
-         xn=(double)(norm_square(vol,icom,psx));
-         xn=sqrt(xn);
-         rn=sqrt((double)(rsq));
+         if (istop)
+         {
+            xn=(double)(unorm(vol,icom,psx));
+            rn=(double)(unorm(vol,icom,psr));
+         }
+         else
+         {
+            xn=(double)(norm_square(vol,icom,psx));
+            xn=sqrt(xn);
+            rn=sqrt((double)(rsq));
+         }
+
 #ifdef CGNE_DBG
-         message("[cgne]: ncg = %d, xn = %.2e, rn = %.2e\n",(*status),xn,rn);
-#endif         
+         message("[cgne]: ncg = %d, status = %d, rn = %.1e\n",
+                 ncg,status[0],rn);
+#endif
+
          if ((rn<=tol)||(rn<=(PRECISION_LIMIT*xn))||(ncg>=100)||
-             ((*status)>=nmx))
+             (status[0]>=nmx))
             break;
       }
 
       add_s2sd(vol,psx,pdx);
-      xn=norm_square_dble(vol,icom,pdx);
-      xn=sqrt(xn);
       cg_reset(vol,icom,Dop,Dop_dble);
-      rn=sqrt((double)(rsq));
 
-      if (((*status)>=nmx)&&(rn>tol))
+      if (istop)
+         rn=(double)(unorm(vol,icom,psr));
+      else
+         rn=sqrt((double)(rsq));
+
+#ifdef CGNE_DBG
+      if (istop)
+         xn=unorm_dble(vol,icom,pdx);
+      else
       {
-         (*status)=-1;
-         break;
+         assign_sd2s(vol,pdx,psx);
+         xn=(double)(norm_square(vol,icom,psx));
+         xn=sqrt(xn);
+         set_s2zero(vol,psx);
+         rn=sqrt((double)(rsq));
       }
 
-      if ((100.0*DBL_EPSILON*xn)>tol)
+      message("[cgne]: status = %d, ||psi|| = %.1e, ||rho|| = %.1e\n",
+              status[0],xn,rn);
+#endif
+
+      if ((status[0]>=nmx)&&(rn>tol))
       {
-         (*status)=-2;
-         break;
+         status[0]=-1;
+         return rn;
       }
    }
 

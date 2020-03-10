@@ -3,14 +3,12 @@
 *
 * File Aw_dble.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Application of the double-precision little Wilson-Dirac operator Aw
-*
-* The externally accessible functions are
+* Application of the double-precision little Wilson-Dirac operator Aw.
 *
 *   void Aw_dble(complex_dble *v,complex_dble *w)
 *     Applies the little Dirac operator to the field v and assigns the
@@ -33,7 +31,7 @@
 *
 *   void Aweo_dble(complex_dble *v,complex_dble *w)
 *     Applies the even-odd part of the little Dirac operator to the field v
-*     and *subtracts* the result from the field w on the even blocks. On the 
+*     and *subtracts* the result from the field w on the even blocks. On the
 *     odd blocks, w is unchanged.
 *
 *   void Awhat_dble(complex_dble *v,complex_dble *w)
@@ -41,15 +39,14 @@
 *     v and assigns the result to the field w on the even blocks. On the odd
 *     blocks, w is unchanged.
 *
-* Notes:
-*
 * The little Dirac operator and the associated data structures are described
 * in the file README.Aw.
 *
 * The programs Aw_dble(), Awoe_dble() and Aweo_dble() take it for granted
 * that the little Dirac operator is up-to-date, while the other programs,
 * Aweeinv_dble(), Awooinv_dble() and Awhat_dble(), assume the even-odd
-* preconditioned operator to be up-to-date (see Aw_ops.c).
+* preconditioned operator to be up-to-date (see Aw_ops.c). The input and
+* output fields are assumed to be non-overlapping.
 *
 * All programs in this module may perform global operations and should be
 * called simultaneously on all processes.
@@ -62,7 +59,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "flags.h"
 #include "utils.h"
 #include "vflds.h"
@@ -89,9 +85,9 @@ static void alloc_vs(void)
    nbh=nb/2;
    nbbh=grd.nbb/2;
    inn=grd.inn;
-   
+
    vs=amalloc(Ns*sizeof(*vs),ALIGN);
-   
+
    error(vs==NULL,1,"alloc_vs [Aw_dble.c]",
          "Unable to allocate auxiliary array");
 }
@@ -100,7 +96,7 @@ static void alloc_vs(void)
 static void apply_Aoe(int *nn,complex_dble **A,complex_dble *v)
 {
    int ifc;
-   
+
    cmat_vec_dble(Ns,*A,v+nn[0]*Ns,vs);
    A+=1;
 
@@ -115,7 +111,7 @@ static void apply_Aoe(int *nn,complex_dble **A,complex_dble *v)
 static void apply_Aeo(int *nn,complex_dble **A,complex_dble *v)
 {
    int ifc;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       cmat_vec_assign_dble(Ns,*A,vs,v+nn[ifc]*Ns);
@@ -129,10 +125,10 @@ static void apply_Aee(complex_dble **A,complex_dble *v,complex_dble *w)
    complex_dble **Am;
 
    Am=A+nbh;
-   
+
    for (;A<Am;A++)
    {
-      cmat_vec_dble(Ns,*A,v,w);      
+      cmat_vec_dble(Ns,*A,v,w);
       v+=Ns;
       w+=Ns;
    }
@@ -149,7 +145,7 @@ static void apply_Aoo(complex_dble **A,complex_dble *v,complex_dble *w)
 
    for (;A<Am;A++)
    {
-      cmat_vec_dble(Ns,*A,v,w);      
+      cmat_vec_dble(Ns,*A,v,w);
       v+=Ns;
       w+=Ns;
    }
@@ -165,25 +161,25 @@ void Aw_dble(complex_dble *v,complex_dble *w)
 
    if (Ns==0)
       alloc_vs();
-   
+
    Aw=Awop_dble();
    apply_Aee(Aw.Aee,v,w);
    apply_Aoo(Aw.Aoo,v,w);
-   
+
    if (NPROC>1)
    {
-      set_vd2zero(nbbh*Ns,w+nb*Ns);      
+      set_vd2zero(nbbh*Ns,w+nb*Ns);
       cpvd_int_bnd(v);
    }
-   
+
    Aoe=Aw.Aoe;
    Aeo=Aw.Aeo;
    rv=v+nbh*Ns;
    rw=w+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       apply_Aoe(*nn,Aoe,v);
@@ -198,19 +194,19 @@ void Aw_dble(complex_dble *v,complex_dble *w)
 
          (*rs).re=(*rv).re;
          (*rs).im=(*rv).im;
-         
+
          rw+=1;
          rv+=1;
       }
-      
-      apply_Aeo(*nn,Aeo,w);      
+
+      apply_Aeo(*nn,Aeo,w);
 
       Aoe+=8;
       Aeo+=8;
    }
 
    if (NPROC>1)
-      cpvd_ext_bnd(w);   
+      cpvd_ext_bnd(w);
 }
 
 
@@ -225,15 +221,15 @@ void Aweeinv_dble(complex_dble *v,complex_dble *w)
    apply_Aee(Aw.Aee,v,w);
 }
 
-   
+
 void Awooinv_dble(complex_dble *v,complex_dble *w)
 {
    Aw_dble_t Aw;
 
    if (Ns==0)
       alloc_vs();
-   
-   Aw=Awophat_dble();   
+
+   Aw=Awophat_dble();
    apply_Aoo(Aw.Aoo,v,w);
 }
 
@@ -242,7 +238,7 @@ void Awoe_dble(complex_dble *v,complex_dble *w)
 {
    int (*nn)[8],(*nm)[8];
    complex_dble *rw,*rs,*rm;
-   complex_dble **Aoe;   
+   complex_dble **Aoe;
    Aw_dble_t Aw;
 
    if (Ns==0)
@@ -250,14 +246,14 @@ void Awoe_dble(complex_dble *v,complex_dble *w)
 
    if (NPROC>1)
       cpvd_int_bnd(v);
-      
+
    Aw=Awop_dble();
    Aoe=Aw.Aoe;
    rw=w+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       apply_Aoe(*nn,Aoe,v);
@@ -271,7 +267,7 @@ void Awoe_dble(complex_dble *v,complex_dble *w)
          (*rw).im=(*rs).im;
          rw+=1;
       }
-      
+
       Aoe+=8;
    }
 }
@@ -281,22 +277,22 @@ void Aweo_dble(complex_dble *v,complex_dble *w)
 {
    int (*nn)[8],(*nm)[8];
    complex_dble *rv,*rs,*rm;
-   complex_dble **Aeo;  
+   complex_dble **Aeo;
    Aw_dble_t Aw;
 
    if (Ns==0)
       alloc_vs();
 
    if (NPROC>1)
-      set_vd2zero(nbbh*Ns,w+nb*Ns); 
+      set_vd2zero(nbbh*Ns,w+nb*Ns);
 
-   Aw=Awop_dble();   
+   Aw=Awop_dble();
    Aeo=Aw.Aeo;
    rv=v+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       rs=vs;
@@ -308,14 +304,14 @@ void Aweo_dble(complex_dble *v,complex_dble *w)
          (*rs).im=-(*rv).im;
          rv+=1;
       }
-      
-      apply_Aeo(*nn,Aeo,w);      
 
-      Aeo+=8;   
+      apply_Aeo(*nn,Aeo,w);
+
+      Aeo+=8;
    }
 
    if (NPROC>1)
-      cpvd_ext_bnd(w);   
+      cpvd_ext_bnd(w);
 }
 
 
@@ -328,9 +324,9 @@ void Awhat_dble(complex_dble *v,complex_dble *w)
 
    if (Ns==0)
       alloc_vs();
-   
+
    assign_vd2vd(nbh*Ns,v,w);
-   
+
    if (NPROC>1)
    {
       set_vd2zero(nbbh*Ns,w+nb*Ns);
@@ -340,7 +336,7 @@ void Awhat_dble(complex_dble *v,complex_dble *w)
    Aw=Awophat_dble();
    Aoe=Aw.Aoe;
    Aeo=Aw.Aeo;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
 
@@ -357,12 +353,12 @@ void Awhat_dble(complex_dble *v,complex_dble *w)
          (*rs).im=-(*rs).im;
       }
 
-      apply_Aeo(*nn,Aeo,w);      
+      apply_Aeo(*nn,Aeo,w);
 
       Aoe+=8;
       Aeo+=8;
    }
 
    if (NPROC>1)
-      cpvd_ext_bnd(w);   
+      cpvd_ext_bnd(w);
 }

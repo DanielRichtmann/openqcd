@@ -8,22 +8,14 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Chi-square probability distribution
-*
-* The externally accessible function is
+* Chi-square probability distribution.
 *
 *   double pchi_square(double chi_square,int nu)
-*     For chi_square>=0 and nu=1,2,...,1000 the program returns an 
+*     For chi_square>=0 and nu=1,2,...,1000 the program returns an
 *     approximation for P(chi_square|nu) which deviates from the exact
-*     distribution by less than 10^(-8) [10^(-9) if nu=1]
+*     distribution by less than 10^(-8) [10^(-9) if nu=1].
 *
-* Notes:
-*
-* See the notes
-*
-*   M. Luescher: Statistical tests
-*   
-* for a detailed description.
+* See the notes doc/stat_fcts.pdf for a detailed description.
 *
 *******************************************************************************/
 
@@ -58,19 +50,19 @@ static void define_constants(void)
    c3=-xd1/360.0;
    c4= xd1/1260.0;
    c5=-xd1/1680.0;
-           
+
    lng[1]=log(pi)/xd2;
    lng[2]=xd0;
 
    for (n=3;n<40;++n)
-   {           
+   {
       x=(double)(n-2);
       lng[n]=lng[n-2]+log(x/xd2);
    }
 
    init=1;
 }
-  
+
 
 static double ln_gamma(int k)
 {
@@ -107,7 +99,7 @@ static double pchi1(double chi_square)
 
    z=x/xd2;
    a=xd2*sqrt(z/pi)*exp(-z);
-        
+
    y=xd0;
    z=xd3;
    p=x/z;
@@ -144,7 +136,7 @@ static double pchi2(double chi_square,int nu)
 
       if ((lna-log(xd1-p))<-18.5)
          return y;
-        
+
       a=exp(lna);
 
       for (;a>(xd1-p)*1.0e-8;)
@@ -170,7 +162,7 @@ static double pchi2(double chi_square,int nu)
 
       if ((lna-log(xd1-p))<-18.5)
          return y;
-        
+
       a=exp(lna);
 
       for (;(z>=xd0)&&(a>(xd1-p)*9.0e-9);)
@@ -202,4 +194,3 @@ double pchi_square(double chi_square,int nu)
    else
       return pchi2(chi_square,nu);
 }
-

@@ -29,7 +29,7 @@ RANDOM = ranlux ranlxs ranlxd gauss
 
 RATFCTS = elliptic zolotarev ratfcts
 
-UTILS = endian error mutils utils
+UTILS = endian error mutils qsum utils
 
 MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(RATFCTS) $(UTILS)
 
@@ -61,9 +61,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

@@ -147,7 +147,7 @@ int main(int argc,char *argv[])
    }
 
    kappa=0.1365;
-   set_lat_parms(5.3,1.6667,1,&kappa,1.789);
+   set_lat_parms(5.3,1.6667,1,&kappa,0,1.789);
    phi[0]=0.0;
    phi[1]=0.0;
    phi_prime[0]=0.0;

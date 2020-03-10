@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the gauge and translation invariance of the topological charge.
+* Check of the gauge and translation invariance of tcharge().
 *
 *******************************************************************************/
 
@@ -291,8 +291,8 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check1.log","w",stdout);
       printf("\n");
-      printf("Gauge and translation invariance of the topological charge\n");
-      printf("----------------------------------------------------------\n\n");
+      printf("Gauge and translation invariance of tcharge()\n");
+      printf("---------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
@@ -305,6 +305,7 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;

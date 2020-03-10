@@ -1,7 +1,7 @@
 
 ********************************************************************************
 
-                           Simulations of QCD
+                            Simulations of QCD
 
 ********************************************************************************
 
@@ -9,19 +9,37 @@ Simulation programs
 
 qcd1        HMC simulation program for QCD.
 
-ym1         HMC simulation program for the (pure) SU(3) gauge theory.
+qcd2        SMD simulation program for QCD.
+
+ym1         HMC simulation program for the SU(3) gauge theory.
+
+ym2         SMD simulation program for the SU(3) gauge theory.
 
 
-Measurement programs
+Measurement programs (traditional simulations)
 
 ms1         Measurement of reweighting factors.
 
-ms2         Computation of the spectral range of the hermitian
+ms2         Computation of the spectral range of the Hermitian
             Dirac operator.
 
 ms3         Computation of Wilson-flow observables.
 
 ms4         Computation of quark propagators.
+
+
+Measurement programs (master-field simulations)
+
+xms1        Computation of the average Yang-Mills action density at
+            selected gradient-flow times.
+
+xms2        Computation of the topological susceptibility at
+            selected gradient-flow times.
+
+
+Utility programs
+
+cvt1        Conversion of the storage format of gauge-field configurations.
 
 
 Some examples of valid input parameter files can be found in the directory

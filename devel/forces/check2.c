@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2012-2014, 2016 Martin Luescher
+* Copyright (C) 2012-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -372,8 +372,9 @@ static void set_ud(void)
 int main(int argc,char *argv[])
 {
    int my_rank,i;
-   double A1,A2,d,dmax;
+   double act0,d,dmax;
    double phi[2],phi_prime[2],theta[3];
+   qflt act1;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -397,7 +398,8 @@ int main(int argc,char *argv[])
                     "Syntax: check2 [-bc <type>]");
    }
 
-   set_lat_parms(3.5,0.33,0,NULL,1.0);
+   check_machine();
+   set_lat_parms(3.5,0.33,0,NULL,0,1.0);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -438,13 +440,15 @@ int main(int argc,char *argv[])
       choose_mt();
       set_ud();
 
-      A1=Amt();
-      A2=action0(1);
+      act0=Amt();
+      act1=action0(1);
 
       if (my_rank==0)
-         printf("Field no = %2d, A1 = %12.6e, A2 = %12.6e\n",i+1,A1,A2);
+         printf("Field no = %2d, action = %12.6e, check = %12.6e\n",
+                i+1,act1.q[0],act0);
 
-      d=fabs(A1-A2)/A1;
+      acc_qflt(-act0,act1.q);
+      d=fabs(act1.q[0])/act0;
       if (d>dmax)
          dmax=d;
    }

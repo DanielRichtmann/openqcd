@@ -3,30 +3,27 @@
 *
 * File salg_dble.c
 *
-* Copyright (C) 2005, 2007, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Generic linear algebra routines for double-precision Dirac fields.
 *
-* The externally accessible functions are
-*
-*   complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,
+*   complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,
 *                                 spinor_dble *r)
-*     Computes the scalar product of the fields s and r.
+*     Returns the scalar product of the fields s and r.
 *
-*   double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,
-*                              spinor_dble *r)
-*     Computes the real part of the scalar product of the fields
-*     s and r.
+*   qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,
+*                            spinor_dble *r)
+*     Returns the real part of the scalar product of the fields s and r.
 *
-*   complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,
+*   complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,
 *                                  spinor_dble *r)
-*     Computes the scalar product of the fields s and gamma_5*r.
+*     Returns the scalar product of the fields s and gamma_5*r.
 *
-*   double norm_square_dble(int vol,int icom,spinor_dble *s)
-*     Computes the square of the norm of the field s.
+*   qflt norm_square_dble(int vol,int icom,spinor_dble *s)
+*     Returns the square of the 2-norm of the field s.
 *
 *   void mulc_spinor_add_dble(int vol,spinor_dble *s,spinor_dble *r,
 *                             complex_dble z)
@@ -47,7 +44,7 @@
 *     Replaces the field s by c*s.
 *
 *   double normalize_dble(int vol,int icom,spinor_dble *s)
-*     Replaces the field s by s/||s|| and returns the norm ||s||.
+*     Replaces the field s by s/||s|| and returns the 2-norm ||s||.
 *
 *   void rotate_dble(int vol,int n,spinor_dble **ppk,complex_dble *v)
 *     Replaces the fields pk by sum_j pj*v[n*j+k] where 0<=k,j<n and
@@ -59,16 +56,17 @@
 *   void mulmg5_dble(int vol,spinor_dble *s)
 *     Multiplies the field s with -gamma_5.
 *
-* Notes:
+* The quadruple-precision types qflt and complex_qflt are defined in su3.h.
+* See doc/qsum.pdf for further explanations.
 *
-* All these programs act on arrays of spinor fields whose base address
-* is passed through the arguments. The length of the arrays is specified
-* by the parameter vol. Scalar products are globally summed if the
-* parameter icom is equal to 1. In this case, the calculated values are
-* guaranteed to be exactly the same on all processes.
+* All these programs act on arrays of spinor fields whose base address is
+* passed through the arguments. The length of the arrays is specified by the
+* parameter vol. Scalar products are globally summed if the parameter icom
+* is equal to 1. In this case, the calculated values are guaranteed to be
+* exactly the same on all processes.
 *
-* The programs perform no communications except in the case of the scalar
-* products if these are globally summed. If SSE (AVX) instructions are used,
+* The programs perform no communications except in the case of the programs
+* with communication flag icom set to 1. If SSE (AVX) instructions are used,
 * the spinor fields must be aligned to a 16 (32) byte boundary.
 *
 *******************************************************************************/
@@ -86,7 +84,6 @@
 #include "global.h"
 
 static int nrot=0;
-static int isx,isz,init=0;
 static double smx ALIGNED8;
 static complex_dble smz ALIGNED16;
 static spinor_dble *psi;
@@ -109,18 +106,19 @@ static void alloc_wrotate(int n)
 
 #if (defined FMA3)
 
-complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -271,30 +269,27 @@ complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 
       _avx_zeroupper();
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -402,30 +397,29 @@ double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 
       _avx_zeroupper();
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
-complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -576,30 +570,27 @@ complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 
       _avx_zeroupper();
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double norm_square_dble(int vol,int icom,spinor_dble *s)
+qflt norm_square_dble(int vol,int icom,spinor_dble *s)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -656,31 +647,30 @@ double norm_square_dble(int vol,int icom,spinor_dble *s)
 
       _avx_zeroupper();
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 #else
 
-complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -824,30 +814,27 @@ complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             "xmm0", "xmm1", "xmm2",
                             "xmm5");
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -962,30 +949,29 @@ double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             :
                             "xmm0", "xmm1", "xmm2");
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
-complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -1129,30 +1115,27 @@ complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             "xmm0", "xmm1", "xmm2",
                             "xmm5");
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double norm_square_dble(int vol,int icom,spinor_dble *s)
+qflt norm_square_dble(int vol,int icom,spinor_dble *s)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -1216,15 +1199,13 @@ double norm_square_dble(int vol,int icom,spinor_dble *s)
                             "xmm0", "xmm1", "xmm2",
                             "xmm7", "xmm9", "xmm11");
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 #endif
@@ -1455,18 +1436,19 @@ void mulmg5_dble(int vol,spinor_dble *s)
 #elif (defined x64)
 #include "sse2.h"
 
-complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -1663,32 +1645,30 @@ complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             :
                             "xmm8", "xmm11");
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
+   qsm[1][0]=-qsm[1][0];
+   qsm[1][1]=-qsm[1][1];
+
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   smz.im=-smz.im;
-
-   return smz;
+   return cqsm;
 }
 
 
-double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -1786,30 +1766,29 @@ double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             :
                             "xmm8");
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
-complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2006,32 +1985,30 @@ complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
                             :
                             "xmm8", "xmm11");
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   smz.im=-smz.im;
+   qsm[1][0]=-qsm[1][0];
+   qsm[1][1]=-qsm[1][1];
 
-   return smz;
+   return cqsm;
 }
 
 
-double norm_square_dble(int vol,int icom,spinor_dble *s)
+qflt norm_square_dble(int vol,int icom,spinor_dble *s)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2115,15 +2092,13 @@ double norm_square_dble(int vol,int icom,spinor_dble *s)
                             :
                             "xmm8");
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
@@ -2516,18 +2491,19 @@ void mulmg5_dble(int vol,spinor_dble *s)
 
 #else
 
-complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2554,30 +2530,27 @@ complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
          r+=1;
       }
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2598,30 +2571,29 @@ double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
          r+=1;
       }
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
-complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
+complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2650,30 +2622,27 @@ complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
          r+=1;
       }
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double norm_square_dble(int vol,int icom,spinor_dble *s)
+qflt norm_square_dble(int vol,int icom,spinor_dble *s)
 {
+   double *qsm[1];
+   qflt rqsm;
    spinor_dble *sm,*smb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    sm=s+vol;
 
    while (s<sm)
@@ -2692,15 +2661,13 @@ double norm_square_dble(int vol,int icom,spinor_dble *s)
                _vector_prod_re((*s).c4,(*s).c4));
       }
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
@@ -2869,10 +2836,11 @@ void mulmg5_dble(int vol,spinor_dble *s)
 void project_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 {
    complex_dble z;
+   complex_qflt qz;
 
-   z=spinor_prod_dble(vol,icom,r,s);
-   z.re=-z.re;
-   z.im=-z.im;
+   qz=spinor_prod_dble(vol,icom,r,s);
+   z.re=-qz.re.q[0];
+   z.im=-qz.im.q[0];
    mulc_spinor_add_dble(vol,s,r,z);
 }
 
@@ -2880,9 +2848,10 @@ void project_dble(int vol,int icom,spinor_dble *s,spinor_dble *r)
 double normalize_dble(int vol,int icom,spinor_dble *s)
 {
    double r;
+   qflt qr;
 
-   r=norm_square_dble(vol,icom,s);
-   r=sqrt(r);
+   qr=norm_square_dble(vol,icom,s);
+   r=sqrt(qr.q[0]);
 
    if (r!=0.0)
       scale_dble(vol,1.0/r,s);

@@ -3,13 +3,13 @@ Main program ms3
 
 SYNTAX
 
-ms3 -i <filename> [-noexp] [-a]
+ms3 -i <filename> [-a]
 
 
 DESCRIPTION
 
 This program reads gauge field configurations from disk and computes
-a set of Wilson flow observables.
+a set of Wilson (gradient) flow observables.
 
 
 COMMAND-LINE OPTIONS
@@ -20,11 +20,6 @@ through an input file. The options are
 -i <filename>    Specifies the name of the input file. The name can be
                  a fully qualified name or be specified relative to the
                  working directory.
-
--noexp           Field configurations are normally read in exported
-                 file format from the specified configuration directory.
-                 If this option is set, the configurations are instead
-                 expected in the imported file format on the local disks.
 
 -a               This option specifies that the run is a continuation of
                  a previous run. All output data are appended to the
@@ -39,82 +34,110 @@ example of a valid input file is ms3.in in this directory. The parameter
 values specified in this file are:
 
 [Run name]
-name         Snoopy137             # Run name = configuration base name
+name         Snoopy137             # Run name = configuration base name.
 
-[Directories]
-log_dir      ../data/ms3/log       # Log file directory
-dat_dir      ../data/ms3/dat       # Data file directory
-loc_dir      /ndata/qcd1/cnfg      # Local configuration directory
-cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory
+[Log and data directories]
+log_dir      ../data/ms3/log       # Log file directory.
+dat_dir      ../data/ms3/dat       # Data file directory.
 
 [Configurations]
-first        1                     # No of the first configuration to consider
-last         4                     # No of the last configuration
+type         e                     # Configuration storage type (e=exported,
+                                   # b=block-exported, l=local).
+cnfg_dir     /data/ym1/cnfg        # Configuration directory.
+nio_nodes    12                    # Number of top level subdirectories used
+                                   # for block-exported or local storage.
+nio_streams  8                     # Number of parallel I/O streams (block-
+                                   # exported or local storage).
+first        1                     # No of the first configuration to consider.
+last         4                     # No of the last configuration.
 step         1                     # Configuration separation (last-first must
-                                   # be an integer multiple of step)
+                                   # be an integer multiple of step).
 
 [Boundary conditions]
 type         2                     # Type of boundary condition (0: open,
-                                   # 1: SF, 2: open-SF, 3: periodic)
+                                   # 1: SF, 2: open-SF, 3: periodic).
 phi          0.12 -0.56            # Boundary values of the gauge field at
-                                   # time 0
+                                   # time 0.
 phi'         0.92 0.76             # Boundary values of the gauge field at
-                                   # time NPROC0*L0
+                                   # time NPROC0*L0.
 
 [Wilson flow]
 integrator   RK3                   # EULER: Euler, RK2: 2nd order Runge-Kutta
-                                   # RK3: 3rd order Runge-Kutta
-eps          2.0e-2                # Integration time step size
-nstep        100                   # Number of integration steps
+                                   # RK3: 3rd order Runge-Kutta.
+eps          2.0e-2                # Integration time step size.
+ntot         100                   # Total number of integration steps.
 dnms         10                    # Number of integration steps between
-                                   # observable measurements
+                                   # observable measurements.
+
+The chosen parameter values must satisfy the following constraints:
+
+- In the case of configuration storage of type "b", the block size bs must
+  divide the lattice size and the local lattice must divide the block size.
+  Moreover, nio_nodes and nio_streams must divide the number nb of blocks.
+
+- In the case of storage of type "l", nio_nodes and nio_streams must divide
+  the number NPROC of MPI processes.
+
+- Continuation runs (option -a) require all algorithmic parameters to be
+  the same as in the previous run.
 
 Superfluous parameters may be deleted or commented out. If present they are
 not read by the program and the specified values (if any) have no effect on
 the run.
 
+
+CONFIGURATION DIRECTORY STRUCTURE
+
+The configuration directory tree is expected to be of the form described in
+README.ym1.
+
+
 FILES
 
-The program searches for exported field configurations
+The program searches for field configurations
 
-  <run name>n<int>
+  <name>n<int>
 
-in the directory cnfg_dir, where <int> is the configuration number.
-Imported configurations
-
-  <run name>n<int>_0       (on process 0)
-  <run name>n<int>_1       (on process 1)
-  <run name>n<int>_2       (on process 2)
-        ...                     ...
-
-are searched in the directory loc_dir.
+in the directory cnfg_dir or in its subdirectories in the case of storage of
+type "b" and "l", where <int> is the configuration number. In the latter two
+cases the suffix _b<block number> and _<process rank>, respectively, is added
+to the configuration file name.
 
 The program writes the results of the computations to the files
 
-  <run name>.ms3.log   Log file
-  <run name>.ms3.log~  Backup log file
+  <name>.ms3.log   Log file
+  <name>.ms3.log~  Backup log file
 
-  <run name>.ms3.dat   Measurement data file
-  <run name>.ms3.dat~  Backup data file
+  <name>.ms3.dat   Measurement data file
+  <name>.ms3.dat~  Backup data file
 
-  <run name>.ms3.par   Parameter data file
-  <run name>.ms3.par~  Backup parameter data file
+  <name>.ms3.par   Parameter data file
+  <name>.ms3.par~  Backup parameter data file
 
 in the directories log_dir (log file) and dat_dir (data files). The parameter
 file is created at the beginning of the run and remains unchanged after that.
 The backup log and data files are updated each time a configuration is fully
 processed.
 
-The directories log_dir and dat_dir, as well as the directory cnfg_dir if the
--noexp option is not set, must be accessible from process 0. If the -noexp
-option is set, the directory loc_dir must be accessible from all processes.
+The directories log_dir and dat_dir, as well as the directory cnfg_dir in the
+case of configuration storage type "e" must be accessible from process 0. If
+the storage type is "b" or "l", the directory cnfg_dir must be accessible from
+the processes that write to the configuration files (see README.io and
+README.ym1).
 
 
 OUTPUT DATA
 
-For each configuration, the Wilson flow is integrated from flow time 0 to time
-"nstep"*"eps" in steps of eps using the specified integrator. After every
-"dnms" integration steps, the time-slice sums of the densities of the Wilson
+For each configuration, the Wilson flow is integrated from flow time 0 to
+the times
+
+   tm[in]=itm*dt,   dt=dnms*eps,   in=0,1,..,ntot/dnms,
+
+in steps of eps using the specified integrator. Up to flow time t=1, a finer
+step size equal to eps/10^p, where p=1,1/2,1/3 in the case of the EULER, RK2
+and RK3 integrator, respectively.
+
+At each flow time, the time-slice sums of the densities of the Wilson
 plaquette action, the Yang-Mills action and the topological charge are
 computed (see uflds/plaq_sum.c, tcharge/ftensor.c, tcharge/ym_action.c and
 tcharge/tcharge.c).
@@ -128,7 +151,7 @@ static struct
    double eps;
 } file_head;
 
-where dn="dnms", nn="nstep"/"dnms" and tmax=NPROC0*L0. After the header data,
+where dn=dnms, nn=ntot/dnms and tmax=NPROC0*L0. After the header data,
 the data file contains a sequence of data structures
 
 static struct

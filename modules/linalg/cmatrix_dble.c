@@ -10,8 +10,6 @@
 *
 * Complex matrix algebra (double-precision version).
 *
-* The externally accessible functions are
-*
 *   void cmat_vec_dble(int n,complex_dble *a,complex_dble *v,complex_dble *w)
 *     Computes w=a*v, where v and w are n-vectors and a an nxn matrix.
 *
@@ -37,8 +35,6 @@
 *     A non-zero return value indicates that the input matrix was found to
 *     be singular within rounding errors and that the program terminated
 *     prematurely.
-*
-* Notes:
 *
 * All of these programs can be called locally. Complex nxn matrices with
 * matrix elements A_{ij} are represented by linear arrays a of complex

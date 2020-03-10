@@ -31,7 +31,7 @@ extern void sap_com(int ic,spinor *r);
 extern void sap(float mu,int isolv,int nmr,spinor *psi,spinor *eta);
 
 /* SAP_GCR */
-extern double sap_gcr(int nkv,int nmx,double res,double mu,
+extern double sap_gcr(int nkv,int nmx,int istop,double res,double mu,
                       spinor_dble *eta,spinor_dble *psi,int *status);
 
 #endif

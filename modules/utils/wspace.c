@@ -3,14 +3,12 @@
 *
 * File wspace.c
 *
-* Copyright (C) 2010, 2011, 2013 Martin Luescher
+* Copyright (C) 2010-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Workspace allocation.
-*
-* The externally accessible functions are
+* Workspace administration.
 *
 *   void alloc_wud(int n)
 *     Allocates a workspace of n double-precision gauge fields.
@@ -25,10 +23,6 @@
 *     Releases the workspace of global double-precision gauge fields that
 *     was last reserved and returns the number of fields that are released.
 *
-*   int wud_size(void)
-*     Returns the number of global double-precision gauge fields that
-*     are currently reserved.
-*
 *   void alloc_wfd(int n)
 *     Allocates a workspace of n double-precision force fields.
 *
@@ -41,10 +35,6 @@
 *   int release_wfd(void)
 *     Releases the workspace of global double-precision force fields that
 *     was last reserved and returns the number of fields that are released.
-*
-*   int wfd_size(void)
-*     Returns the number of global double-precision force fields that
-*     are currently reserved.
 *
 *   void alloc_ws(int n)
 *     Allocates a workspace of n single-precision spinor fields.
@@ -59,12 +49,15 @@
 *     Releases the workspace of global single-precision spinor fields that
 *     was last reserved and returns the number of fields that are released.
 *
-*   int ws_size(void)
-*     Returns the number of global single-precision spinor fields that
-*     are currently reserved.
-*
 *   void alloc_wsd(int n)
 *     Allocates a workspace of n double-precision spinor fields.
+*
+*   void wsd_uses_ws(void)
+*     This program may be called in place of alloc_wsd() if the workspace
+*     for the global single-precision spinor fields is to be used for the
+*     double-precision fields too. If a workspace of n single-precision
+*     fields is allocated, nsd double- and ns single-precision fields can
+*     then be accommodated as long as 2*nsd+ns<=n.
 *
 *   spinor_dble **reserve_wsd(int n)
 *     Reserves a new workspace of n global double-precision spinor fields
@@ -75,10 +68,6 @@
 *   int release_wsd(void)
 *     Releases the workspace of global double-precision spinor fields that
 *     was last reserved and returns the number of fields that are released.
-*
-*   int wsd_size(void)
-*     Returns the number of global double-precision spinor fields that
-*     are currently reserved.
 *
 *   void alloc_wv(int n)
 *     Allocates a workspace of n single-precision vector fields.
@@ -93,10 +82,6 @@
 *     Releases the workspace of global single-precision vector fields that
 *     was last reserved and returns the number of fields that are released.
 *
-*   int wv_size(void)
-*     Returns the number of global single-precision vector fields that
-*     are currently reserved.
-*
 *   void alloc_wvd(int n)
 *     Allocates a workspace of n double-precision vector fields.
 *
@@ -110,11 +95,13 @@
 *     Releases the workspace of global double-precision vector fields that
 *     was last reserved and returns the number of fields that are released.
 *
-*   int wvd_size(void)
-*     Returns the number of global double-precision vector fields that
-*     are currently reserved.
+*   size_t wsp_msize(void)
+*     Returns the total size in bytes of the locally allocated workspaces.
 *
-* Notes:
+*   void print_wsp(void)
+*     Prints the numbers of fields in the workspaces and the relative size
+*     of the memory used by the workspaces to stdout on MPI process 0. The
+*     program does nothing if the workspace is empty.
 *
 * By definition a workspace is a set of global fields which is reserved for
 * the current program. This module allows to assign and release the required
@@ -124,9 +111,9 @@
 * The total workspace is the set of all allocated fields of a given type. All
 * programs must reserve the required workspaces and must release them before
 * the program returns to the calling program. It is possible to reserve several
-* workspaces of the same type in a given program. In this case, a corresponding
-* number of calls to w*_release() is required to release all the workspaces
-* that were reserved.
+* workspaces of the same type in a given program. A corresponding number of
+* calls to w*_release() is then required to release all the workspaces that
+* were reserved.
 *
 * The fields in the gauge and force workspaces have 4*VOLUME elements and can
 * only store a copy of the field variables on the local lattice. In the case
@@ -136,10 +123,17 @@
 * elements, where Ns is the number of local deflation modes, while nb and nbb
 * are the numbers blocks in the DFL_BLOCKS grid and its exterior boundary.
 *
-* Workspaces can always be freed and reallocated by calling alloc_w*() if no
-* fields in the workspace are in use. In particular, a workspace can be freed
-* by calling alloc_w*(0). Except for the w*_size() programs, all programs in
-* this module must be called simultaneously on all MPI processes.
+* Workspaces can be freed or reallocated by calling alloc_w*() if no fields
+* in the workspace are currently in use. In particular, a workspace can be
+* freed by calling alloc_w*(0).
+*
+* If single- and double-precision spinor fields share the same workspace, the
+* release_ws() and release_wsd() statements must appear in the inverse order
+* of the corresponding reserve_ws() and reserve_wsd() statements. An error
+* occurs if this is not the case.
+*
+* The programs in this module may perform global communications and must be
+* called simultaneously on all MPI processes.
 *
 *******************************************************************************/
 
@@ -147,467 +141,365 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
 #include "mpi.h"
 #include "su3.h"
 #include "flags.h"
 #include "utils.h"
 #include "global.h"
 
-static int nudt=0,iwud=0,nwudt=0,*nwud;
-static su3_dble **wud0,**wud,ud0={{0.0}};
+typedef struct
+{
+   int type;
+   int n,nres,ires,*nw;
+   void **w0,**w;
+} wspace_t;
 
-static int nfdt=0,iwfd=0,nwfdt=0,*nwfd;
-static su3_alg_dble **wfd0,**wfd,fd0={0.0};
+static int *iws=NULL,usews=0;
+static wspace_t wud={0,0,0,0,NULL,NULL,NULL};
+static wspace_t wfd={1,0,0,0,NULL,NULL,NULL};
+static wspace_t ws= {2,0,0,0,NULL,NULL,NULL};
+static wspace_t wsd={3,0,0,0,NULL,NULL,NULL};
+static wspace_t wv= {4,0,0,0,NULL,NULL,NULL};
+static wspace_t wvd={5,0,0,0,NULL,NULL,NULL};
 
-static int nst=0,iws=0,nwst=0,*nws;
-static spinor **ws0,**ws,s0={{{0.0f}}};
 
-static int nsdt=0,iwsd=0,nwsdt=0,*nwsd;
-static spinor_dble **wsd0,**wsd,sd0={{{0.0}}};
+static size_t fld_size(int type)
+{
+   int nvec,*bs;
+   dfl_parms_t dfl;
 
-static int nvt=0,iwv=0,nwvt=0,*nwv,nvec;
-static complex **wv0,**wv,v0={0.0f};
+   if (type==0)
+      return sizeof(su3_dble)*(size_t)(4*VOLUME);
+   else if (type==1)
+      return sizeof(su3_alg_dble)*(size_t)(4*VOLUME);
+   else if (type==2)
+      return sizeof(spinor)*(size_t)(NSPIN);
+   else if (type==3)
+      return sizeof(spinor_dble)*(size_t)(NSPIN);
+   else
+   {
+      dfl=dfl_parms();
+      error(dfl.Ns==0,1,"fld_size [wspace.c]",
+            "The deflation subspace parameters are not set");
+      bs=dfl.bs;
+      nvec=VOLUME+FACE0*bs[0]+FACE1*bs[1]+FACE2*bs[2]+FACE3*bs[3];
+      nvec/=(bs[0]*bs[1]*bs[2]*bs[3]);
+      nvec*=dfl.Ns;
 
-static int nvdt=0,iwvd=0,nwvdt=0,*nwvd;
-static complex_dble **wvd0,**wvd,vd0={0.0};
+      if (type==4)
+         return sizeof(complex)*(size_t)(nvec);
+      else
+         return sizeof(complex_dble)*(size_t)(nvec);
+   }
+}
+
+
+static void alloc_wspace(int n,wspace_t *wsp,char *program)
+{
+   int k,iprms[1];
+   int type,*nw;
+   size_t fsize;
+   float *f,*fm;
+   double *fd,*fdm;
+   void **w0;
+
+   if (NPROC>1)
+   {
+      iprms[0]=n;
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      error(iprms[0]!=n,1,program,"Parameter n is not global");
+   }
+
+   if (n==(*wsp).n)
+      return;
+
+   error((*wsp).nres!=0,1,program,"Fields are in use");
+
+   if ((*wsp).n>0)
+   {
+      free((*wsp).nw);
+      afree((*wsp).w0[0]);
+      free((*wsp).w0);
+   }
+
+   (*wsp).n=n;
+   (*wsp).nres=0;
+   (*wsp).ires=0;
+   (*wsp).nw=NULL;
+   (*wsp).w0=NULL;
+   (*wsp).w=NULL;
+
+   if (n>0)
+   {
+      type=(*wsp).type;
+
+      nw=malloc(n*sizeof(*nw));
+      w0=malloc(2*n*sizeof(*w0));
+      error((nw==NULL)||(w0==NULL),1,program,"Unable to allocate index arrays");
+
+      fsize=fld_size(type);
+      w0[0]=amalloc((size_t)(n)*fsize,ALIGN);
+      error(w0[0]==NULL,1,program,"Unable to allocate field array");
+
+      for (k=0;k<n;k++)
+      {
+         if (k>0)
+            w0[k]=(void*)((char*)(w0[k-1])+fsize);
+
+         nw[k]=0;
+         w0[k+n]=NULL;
+      }
+
+      if ((type==2)||(type==4))
+      {
+         f=(float*)(w0[0]);
+         fm=f+(fsize/sizeof(float))*(size_t)(n);
+
+         for (;f<fm;f++)
+            f[0]=0.0f;
+      }
+      else
+      {
+         fd=(double*)(w0[0]);
+         fdm=fd+(fsize/sizeof(double))*(size_t)(n);
+
+         for (;fd<fdm;fd++)
+            fd[0]=0.0;
+      }
+
+      (*wsp).nw=nw;
+      (*wsp).w0=w0;
+      (*wsp).w=w0+n;
+   }
+}
+
+
+static void **reserve_wsp(int n,wspace_t *wsp,char *program)
+{
+   int i,iprms[1];
+   int nfld,nres,ires;
+   void **w0,**w;
+
+   if (NPROC>1)
+   {
+      iprms[0]=n;
+      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
+      error(iprms[0]!=n,1,program,"Parameter n is not global");
+   }
+
+   if (n>0)
+   {
+      nfld=(*wsp).n;
+      nres=(*wsp).nres;
+      ires=(*wsp).ires;
+      w0=(*wsp).w0;
+      w=(*wsp).w;
+
+      error((nres+n)>nfld,1,program,
+            "Requested too many fields (tot=%d,use=%d,req=%d)",nfld,nres,n);
+
+      (*wsp).nres+=n;
+      (*wsp).ires+=1;
+      (*wsp).nw[ires]=n;
+
+      for (i=nres;i<(nres+n);i++)
+         w[i]=w0[i];
+
+      return w+nres;
+   }
+   else
+      return NULL;
+}
+
+
+static int release_wsp(wspace_t *wsp)
+{
+   int i,n,nres,ires,*nw;
+   void **w;
+
+   nres=(*wsp).nres;
+   ires=(*wsp).ires;
+   nw=(*wsp).nw;
+   w=(*wsp).w;
+
+   if (nres==0)
+      return 0;
+   else
+   {
+      ires-=1;
+      n=nw[ires];
+      nres-=n;
+
+      (*wsp).nres=nres;
+      (*wsp).ires=ires;
+      nw[ires]=0;
+
+      for (i=nres;i<(nres+n);i++)
+         w[i]=NULL;
+
+      return n;
+   }
+}
 
 
 void alloc_wud(int n)
 {
-   int i;
-   su3_dble *ud,*um;
-
-   if (n==nudt)
-      return;
-
-   error_root(nwudt!=0,1,"alloc_wud [wspace.c]","Fields are in use");
-
-   if (nudt>0)
-   {
-      free(nwud);
-      afree(wud0[0]);
-      free(wud0);
-      nwud=NULL;
-      wud0=NULL;
-      wud=NULL;
-   }
-
-   nudt=n;
-   iwud=0;
-   nwudt=0;
-
-   if (nudt>0)
-   {
-      nwud=malloc(nudt*sizeof(*nwud));
-      wud0=malloc(2*nudt*sizeof(*wud0));
-      wud=wud0+nudt;
-
-      error((nwud==NULL)||(wud0==NULL),1,"alloc_wud [wspace.c]",
-            "Unable to allocate index arrays");
-
-      wud0[0]=amalloc(nudt*4*VOLUME*sizeof(**wud0),ALIGN);
-
-      error(wud0[0]==NULL,1,"alloc_wud [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nudt;i++)
-      {
-         if (i>0)
-            wud0[i]=wud0[i-1]+4*VOLUME;
-
-         nwud[i]=0;
-         wud[i]=NULL;
-      }
-
-      ud=wud0[0];
-      um=ud+nudt*4*VOLUME;
-
-      for (;ud<um;ud++)
-         (*ud)=ud0;
-   }
+   alloc_wspace(n,&wud,"alloc_wud [wspace.c]");
 }
 
 
 su3_dble **reserve_wud(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_wud [wspace.c]",
-            "Parameter n is not global");
-   }
-
-   if (n>0)
-   {
-      error((nwudt+n)>nudt,1,"reserve_wud [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nudt,nwudt,n);
-
-      ia=nwudt;
-      nwud[iwud]=n;
-      nwudt+=n;
-      iwud+=1;
-
-      for (i=ia;i<(ia+n);i++)
-         wud[i]=wud0[i];
-
-      return wud+ia;
-   }
-   else
-      return NULL;
+   return (su3_dble**)(reserve_wsp(n,&wud,"reserve_wud [wspace.c]"));
 }
 
 
 int release_wud(void)
 {
-   int n,i;
-
-   if (nwudt==0)
-      return 0;
-   else
-   {
-      iwud-=1;
-      n=nwud[iwud];
-      nwudt-=n;
-      nwud[iwud]=0;
-
-      for (i=nwudt;i<(nwudt+n);i++)
-         wud[i]=NULL;
-
-      return n;
-   }
-}
-
-
-int wud_size(void)
-{
-   return nwudt;
+   return release_wsp(&wud);
 }
 
 
 void alloc_wfd(int n)
 {
-   int i;
-   su3_alg_dble *fd,*fm;
-
-   if (n==nfdt)
-      return;
-
-   error_root(nwfdt!=0,1,"alloc_wfd [wspace.c]","Fields are in use");
-
-   if (nfdt>0)
-   {
-      free(nwfd);
-      afree(wfd0[0]);
-      free(wfd0);
-      nwfd=NULL;
-      wfd0=NULL;
-      wfd=NULL;
-   }
-
-   nfdt=n;
-   iwfd=0;
-   nwfdt=0;
-
-   if (nfdt>0)
-   {
-      nwfd=malloc(nfdt*sizeof(*nwfd));
-      wfd0=malloc(2*nfdt*sizeof(*wfd0));
-      wfd=wfd0+nfdt;
-
-      error((nwfd==NULL)||(wfd0==NULL),1,"alloc_wfd [wspace.c]",
-            "Unable to allocate index arrays");
-
-      wfd0[0]=amalloc(nfdt*4*VOLUME*sizeof(**wfd0),ALIGN);
-
-      error(wfd0[0]==NULL,1,"alloc_wfd [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nfdt;i++)
-      {
-         if (i>0)
-            wfd0[i]=wfd0[i-1]+4*VOLUME;
-
-         nwfd[i]=0;
-         wfd[i]=NULL;
-      }
-
-      fd=wfd0[0];
-      fm=fd+nfdt*4*VOLUME;
-
-      for (;fd<fm;fd++)
-         (*fd)=fd0;
-   }
+   alloc_wspace(n,&wfd,"alloc_wfd [wspace.c]");
 }
 
 
 su3_alg_dble **reserve_wfd(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_wfd [wspace.c]",
-            "Parameter n is not global");
-   }
-
-   if (n>0)
-   {
-      error((nwfdt+n)>nfdt,1,"reserve_wfd [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nfdt,nwfdt,n);
-
-      ia=nwfdt;
-      nwfd[iwfd]=n;
-      nwfdt+=n;
-      iwfd+=1;
-
-      for (i=ia;i<(ia+n);i++)
-         wfd[i]=wfd0[i];
-
-      return wfd+ia;
-   }
-   else
-      return NULL;
+   return (su3_alg_dble**)(reserve_wsp(n,&wfd,"reserve_wfd [wspace.c]"));
 }
 
 
 int release_wfd(void)
 {
-   int n,i;
-
-   if (nwfdt==0)
-      return 0;
-   else
-   {
-      iwfd-=1;
-      n=nwfd[iwfd];
-      nwfdt-=n;
-      nwfd[iwfd]=0;
-
-      for (i=nwfdt;i<(nwfdt+n);i++)
-         wfd[i]=NULL;
-
-      return n;
-   }
-}
-
-
-int wfd_size(void)
-{
-   return nwfdt;
+   return release_wsp(&wfd);
 }
 
 
 void alloc_ws(int n)
 {
-   int i;
-   spinor *s,*sm;
+   alloc_wspace(n,&ws,"alloc_ws [wspace.c]");
 
-   if (n==nst)
-      return;
-
-   error_root(nwst!=0,1,"alloc_ws [wspace.c]","Fields are in use");
-
-   if (nst>0)
+   if (usews)
    {
-      free(nws);
-      afree(ws0[0]);
-      free(ws0);
-      nws=NULL;
-      ws0=NULL;
-      ws=NULL;
-   }
-
-   nst=n;
-   iws=0;
-   nwst=0;
-
-   if (nst>0)
-   {
-      nws=malloc(nst*sizeof(*nws));
-      ws0=malloc(2*nst*sizeof(*ws0));
-      ws=ws0+nst;
-
-      error((nws==NULL)||(ws0==NULL),1,"alloc_ws [wspace.c]",
-            "Unable to allocate index arrays");
-
-      ws0[0]=amalloc(nst*NSPIN*sizeof(**ws0),ALIGN);
-
-      error(ws0[0]==NULL,1,"alloc_ws [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nst;i++)
-      {
-         if (i>0)
-            ws0[i]=ws0[i-1]+NSPIN;
-
-         nws[i]=0;
-         ws[i]=NULL;
-      }
-
-      s=ws0[0];
-      sm=s+nst*NSPIN;
-
-      for (;s<sm;s++)
-         (*s)=s0;
+      usews=0;
+      wsd_uses_ws();
    }
 }
 
 
 spinor **reserve_ws(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_ws [wspace.c]",
-            "Parameter n is not global");
-   }
-
-   if (n>0)
-   {
-      error((nwst+n)>nst,1,"reserve_ws [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nst,nwst,n);
-
-      ia=nwst;
-      nws[iws]=n;
-      nwst+=n;
-      iws+=1;
-
-      for (i=ia;i<(ia+n);i++)
-         ws[i]=ws0[i];
-
-      return ws+ia;
-   }
-   else
-      return NULL;
+   return (spinor**)(reserve_wsp(n,&ws,"reserve_ws [wspace.c]"));
 }
 
 
 int release_ws(void)
 {
-   int n,i;
+   int n;
 
-   if (nwst==0)
-      return 0;
-   else
-   {
-      iws-=1;
-      n=nws[iws];
-      nwst-=n;
-      nws[iws]=0;
+   n=release_wsp(&ws);
+   error_loc((n>0)&&(usews)&&(iws[ws.ires]!=0),1,"release_ws [wspace.c]",
+             "Incorrectly ordered ws and wsd release statements");
 
-      for (i=nwst;i<(nwst+n);i++)
-         ws[i]=NULL;
-
-      return n;
-   }
-}
-
-
-int ws_size(void)
-{
-   return nwst;
+   return n;
 }
 
 
 void alloc_wsd(int n)
 {
-   int i;
-   spinor_dble *sd,*sm;
+   if (usews==0)
+      alloc_wspace(n,&wsd,"alloc_wsd [wspace.c]");
+   else
+      error(1,1,"alloc_wsd [wspace.c]",
+            "wsd_uses_ws() has previously been called");
+}
 
-   if (n==nsdt)
-      return;
 
-   error_root(nwsdt!=0,1,"alloc_wsd [wspace.c]","Fields are in use");
+void wsd_uses_ws(void)
+{
+   int n,k,*nw;
+   void **w;
 
-   if (nsdt>0)
+   if (usews==0)
    {
-      free(nwsd);
-      afree(wsd0[0]);
-      free(wsd0);
-      nwsd=NULL;
-      wsd0=NULL;
-      wsd=NULL;
-   }
-
-   nsdt=n;
-   iwsd=0;
-   nwsdt=0;
-
-   if (nsdt>0)
-   {
-      nwsd=malloc(nsdt*sizeof(*nwsd));
-      wsd0=malloc(2*nsdt*sizeof(*wsd0));
-      wsd=wsd0+nsdt;
-
-      error((nwsd==NULL)||(wsd0==NULL),1,"alloc_wsd [wspace.c]",
-            "Unable to allocate index arrays");
-
-      wsd0[0]=amalloc(nsdt*NSPIN*sizeof(**wsd0),ALIGN);
-
-      error(wsd0[0]==NULL,1,"alloc_wsd [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nsdt;i++)
+      if (wsd.n==0)
       {
-         if (i>0)
-            wsd0[i]=wsd0[i-1]+NSPIN;
+         if (iws!=NULL)
+         {
+            free(iws);
+            free(wsd.nw);
+            free(wsd.w);
+         }
 
-         nwsd[i]=0;
-         wsd[i]=NULL;
+         iws=NULL;
+         wsd.nres=0;
+         wsd.ires=0;
+         wsd.nw=NULL;
+         wsd.w=NULL;
+         n=ws.n/2;
+
+         if (n>0)
+         {
+            iws=malloc(2*n*sizeof(*iws));
+            nw=malloc(n*sizeof(*iws));
+            w=malloc(n*sizeof(*w));
+            error((iws==NULL)||(nw==NULL)||(w==NULL),1,"wsd_uses_ws [wspace.c]",
+                  "Unable to allocate index arrays");
+
+            for (k=0;k<(2*n);k++)
+               iws[k]=0;
+
+            for (k=0;k<n;k++)
+            {
+               nw[k]=0;
+               w[k]=NULL;
+            }
+
+            wsd.nw=nw;
+            wsd.w=w;
+         }
+
+         usews=1;
       }
-
-      sd=wsd0[0];
-      sm=sd+nsdt*NSPIN;
-
-      for (;sd<sm;sd++)
-         (*sd)=sd0;
+      else
+         error(1,1,"wsd_uses_ws [wspace.c]",
+               "alloc_wsd() has previously been called");
    }
 }
 
 
 spinor_dble **reserve_wsd(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_wsd [wspace.c]",
-            "Parameter n is not global");
-   }
+   int i,nres,ires,*nw;
+   void **w0,**w;
 
    if (n>0)
    {
-      error((nwsdt+n)>nsdt,1,"reserve_wsd [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nsdt,nwsdt,n);
+      if (usews==0)
+         return (spinor_dble**)(reserve_wsp(n,&wsd,"reserve_wsd [wspace.c]"));
+      else
+      {
+         nres=wsd.nres;
+         ires=wsd.ires;
+         nw=wsd.nw;
+         w=wsd.w;
 
-      ia=nwsdt;
-      nwsd[iwsd]=n;
-      nwsdt+=n;
-      iwsd+=1;
+         w0=reserve_wsp(2*n,&ws,"reserve_ws [wspace.c]");
+         iws[ws.ires-1]=1;
 
-      for (i=ia;i<(ia+n);i++)
-         wsd[i]=wsd0[i];
+         wsd.nres+=n;
+         wsd.ires+=1;
+         nw[ires]=n;
+         w+=nres;
 
-      return wsd+ia;
+         for (i=0;i<n;i++)
+            w[i]=w0[2*i];
+
+         return (spinor_dble**)(w);
+      }
    }
    else
       return NULL;
@@ -616,279 +508,136 @@ spinor_dble **reserve_wsd(int n)
 
 int release_wsd(void)
 {
-   int n,i;
+   int n;
 
-   if (nwsdt==0)
-      return 0;
-   else
+   n=release_wsp(&wsd);
+
+   if ((n>0)&&(usews))
    {
-      iwsd-=1;
-      n=nwsd[iwsd];
-      nwsdt-=n;
-      nwsd[iwsd]=0;
-
-      for (i=nwsdt;i<(nwsdt+n);i++)
-         wsd[i]=NULL;
-
-      return n;
+      iws[ws.ires-1]^=1;
+      (void)(release_wsp(&ws));
    }
-}
 
-
-int wsd_size(void)
-{
-   return nwsdt;
-}
-
-
-static void set_nvec(void)
-{
-   int *bs;
-   dfl_parms_t dfl;
-
-   dfl=dfl_parms();
-
-   error_root(dfl.Ns==0,1,"set_nvec [wspace.c]",
-              "Deflation subspace parameters are not set");
-
-   bs=dfl.bs;
-   nvec=VOLUME+FACE0*bs[0]+FACE1*bs[1]+FACE2*bs[2]+FACE3*bs[3];
-   nvec/=(bs[0]*bs[1]*bs[2]*bs[3]);
-   nvec*=dfl.Ns;
+   return n;
 }
 
 
 void alloc_wv(int n)
 {
-   int i;
-   complex *v,*vm;
-
-   if (n==nvt)
-      return;
-
-   error_root(nwvt!=0,1,"alloc_wv [wspace.c]","Fields are in use");
-
-   if (nvt>0)
-   {
-      free(nwv);
-      afree(wv0[0]);
-      free(wv0);
-      nwv=NULL;
-      wv0=NULL;
-      wv=NULL;
-   }
-
-   nvt=n;
-   iwv=0;
-   nwvt=0;
-
-   if (nvt>0)
-   {
-      set_nvec();
-      nwv=malloc(nvt*sizeof(*nwv));
-      wv0=malloc(2*nvt*sizeof(*wv0));
-      wv=wv0+nvt;
-
-      error((nwv==NULL)||(wv0==NULL),1,"alloc_wv [wspace.c]",
-            "Unable to allocate index arrays");
-
-      wv0[0]=amalloc(nvt*nvec*sizeof(**wv0),ALIGN);
-
-      error(wv0[0]==NULL,1,"alloc_wv [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nvt;i++)
-      {
-         if (i>0)
-            wv0[i]=wv0[i-1]+nvec;
-
-         nwv[i]=0;
-         wv[i]=NULL;
-      }
-
-      v=wv0[0];
-      vm=v+nvt*nvec;
-
-      for (;v<vm;v++)
-         (*v)=v0;
-   }
+   alloc_wspace(n,&wv,"alloc_wv [wspace.c]");
 }
 
 
 complex **reserve_wv(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_wv [wspace.c]",
-            "Parameter n is not global");
-   }
-
-   if (n>0)
-   {
-      error((nwvt+n)>nvt,1,"reserve_wv [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nvt,nwvt,n);
-
-      ia=nwvt;
-      nwv[iwv]=n;
-      nwvt+=n;
-      iwv+=1;
-
-      for (i=ia;i<(ia+n);i++)
-         wv[i]=wv0[i];
-
-      return wv+ia;
-   }
-   else
-      return NULL;
+   return (complex**)(reserve_wsp(n,&wv,"reserve_wv [wspace.c]"));
 }
 
 
 int release_wv(void)
 {
-   int n,i;
-
-   if (nwvt==0)
-      return 0;
-   else
-   {
-      iwv-=1;
-      n=nwv[iwv];
-      nwvt-=n;
-      nwv[iwv]=0;
-
-      for (i=nwvt;i<(nwvt+n);i++)
-         wv[i]=NULL;
-
-      return n;
-   }
-}
-
-
-int wv_size(void)
-{
-   return nwvt;
+   return release_wsp(&wv);
 }
 
 
 void alloc_wvd(int n)
 {
-   int i;
-   complex_dble *vd,*vm;
-
-   if (n==nvdt)
-      return;
-
-   error_root(nwvdt!=0,1,"alloc_wvd [wspace.c]","Fields are in use");
-
-   if (nvdt>0)
-   {
-      free(nwvd);
-      afree(wvd0[0]);
-      free(wvd0);
-      nwvd=NULL;
-      wvd0=NULL;
-      wvd=NULL;
-   }
-
-   nvdt=n;
-   iwvd=0;
-   nwvdt=0;
-
-   if (nvdt>0)
-   {
-      set_nvec();
-      nwvd=malloc(nvdt*sizeof(*nwvd));
-      wvd0=malloc(2*nvdt*sizeof(*wvd0));
-      wvd=wvd0+nvdt;
-
-      error((nwvd==NULL)||(wvd0==NULL),1,"alloc_wvd [wspace.c]",
-            "Unable to allocate index arrays");
-
-      wvd0[0]=amalloc(nvdt*nvec*sizeof(**wvd0),ALIGN);
-
-      error(wvd0[0]==NULL,1,"alloc_wvd [wspace.c]",
-            "Unable to allocate workspace");
-
-      for (i=0;i<nvdt;i++)
-      {
-         if (i>0)
-            wvd0[i]=wvd0[i-1]+nvec;
-
-         nwvd[i]=0;
-         wvd[i]=NULL;
-      }
-
-      vd=wvd0[0];
-      vm=vd+nvdt*nvec;
-
-      for (;vd<vm;vd++)
-         (*vd)=vd0;
-   }
+   alloc_wspace(n,&wvd,"alloc_wvd [wspace.c]");
 }
 
 
 complex_dble **reserve_wvd(int n)
 {
-   int iprms[1],i,ia;
-
-   if (NPROC>1)
-   {
-      iprms[0]=n;
-
-      MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
-
-      error(iprms[0]!=n,1,"reserve_wvd [wspace.c]",
-            "Parameter n is not global");
-   }
-
-   if (n>0)
-   {
-      error((nwvdt+n)>nvdt,1,"reserve_wvd [wspace.c]",
-            "Requested too many fields (tot=%d,use=%d,req=%d)",nvdt,nwvdt,n);
-
-      ia=nwvdt;
-      nwvd[iwvd]=n;
-      nwvdt+=n;
-      iwvd+=1;
-
-      for (i=ia;i<(ia+n);i++)
-         wvd[i]=wvd0[i];
-
-      return wvd+ia;
-   }
-   else
-      return NULL;
+   return (complex_dble**)(reserve_wsp(n,&wvd,"reserve_wvd [wspace.c]"));
 }
 
 
 int release_wvd(void)
 {
-   int n,i;
-
-   if (nwvdt==0)
-      return 0;
-   else
-   {
-      iwvd-=1;
-      n=nwvd[iwvd];
-      nwvdt-=n;
-      nwvd[iwvd]=0;
-
-      for (i=nwvdt;i<(nwvdt+n);i++)
-         wvd[i]=NULL;
-
-      return n;
-   }
+   return release_wsp(&wvd);
 }
 
 
-int wvd_size(void)
+size_t wsp_msize(void)
 {
-   return nwvdt;
+   size_t ntot;
+
+   ntot=0;
+
+   if (wud.n)
+      ntot+=(size_t)(wud.n)*fld_size(0);
+   if (wfd.n)
+      ntot+=(size_t)(wfd.n)*fld_size(1);
+   if (ws.n)
+      ntot+=(size_t)(ws.n)*fld_size(2);
+   if (wsd.n)
+      ntot+=(size_t)(wsd.n)*fld_size(3);
+   if (wv.n)
+      ntot+=(size_t)(wv.n)*fld_size(4);
+   if (wvd.n)
+      ntot+=(size_t)(wvd.n)*fld_size(5);
+
+   return ntot;
+}
+
+
+void print_wsp(void)
+{
+   int my_rank;
+   double rt,r;
+
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+
+   rt=(double)(wsp_msize());
+
+   if (rt!=0.0)
+   {
+      if (my_rank==0)
+         printf("Contents and relative size of the workspaces:\n");
+
+      if (wud.n)
+      {
+         r=100.0*(double)(wud.n)*(double)(fld_size(0))/rt;
+         if (my_rank==0)
+            printf("wud: nflds = %3d, size = %5.1f%%\n",wud.n,r);
+      }
+
+      if (wfd.n)
+      {
+         r=100.0*(double)(wfd.n)*(double)(fld_size(1))/rt;
+         if (my_rank==0)
+            printf("wfd: nflds = %3d, size = %5.1f%%\n",wfd.n,r);
+      }
+
+      if (ws.n)
+      {
+         r=100.0*(double)(ws.n)*(double)(fld_size(2))/rt;
+         if (my_rank==0)
+            printf("ws:  nflds = %3d, size = %5.1f%%\n",ws.n,r);
+      }
+
+      if (wsd.n)
+      {
+         r=100.0*(double)(wsd.n)*(double)(fld_size(3))/rt;
+         if (my_rank==0)
+            printf("wsd: nflds = %3d, size = %5.1f%%\n",wsd.n,r);
+      }
+
+      if (wv.n)
+      {
+         r=100.0*(double)(wv.n)*(double)(fld_size(4))/rt;
+         if (my_rank==0)
+            printf("wv:  nflds = %3d, size = %5.1f%%\n",wv.n,r);
+      }
+
+      if (wvd.n)
+      {
+         r=100.0*(double)(wvd.n)*(double)(fld_size(5))/rt;
+         if (my_rank==0)
+            printf("wvd: nflds = %3d, size = %5.1f%%\n",wvd.n,r);
+      }
+
+      if (my_rank==0)
+         printf("\n");
+   }
 }

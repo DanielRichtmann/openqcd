@@ -8,15 +8,13 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic linear algebra routines for single-precision complex fields
-*
-* The externally accessible functions are
+* Generic linear algebra routines for single-precision complex fields.
 *
 *   complex vprod(int n,int icom,complex *v,complex *w)
-*     Computes the scalar product of the n-vectors v and w.
+*     Returns the scalar product of the n-vectors v and w.
 *
 *   float vnorm_square(int n,int icom,complex *v)
-*     Computes the square of the norm of the n-vector v.
+*     returns the square of the norm of the n-vector v.
 *
 *   void mulc_vadd(int n,complex *v,complex *w,complex z)
 *     Replaces the n-vector v by v+z*w.
@@ -34,8 +32,6 @@
 *   void vrotate(int n,int nv,complex **pv,complex *a)
 *     Replaces the n-vectors vk=pv[k], k=0,..,nv-1, by the linear
 *     combinations sum_{j=0}^{nv-1} vj*a[n*j+k].
-*
-* Notes:
 *
 * All these programs operate on complex n-vectors whose base addresses are
 * passed through the arguments. The length n of the arrays is specified by

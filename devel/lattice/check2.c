@@ -171,7 +171,7 @@ static int check_diag(su3_dble *u)
 static int check_bval(su3_dble *u)
 {
    int bc,ie,ifc;
-   int ipt,npts,*pts;
+   int ip,npts,*pts;
 
    ie=0;
    bc=bc_type();
@@ -188,11 +188,11 @@ static int check_bval(su3_dble *u)
          ie|=check_diag(u+8*(pts[0]-(VOLUME/2))+4);
          ie|=check_diag(u+8*(pts[0]-(VOLUME/2))+6);
 
-         for (ipt=0;ipt<(npts/2);ipt++)
+         for (ip=0;ip<(npts/2);ip++)
          {
             for (ifc=2;ifc<8;ifc++)
                ie|=cmp_ud(u+8*(pts[0]-(VOLUME/2))+2*(ifc/2),
-                          u+8*(pts[ipt]-(VOLUME/2))+ifc);
+                          u+8*(pts[ip]-(VOLUME/2))+ifc);
          }
       }
    }

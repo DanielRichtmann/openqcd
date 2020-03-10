@@ -3,7 +3,7 @@
 *
 * File vcom.c
 *
-* Copyright (C) 2007, 2011, 2013 Martin Luescher
+* Copyright (C) 2007, 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -21,8 +21,6 @@
 *     the local block lattice to the corresponding field components on
 *     the interior boundaries of the block lattices on the neighbouring
 *     MPI processes.
-*
-* Notes:
 *
 * The fields passed to cpv_int_bnd() and cpv_ext_bnd() are interpreted as
 * elements of the deflation subspace spanned by the Ns local modes in the
@@ -123,10 +121,13 @@ static void alloc_vbufs(void)
       saddr=npr[ifc];
       raddr=npr[ifc^0x1];
 
-      MPI_Send_init(snd_buf_int[ifc],2*Ns*nbbo[ifc],
-                    MPI_FLOAT,saddr,tag,MPI_COMM_WORLD,&snd_req_int[ifc]);
-      MPI_Recv_init(rcv_buf_int[ifc],2*Ns*nbbe[ifc^0x1],
-                    MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&rcv_req_int[ifc]);
+      if (nbbo[ifc])
+         MPI_Send_init(snd_buf_int[ifc],2*Ns*nbbo[ifc],
+                       MPI_FLOAT,saddr,tag,MPI_COMM_WORLD,&snd_req_int[ifc]);
+
+      if (nbbe[ifc^0x1])
+         MPI_Recv_init(rcv_buf_int[ifc],2*Ns*nbbe[ifc^0x1],
+                       MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&rcv_req_int[ifc]);
    }
 
    w=wb;
@@ -142,10 +143,13 @@ static void alloc_vbufs(void)
       saddr=npr[ifc];
       raddr=npr[ifc^0x1];
 
-      MPI_Send_init(snd_buf_ext[ifc],2*Ns*nbbe[ifc],
-                    MPI_FLOAT,saddr,tag,MPI_COMM_WORLD,&snd_req_ext[ifc]);
-      MPI_Recv_init(rcv_buf_ext[ifc],2*Ns*nbbo[ifc^0x1],
-                    MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&rcv_req_ext[ifc]);
+      if (nbbe[ifc])
+         MPI_Send_init(snd_buf_ext[ifc],2*Ns*nbbe[ifc],
+                       MPI_FLOAT,saddr,tag,MPI_COMM_WORLD,&snd_req_ext[ifc]);
+
+      if (nbbo[ifc^0x1])
+         MPI_Recv_init(rcv_buf_ext[ifc],2*Ns*nbbo[ifc^0x1],
+                       MPI_FLOAT,raddr,tag,MPI_COMM_WORLD,&rcv_req_ext[ifc]);
    }
 }
 

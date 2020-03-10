@@ -3,12 +3,12 @@
 *
 * File check5.c
 *
-* Copyright (C) 2011 Martin Luescher
+* Copyright (C) 2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of inv_pauli_dble()
+* Check of inv_pauli_dble().
 *
 *******************************************************************************/
 
@@ -21,15 +21,20 @@
 #include "linalg.h"
 #include "sw_term.h"
 
+#if (defined AVX)
+static pauli_dble ma[3] ALIGNED32;
+static complex_dble aa[4][36] ALIGNED32;
+#else
 static pauli_dble ma[3] ALIGNED16;
 static complex_dble aa[4][36] ALIGNED16;
+#endif
 
 
 static void random_pauli(pauli_dble *m)
 {
    int i;
    double *u;
- 
+
    u=(*m).u;
    gauss_dble(u,36);
 
@@ -54,10 +59,10 @@ static void pauli2mat(pauli_dble *m,complex_dble *a)
       for (j=i+1;j<6;j++)
       {
          a[6*i+j].re=u[k];
-         a[6*j+i].re=u[k];         
+         a[6*j+i].re=u[k];
          k+=1;
          a[6*i+j].im=u[k];
-         a[6*j+i].im=-u[k];         
+         a[6*j+i].im=-u[k];
          k+=1;
       }
    }
@@ -73,7 +78,9 @@ int main(void)
    printf("Check of inv_pauli_dble()\n");
    printf("-------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 
@@ -86,9 +93,9 @@ int main(void)
       random_pauli(ma);
       ie=inv_pauli_dble(mu,ma,ma+1);
    }
-   
+
    pauli2mat(ma,aa[0]);
-   pauli2mat(ma+1,aa[1]);   
+   pauli2mat(ma+1,aa[1]);
    cmat_mul_dble(6,aa[0],aa[0],aa[2]);
 
    for (i=0;i<6;i++)
@@ -114,7 +121,7 @@ int main(void)
          if (d<0.0)
             d=-d;
          if (d>dmax)
-            dmax=d;        
+            dmax=d;
       }
    }
 
@@ -132,10 +139,10 @@ int main(void)
       if (d>dmax)
          dmax=d;
    }
-   
+
    error(dmax!=0.0,1,"main [check5.c]",
-         "inv_pauli_dble() is incorrect when m=im");    
+         "inv_pauli_dble() is incorrect when m=im");
    printf("Works correctly if input and output matrices coincide\n\n");
-   
+
    exit(0);
 }

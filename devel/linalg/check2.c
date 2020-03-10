@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -168,8 +168,9 @@ int main(int argc,char *argv[])
                if (d>dmax)
                   dmax=d;
 
-               r=spinor_prod_re(vol,icom,pk,pl);
-               d=fabs((double)(z.re/r-1.0f));
+               w.re=spinor_prod_re(vol,icom,pk,pl);
+               d=(double)((z.re-w.re)*(z.re-w.re));
+               d=fabs(d/(double)(r));
                if (d>dmax)
                   dmax=d;
 

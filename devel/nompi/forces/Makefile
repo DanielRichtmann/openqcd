@@ -31,7 +31,7 @@ FORCES = frcfcts
 
 SW_TERM = pauli pauli_dble
 
-SU3FCTS = cm3x3 random_su3
+SU3FCTS = cm3x3 su3prod random_su3
 
 MODULES = $(RANDOM) $(UTILS) $(LINALG) $(FORCES) $(SW_TERM) $(SU3FCTS)
 
@@ -59,9 +59,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

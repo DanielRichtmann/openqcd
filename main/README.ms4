@@ -3,16 +3,16 @@ Main program ms4
 
 SYNTAX
 
-ms4 -i <filename> [-noexp]
+ms4 -i <filename>
 
 
 DESCRIPTION
 
 This program reads gauge field configurations from disk and computes the quark
-propagator for a number of gaussian random source fields at a specified time
-x0. The calculated propagators are exported to disk in a universal format (see
-archive/sarchive.c). The program has a very limited functionality and serves
-for illustration only.
+propagator for a number of Gaussian random source fields at a specified time
+x0. The calculated propagators are written to disk in one of the supported
+storage formats (see archive/sarchive.c). The program has a very limited
+functionality and serves for illustration only.
 
 
 COMMAND-LINE OPTIONS
@@ -24,11 +24,6 @@ through an input file. The options are
                  a fully qualified name or be specified relative to the
                  working directory.
 
--noexp           Field configurations are normally read in exported
-                 file format from the specified configuration directory.
-                 If this option is set, the configurations are instead
-                 expected in the imported file format on the local disks.
-
 
 INPUT PARAMETERS
 
@@ -38,74 +33,103 @@ example of a valid input file is ms4.in in this directory. The parameter
 values specified in this file are:
 
 [Run name]
-name         Snoopy137             # Run name = configuration base name
+name         Snoopy137             # Run name = configuration base name.
 
-[Directories]
-log_dir      ../data/ms4/log       # Log file directory
-loc_dir      /ndata/qcd1/cnfg      # Local configuration directory
-cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory
-sfld_dir     /data/ms4/sfld        # Exported propagator directory
+[Log and data directories]
+log_dir      ../data/ms4/log       # Log file directory.
+dat_dir      ../data/ms4/dat       # Data file directory.
 
 [Configurations]
-first        1                     # No of the first configuration to consider
-last         4                     # No of the last configuration
+type         e                     # Configuration storage type (e=exported,
+                                   # b=block-exported, l=local).
+cnfg_dir     /data/qcd1/cnfg       # Configuration directory.
+nio_nodes    12                    # Number of top level subdirectories used
+                                   # for block-exported or local storage.
+nio_streams  8                     # Number of parallel I/O streams (block-
+                                   # exported or local storage).
+first        1                     # No of the first configuration to consider.
+last         4                     # No of the last configuration.
 step         1                     # Configuration separation (last-first must
-                                   # be an integer multiple of step)
+                                   # be an integer multiple of step).
+
+[Propagators]
+type         b                     # Quark field storage type (e=exported,
+                                   # b=block-exported, l=local).
+prop_dir     /data/ms4/blk         # Propagator directory.
+bs           16 16 16 16           # Block size to be used for block-exported
+                                   # quark fields.
+nio_nodes    4                     # Number of top level subdirectories used
+                                   # for block-exported or local storage.
+nio_streams  4                     # Number of parallel I/O streams (block-
+                                   # exported or local storage).
 
 [Random number generator]
-level        0                     # Ranlux level
-seed         73099                 # Ranlux seed
+level        0                     # Ranlux level.
+seed         73099                 # Ranlux seed.
 
 [Dirac operator]
-kappa        0.1300                # Hopping parameter
-mu           0.001                 # Twisted mass
-csw          1.234                 # Coefficient of the SW term
+kappa        0.1300                # Hopping parameter.
+mu           0.001                 # Twisted mass.
+isw          0                     # Form of the SW term (0: traditional,
+                                   # 1: exponential).
+csw          1.234                 # Coefficient of the SW term in the
+                                   # Dirac operator.
 
 [Boundary conditions]
 type         2                     # Type of boundary condition (0: open,
-                                   # 1: SF, 2: open-SF, 3: periodic)
+                                   # 1: SF, 2: open-SF, 3: periodic).
 phi          0.12 -0.56            # Boundary values of the gauge field at
-                                   # time 0
+                                   # time 0.
 phi'         0.92 0.76             # Boundary values of the gauge field at
-                                   # time NPROC0*L0
+                                   # time NPROC0*L0.
 cF           0.95                  # Fermion action improvement coefficient
-                                   # at time 0
+                                   # at time 0.
 cF'          0.90                  # Fermion action improvement coefficient
-                                   # at time NPROC0*L0
+                                   # at time NPROC0*L0.
 theta        0.5 1.0 -0.5          # Angles specifying the phase-periodic bc
-                                   # of the quark fields in space
+                                   # of the quark fields in space.
 
 [Source fields]
 x0           20                    # Time at which the random source fields
-                                   # live (0<=x0<NPROC0*L0)
+                                   # live (0<=x0<NPROC0*L0).
 nsrc         12                    # Number of gaussian random source fields
-                                   # to be generated per gauge configuration
+                                   # to be generated per gauge configuration.
 
 Then follows a description of the solver for the Dirac equation to be used
 (see doc/parms.pdf). The supported solvers are CGNE, SAP_GCR and DFL_SAP_GCR.
 
+The chosen parameter values must satisfy the following constraints:
+
+- In the case of storage of type "b", the block size bs must divide the
+  lattice and the local lattice must divide the block size. Moreover,
+  nio_nodes and nio_streams must divide the number nb of blocks.
+
+- In the case of storage of type "l", nio_nodes and nio_streams must divide
+  the number NPROC of MPI processes.
+
 Setting the source time x0 to 0 or NPROC0*L0-1 is not permitted if the chosen
-boundary conditions require the quark fields to vanish there. Superfluous
-sections and parameters may be deleted or commented out. If present they are
-not read by the program and the specified values (if any) have no effect on
-the run. The solver index must be set to 0.
+boundary conditions require the quark fields to vanish there. The solver index
+must be set to 0. Superfluous sections and parameters may be deleted or
+commented out. If present they are not read by the program and the specified
+values (if any) have no effect on the run.
+
+
+CONFIGURATION DIRECTORY STRUCTURE
+
+The configuration directory tree is expected to be of the form described in
+README.ym1.
 
 
 FILES
 
-The program searches for exported field configurations
+The program searches for field configurations
 
-  <run name>n<int>
+  <name>n<int>
 
-in the directory cnfg_dir, where <int> is the configuration number.
-Imported configurations
-
-  <run name>n<int>_0       (on process 0)
-  <run name>n<int>_1       (on process 1)
-  <run name>n<int>_2       (on process 2)
-        ...                     ...
-
-are searched in the directory loc_dir.
+in the directory cnfg_dir or in its subdirectories in the case of storage of
+type "b" and "l", where <int> is the configuration number. In the latter two
+cases the suffix _b<block number> and _<process rank>, respectively, is added
+to the configuration file name.
 
 The program prints some information on the progress of the computations
 to the files
@@ -123,12 +147,15 @@ The calculated solutions of the Dirac equation are stored in the files
   <run name>n<int>.s2      (source no 2)
         ...                    ...
 
-in the directory sfld_dir (nsrc files per gauge field configuration). These
-files can be read using the program import_sfld() [archive/sarchive.c].
+in the directory prop_dir (nsrc files per gauge field configuration), with
+the suffix _b<block number> or _<process rank> add to the file name in the
+case of "b" and "l" storage.
 
-The directories log_dir and sfld_dir, as well as the directory cnfg_dir if the
--noexp option is not set, must be accessible from process 0. If the -noexp
-option is set, the directory loc_dir must be accessible from all processes.
+The directories log_dir and dat_dir, as well as cnfg_dir and prop_dir in the
+case of storage type "e" must be accessible from process 0. If the storage
+type is "b" or "l", the directories cnfg_dir and prop_dir must be accessible
+from the processes that write to the configuration files (see README.io and
+README.ym1).
 
 
 SOLVER PERFORMANCE
@@ -162,11 +189,12 @@ RANDOM NUMBER GENERATOR
 
 Random numbers are generated using the ranlux generator. The generator is
 initialized using the values of the parameters "level" and "seed" specified in
-the input file. If the configurations are read in imported form, the state of
-the generator is *not* set to the one stored on the configuration file. The
-generated random numbers, and consequently the random source fields, are
-therefore independent of whether the configurations are read in imported or
-exported form.
+the input file.
+
+Note that if the configurations are available in the "l" storage format, the
+state of the generator is *not* set to the one stored on the configuration
+files. The generated random numbers, and consequently the computed reweighting
+factors, are therefore independent of the storage type of the configurations.
 
 
 SAFETY MEASURES AND ERROR REPORTING

@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2011-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -305,7 +305,7 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);

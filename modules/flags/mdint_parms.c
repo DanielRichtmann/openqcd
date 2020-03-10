@@ -3,14 +3,12 @@
 *
 * File mdint_parms.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Molecular-dynamics integrator data base
-*
-* The externally accessible functions are
+* Molecular-dynamics integrator data base.
 *
 *   mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
 *                                 int nstep,int nfr,int *ifr)
@@ -25,7 +23,7 @@
 *     On process 0, this program scans stdin for a line starting with the
 *     string "[Level <int>]" (after any number of blanks), where <int> is
 *     the integer value passed by the argument. An error occurs if no such
-*     line or more than one is found. The lines 
+*     line or more than one is found. The lines
 *
 *       integrator   <integrator_t>
 *       lambda       <double>
@@ -51,8 +49,6 @@
 *     Compares the parameters of the defined integrator levels with those
 *     stored on the file fdat on MPI process 0, assuming the latter were
 *     written to the file by the program write_mdint_parms().
-*
-* Notes:
 *
 * A structure of type mdint_parms_t contains the parameters of a hierarchical
 * molecular-dynamics integrator at a specified level (see update/README.mdint).
@@ -116,7 +112,7 @@ static mdint_parms_t mdp[ILVMAX+1]={{INTEGRATORS,0.0,0,0,NULL}};
 static void init_mdp(void)
 {
    int i;
-   
+
    for (i=1;i<=ILVMAX;i++)
       mdp[i]=mdp[0];
 
@@ -124,40 +120,44 @@ static void init_mdp(void)
 }
 
 
-static void alloc_ifr(int ilv,int nfr)
+static int *alloc_ifr(int ilv,int nfr)
 {
-   int *ifr;
+   int *ifr,*old;
 
-   if (mdp[ilv].nfr>0)
+   if (nfr!=mdp[ilv].nfr)
    {
-      free(mdp[ilv].ifr);
-      mdp[ilv].nfr=0;
-      mdp[ilv].ifr=NULL;
-   }
+      if (nfr>0)
+      {
+         ifr=malloc(nfr*sizeof(*ifr));
+         error(ifr==NULL,1,"alloc_ifr [mdint_parms.c]",
+               "Unable to allocate index array");
+      }
+      else
+         ifr=NULL;
 
-   if (nfr>0)
-   {
-      ifr=malloc(nfr*sizeof(*ifr));
-      error(ifr==NULL,1,"alloc_ifr [mdint_parms.c]",
-            "Unable to allocate index array");
+      old=mdp[ilv].ifr;
       mdp[ilv].nfr=nfr;
       mdp[ilv].ifr=ifr;
    }
+   else
+      old=NULL;
+
+   return old;
 }
 
 
 mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
                               int nstep,int nfr,int *ifr)
 {
-   int iprms[4],i,j,ie;
+   int i,j,ie,*old,iprms[4];
    double dprms[1];
-   
+
    if (init==0)
       init_mdp();
 
    if (integrator!=OMF2)
       lambda=0.0;
-   
+
    if (NPROC>1)
    {
       iprms[0]=ilv;
@@ -168,7 +168,7 @@ mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
 
       MPI_Bcast(iprms,4,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-      
+
       ie=0;
       ie|=(iprms[0]!=ilv);
       ie|=(iprms[1]!=(int)(integrator));
@@ -179,12 +179,12 @@ mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
       for (i=0;i<nfr;i++)
       {
          iprms[0]=ifr[i];
-         
-         MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);         
+
+         MPI_Bcast(iprms,1,MPI_INT,0,MPI_COMM_WORLD);
 
          ie|=(iprms[0]!=ifr[i]);
-      }     
-      
+      }
+
       error(ie!=0,1,"set_mdint_parms [mdint_parms.c]",
             "Parameters are not global");
    }
@@ -194,10 +194,10 @@ mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
    ie|=(integrator==INTEGRATORS);
    ie|=(nstep<1);
    ie|=(nfr<1);
-   
+
    for (i=0;i<nfr;i++)
       ie|=(ifr[i]<0);
-   
+
    error_root(ie!=0,1,"set_mdint_parms [mdint_parms.c]",
               "Parameters are out of range");
 
@@ -206,18 +206,21 @@ mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
       for (j=(i+1);j<nfr;j++)
          ie|=(ifr[i]==ifr[j]);
    }
-   
+
    error_root(ie!=0,1,"set_mdint_parms [mdint_parms.c]",
               "Dublicate force indices");
-   
+
+   old=alloc_ifr(ilv,nfr);
    mdp[ilv].integrator=integrator;
-   mdp[ilv].lambda=lambda;   
+   mdp[ilv].lambda=lambda;
    mdp[ilv].nstep=nstep;
-   alloc_ifr(ilv,nfr);
-   
+
    for (i=0;i<nfr;i++)
       mdp[ilv].ifr[i]=ifr[i];
-   
+
+   if (old!=NULL)
+      free(old);
+
    return mdp[ilv];
 }
 
@@ -225,7 +228,7 @@ mdint_parms_t set_mdint_parms(int ilv,integrator_t integrator,double lambda,
 mdint_parms_t mdint_parms(int ilv)
 {
    if (init==0)
-      init_mdp();      
+      init_mdp();
 
    if ((ilv>=0)&&(ilv<ILVMAX))
       return mdp[ilv];
@@ -272,21 +275,21 @@ void read_mdint_parms(int ilv)
       else
          error_root(1,1,"read_mdint_parms [mdint_parms.c]",
                     "Unknown integrator %s",line);
-      
+
       read_line("nstep","%d",&nstep);
       error_root(nstep<1,1,"read_mdint [mdint_parms.c]",
                  "Parameter nstep out of range");
-      
+
       nfr=count_tokens("forces");
       error_root(nfr==0,1,"read_mdint [mdint_parms.c]",
                  "No forces specified");
    }
 
    MPI_Bcast(&idi,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&lambda,1,MPI_DOUBLE,0,MPI_COMM_WORLD);      
+   MPI_Bcast(&lambda,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nstep,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&nfr,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    ifr=malloc(nfr*sizeof(*ifr));
    error(ifr==NULL,1,"read_mdint [mdint_parms.c]",
          "Unable to allocate index array");
@@ -294,14 +297,14 @@ void read_mdint_parms(int ilv)
       read_iprms("forces",nfr,ifr);
 
    MPI_Bcast(ifr,nfr,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    if (idi==0)
       set_mdint_parms(ilv,LPFR,lambda,nstep,nfr,ifr);
    else if (idi==1)
       set_mdint_parms(ilv,OMF2,lambda,nstep,nfr,ifr);
    else if (idi==2)
       set_mdint_parms(ilv,OMF4,lambda,nstep,nfr,ifr);
-   
+
    free(ifr);
 }
 
@@ -312,7 +315,7 @@ void print_mdint_parms(void)
    int nfr,*ifr;
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   
+
    if ((my_rank==0)&&(init==1))
    {
       for (i=0;i<ILVMAX;i++)
@@ -342,7 +345,7 @@ void print_mdint_parms(void)
             if (nfr>0)
             {
                printf("Forces =");
-         
+
                for (j=0;j<nfr;j++)
                   printf(" %d",ifr[j]);
 
@@ -365,29 +368,29 @@ void write_mdint_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if ((my_rank==0)&&(init==1))
    {
       nmx=0;
-      
+
       for (i=0;i<ILVMAX;i++)
       {
          nfr=mdp[i].nfr;
          if (nfr>nmx)
             nmx=nfr;
       }
-      
+
       istd=malloc((nmx+4)*sizeof(stdint_t));
       error_root(istd==NULL,1,"write_mdint_parms [mdint_parms.c]",
                  "Unable to allocate auxiliary array");
-      
+
       for (i=0;i<ILVMAX;i++)
       {
          if (mdp[i].integrator!=INTEGRATORS)
          {
             nfr=mdp[i].nfr;
-            
-            istd[0]=(stdint_t)(i);            
+
+            istd[0]=(stdint_t)(i);
             istd[1]=(stdint_t)(mdp[i].integrator);
             istd[2]=(stdint_t)(mdp[i].nstep);
             istd[3]=(stdint_t)(mdp[i].nfr);
@@ -396,15 +399,15 @@ void write_mdint_parms(FILE *fdat)
                istd[4+j]=(stdint_t)(mdp[i].ifr[j]);
 
             dstd[0]=mdp[i].lambda;
-            n=4+nfr;            
-            
+            n=4+nfr;
+
             if (endian==BIG_ENDIAN)
             {
                bswap_int(n,istd);
                bswap_double(1,dstd);
             }
 
-            iw=fwrite(istd,sizeof(stdint_t),n,fdat);         
+            iw=fwrite(istd,sizeof(stdint_t),n,fdat);
             iw+=fwrite(dstd,sizeof(double),1,fdat);
             error_root(iw!=(n+1),1,"write_mdint_parms [mdint_parms.c]",
                        "Incorrect write count");
@@ -425,12 +428,12 @@ void check_mdint_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if ((my_rank==0)&&(init==1))
    {
       ie=0;
       nmx=0;
-      
+
       for (i=0;i<ILVMAX;i++)
       {
          nfr=mdp[i].nfr;
@@ -441,15 +444,15 @@ void check_mdint_parms(FILE *fdat)
       istd=malloc((nmx+4)*sizeof(stdint_t));
       error_root(istd==NULL,1,"check_mdint_parms [mdint_parms.c]",
                  "Unable to allocate auxiliary array");
-      
+
       for (i=0;i<ILVMAX;i++)
       {
          if (mdp[i].integrator!=INTEGRATORS)
          {
             nfr=mdp[i].nfr;
             n=4+nfr;
-            
-            ir=fread(istd,sizeof(stdint_t),n,fdat);         
+
+            ir=fread(istd,sizeof(stdint_t),n,fdat);
             ir+=fread(dstd,sizeof(double),1,fdat);
             error_root(ir!=(n+1),1,"check_mdint_parms [mdint_parms.c]",
                        "Incorrect read count");
@@ -459,8 +462,8 @@ void check_mdint_parms(FILE *fdat)
                bswap_int(n,istd);
                bswap_double(1,dstd);
             }
-            
-            ie|=(istd[0]!=(stdint_t)(i));            
+
+            ie|=(istd[0]!=(stdint_t)(i));
             ie|=(istd[1]!=(stdint_t)(mdp[i].integrator));
             ie|=(istd[2]!=(stdint_t)(mdp[i].nstep));
             ie|=(istd[3]!=(stdint_t)(mdp[i].nfr));
@@ -471,9 +474,9 @@ void check_mdint_parms(FILE *fdat)
             ie|=(dstd[0]!=mdp[i].lambda);
          }
       }
-         
+
       error_root(ie!=0,1,"check_mdint_parms [mdint_parms.c]",
-                 "Parameters do not match");         
+                 "Parameters do not match");
       free(istd);
    }
 }

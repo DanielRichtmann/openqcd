@@ -36,12 +36,28 @@ extern void apply_sw_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
 extern int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
                             spinor_dble *r);
 
+/* SWALG_C */
+extern void pauli2weyl(pauli_dble *A,weyl_dble *w);
+extern void weyl2pauli(weyl_dble *w,pauli_dble *A);
+extern void prod_pauli_mat(pauli_dble *A,weyl_dble *w,weyl_dble *v);
+extern void add_pauli_mat(pauli_dble *A,pauli_dble *B,pauli_dble *C);
+extern void lc3_pauli_mat(double *c,pauli_dble *A1,pauli_dble *A2,
+                          pauli_dble *B);
+extern double tr0_pauli_mat(pauli_dble *A);
+extern double tr1_pauli_mat(pauli_dble *A,pauli_dble *B);
+
+/* SWEXP_C */
+extern void sw_exp(int N,int s,pauli_dble *A,double r,pauli_dble *B);
+extern void sw_dexp(int N,pauli_dble *A,double r,double *q);
+
 /* SWFLDS_C */
 extern pauli *swfld(void);
 extern pauli_dble *swdfld(void);
 extern void assign_swd2sw(void);
 
 /* SW_TERM_C */
+extern int sw_order(void);
+extern void pauli_term(double c,u3_alg_dble **ft,pauli_dble *m);
 extern int sw_term(ptset_t set);
 
 #endif

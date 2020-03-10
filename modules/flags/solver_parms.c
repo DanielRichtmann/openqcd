@@ -3,18 +3,16 @@
 *
 * File solver_parms.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2017, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Solver parameter data base
-*
-* The externally accessible functions are
+* Solver parameter data base.
 *
 *   solver_parms_t set_solver_parms(int isp,solver_t solver,
 *                                   int nkv,int isolv,int nmr,int ncy,
-*                                   int nmx,double res)
+*                                   int nmx,int istop,double res)
 *     Sets the parameters in the solver parameter set number isp and returns
 *     a structure containing them (see the notes).
 *
@@ -26,7 +24,7 @@
 *     On process 0, this program scans stdin for a line starting with the
 *     string "[Solver <int>]" (after any number of blanks), where <int> is
 *     the integer value passed by the argument. An error occurs if no such
-*     line or more than one is found. The lines 
+*     line or more than one is found. The lines
 *
 *       solver  <solver_t>
 *       nkv     <int>
@@ -34,18 +32,19 @@
 *       nmr     <int>
 *       ncy     <int>
 *       nmx     <int>
+*       istop   <int>
 *       res     <double>
 *
-*     are then read one by one using read_line() [utils/mutils.c]. The 
+*     are then read one by one using read_line() [utils/mutils.c]. The
 *     lines with tags nkv,..,ncy may be absent in the case of the CGNE
-*     and MSCG solvers (see the notes). The data are then added to the 
+*     and MSCG solvers (see the notes). The data are then added to the
 *     data base by calling set_solver_parms(isp,...).
 *
 *   void print_solver_parms(int *isap,int *idfl)
 *     Prints the parameters of the defined solvers to stdout on MPI
 *     process 0. On exit the flag isap is 1 or 0 depending on whether
 *     one of the solvers makes use of the Schwarz Alternating Procedure
-*     (SAP) or not. Similarly, the flag idfl is set 1 or 0 depending on 
+*     (SAP) or not. Similarly, the flag idfl is set 1 or 0 depending on
 *     whether deflation is used or not. On MPI processes other than 0,
 *     the program does nothing and sets isap and idfl to zero.
 *
@@ -56,10 +55,7 @@
 *   void check_solver_parms(FILE *fdat)
 *     Compares the parameters of the defined solvers with those stored
 *     on the file fdat on MPI process 0, assuming the latter were written
-*     to the file by the program write_solver_parms() (mismatches of the
-*     maximal solver iteration number are not considered to be an error).
-*
-* Notes:
+*     to the file by the program write_solver_parms().
 *
 * The elements of a structure of type solver_parms_t are
 *
@@ -84,9 +80,11 @@
 *
 *   ncy     Number of SAP cycles to be applied if solver=*SAP_GCR.
 *
-*   nmx     Maximal number of CG iterations if solver={CGNE,MSCG} or 
-*           maximal total number of Krylov vectors that may be generated 
+*   nmx     Maximal number of CG iterations if solver={CGNE,MSCG} or
+*           maximal total number of Krylov vectors that may be generated
 *           if solver={SAP_GCR,DFL_SAP_GCR}.
+*
+*   istop   Stopping criterion (0: L_2 norm based, 1: uniform norm based).
 *
 *   res     Desired maximal relative residue of the calculated solution.
 *
@@ -94,7 +92,7 @@
 * zero by the program set_solver_parms() independently of the values of
 * the arguments.
 *
-* Up to 32 solver parameter sets, labeled by an index isp=0,1,..,31, can
+* Up to 64 solver parameter sets, labeled by an index isp=0,1,..,63, can
 * be specified. Once a set is specified, it cannot be changed by calling
 * set_solver_parms() again. Solver parameters must be globally the same.
 *
@@ -108,23 +106,21 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 #include "mpi.h"
 #include "utils.h"
 #include "flags.h"
 #include "global.h"
 
-#define ISPMAX 32
+#define ISPMAX 64
 
 static int init=0;
-static solver_t solver[]={CGNE,MSCG,SAP_GCR,DFL_SAP_GCR};
-static solver_parms_t sp[ISPMAX+1]={{SOLVERS,0,0,0,0,0,0.0}};
+static solver_parms_t sp[ISPMAX+1]={{SOLVERS,0,0,0,0,0,0,0.0}};
 
 
 static void init_sp(void)
 {
    int i;
-   
+
    for (i=1;i<=ISPMAX;i++)
       sp[i]=sp[0];
 
@@ -134,11 +130,11 @@ static void init_sp(void)
 
 solver_parms_t set_solver_parms(int isp,solver_t solver,
                                 int nkv,int isolv,int nmr,int ncy,
-                                int nmx,double res)
+                                int nmx,int istop,double res)
 {
-   int ie,iprms[7];
+   int ie,iprms[8];
    double dprms[1];
-   
+
    if (init==0)
       init_sp();
 
@@ -149,19 +145,20 @@ solver_parms_t set_solver_parms(int isp,solver_t solver,
       nmr=0;
       ncy=0;
    }
-   
+
    if (NPROC>1)
    {
       iprms[0]=isp;
       iprms[1]=(int)(solver);
       iprms[2]=nkv;
       iprms[3]=isolv;
-      iprms[4]=nmr;      
+      iprms[4]=nmr;
       iprms[5]=ncy;
       iprms[6]=nmx;
+      iprms[7]=istop;
       dprms[0]=res;
 
-      MPI_Bcast(iprms,7,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(iprms,8,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(dprms,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
       ie=0;
@@ -172,8 +169,9 @@ solver_parms_t set_solver_parms(int isp,solver_t solver,
       ie|=(iprms[4]!=nmr);
       ie|=(iprms[5]!=ncy);
       ie|=(iprms[6]!=nmx);
+      ie|=(iprms[7]!=istop);
       ie|=(dprms[0]!=res);
-      
+
       error(ie!=0,1,"set_solver_parms [solver_parms.c]",
             "Parameters are not global");
    }
@@ -182,9 +180,12 @@ solver_parms_t set_solver_parms(int isp,solver_t solver,
    ie|=(isp<0)||(isp>=ISPMAX);
    ie|=(solver==SOLVERS);
    ie|=(nmx<1);
+   ie|=((istop<0)||(istop>1));
+   ie|=(res<=0.0);
 
    if ((solver==SAP_GCR)||(solver==DFL_SAP_GCR))
    {
+      ie|=(nkv<1);
       ie|=(isolv<0)||(isolv>1);
       ie|=(nmr<1);
       ie|=(ncy<1);
@@ -192,7 +193,7 @@ solver_parms_t set_solver_parms(int isp,solver_t solver,
 
    error_root(ie!=0,1,"set_solver_parms [solver_parms.c]",
               "Parameters are out of range");
-   
+
    error_root(sp[isp].solver!=SOLVERS,1,"set_solver_parms [solver_parms.c]",
               "Attempt to reset an already specified solver parameter set");
 
@@ -202,6 +203,7 @@ solver_parms_t set_solver_parms(int isp,solver_t solver,
    sp[isp].nmr=nmr;
    sp[isp].ncy=ncy;
    sp[isp].nmx=nmx;
+   sp[isp].istop=istop;
    sp[isp].res=res;
 
    return sp[isp];
@@ -227,19 +229,17 @@ solver_parms_t solver_parms(int isp)
 void read_solver_parms(int isp)
 {
    int my_rank,ids;
-   int nkv,isolv,nmr,ncy,nmx;
+   int nkv,isolv,nmr,ncy,nmx,istop;
    double res;
    char line[NAME_SIZE];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   ids=0;
+   ids=(int)(SOLVERS);
    nkv=0;
    isolv=0;
    nmr=0;
    ncy=0;
-   nmx=0;
-   res=1.0;
-   
+
    if (my_rank==0)
    {
       sprintf(line,"Solver %d",isp);
@@ -247,11 +247,13 @@ void read_solver_parms(int isp)
 
       read_line("solver","%s",line);
 
-      if (strcmp(line,"MSCG")==0)
-         ids=1;
+      if (strcmp(line,"CGNE")==0)
+         ids=(int)(CGNE);
+      else if (strcmp(line,"MSCG")==0)
+         ids=(int)(MSCG);
       else if (strcmp(line,"SAP_GCR")==0)
       {
-         ids=2;
+         ids=(int)(SAP_GCR);
          read_line("nkv","%d",&nkv);
          read_line("isolv","%d",&isolv);
          read_line("nmr","%d",&nmr);
@@ -259,32 +261,34 @@ void read_solver_parms(int isp)
       }
       else if (strcmp(line,"DFL_SAP_GCR")==0)
       {
-         ids=3;
+         ids=(int)(DFL_SAP_GCR);
          read_line("nkv","%d",&nkv);
          read_line("isolv","%d",&isolv);
          read_line("nmr","%d",&nmr);
          read_line("ncy","%d",&ncy);
       }
-      else if (strcmp(line,"CGNE")!=0)
+      else
          error_root(1,1,"read_solver_parms [solver_parms.c]",
                     "Unknown solver %s",line);
 
       read_line("nmx","%d",&nmx);
-      read_line("res","%lf",&res);      
+      read_line("istop","%d",&istop);
+      read_line("res","%lf",&res);
    }
 
    if (NPROC>1)
-   {     
+   {
       MPI_Bcast(&ids,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&nkv,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&isolv,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&nmr,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&ncy,1,MPI_INT,0,MPI_COMM_WORLD);
       MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
-      MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);   
+      MPI_Bcast(&istop,1,MPI_INT,0,MPI_COMM_WORLD);
+      MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
-   
-   set_solver_parms(isp,solver[ids],nkv,isolv,nmr,ncy,nmx,res);
+
+   set_solver_parms(isp,(solver_t)(ids),nkv,isolv,nmr,ncy,nmx,istop,res);
 }
 
 
@@ -295,7 +299,7 @@ void print_solver_parms(int *isap,int *idfl)
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    (*isap)=0;
    (*idfl)=0;
-   
+
    if ((my_rank==0)&&(init==1))
    {
       for (i=0;i<ISPMAX;i++)
@@ -303,17 +307,19 @@ void print_solver_parms(int *isap,int *idfl)
          if (sp[i].solver!=SOLVERS)
          {
             printf("Solver %d:\n",i);
-            
+
             if (sp[i].solver==CGNE)
             {
                printf("CGNE solver\n");
                printf("nmx = %d\n",sp[i].nmx);
+               printf("istop = %d\n",sp[i].istop);
                printf("res = %.1e\n\n",sp[i].res);
             }
             else if (sp[i].solver==MSCG)
             {
                printf("MSCG solver\n");
                printf("nmx = %d\n",sp[i].nmx);
+               printf("istop = %d\n",sp[i].istop);
                printf("res = %.1e\n\n",sp[i].res);
             }
             else if (sp[i].solver==SAP_GCR)
@@ -322,9 +328,10 @@ void print_solver_parms(int *isap,int *idfl)
                printf("SAP_GCR solver\n");
                printf("nkv = %d\n",sp[i].nkv);
                printf("isolv = %d\n",sp[i].isolv);
-               printf("nmr = %d\n",sp[i].nmr);              
+               printf("nmr = %d\n",sp[i].nmr);
                printf("ncy = %d\n",sp[i].ncy);
                printf("nmx = %d\n",sp[i].nmx);
+               printf("istop = %d\n",sp[i].istop);
                printf("res = %.1e\n\n",sp[i].res);
             }
             else if (sp[i].solver==DFL_SAP_GCR)
@@ -334,13 +341,15 @@ void print_solver_parms(int *isap,int *idfl)
                printf("DFL_SAP_GCR solver\n");
                printf("nkv = %d\n",sp[i].nkv);
                printf("isolv = %d\n",sp[i].isolv);
-               printf("nmr = %d\n",sp[i].nmr);              
+               printf("nmr = %d\n",sp[i].nmr);
                printf("ncy = %d\n",sp[i].ncy);
                printf("nmx = %d\n",sp[i].nmx);
+               printf("istop = %d\n",sp[i].istop);
                printf("res = %.1e\n\n",sp[i].res);
             }
             else
-               printf("UNKNOWN solver\n\n");
+               error_root(1,1,"print_solver_parms [solver_parms.c]",
+                          "Unknown solver");
          }
       }
    }
@@ -351,36 +360,37 @@ void write_solver_parms(FILE *fdat)
 {
    int my_rank,endian;
    int iw,i;
-   stdint_t istd[7];
+   stdint_t istd[8];
    double dstd[1];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if ((my_rank==0)&&(init==1))
    {
       for (i=0;i<ISPMAX;i++)
       {
          if (sp[i].solver!=SOLVERS)
          {
-            istd[0]=(stdint_t)(i);            
+            istd[0]=(stdint_t)(i);
             istd[1]=(stdint_t)(sp[i].solver);
-            istd[2]=(stdint_t)(sp[i].nmx);
-            istd[3]=(stdint_t)(sp[i].nkv);
-            istd[4]=(stdint_t)(sp[i].isolv);
-            istd[5]=(stdint_t)(sp[i].nmr);
-            istd[6]=(stdint_t)(sp[i].ncy);            
+            istd[2]=(stdint_t)(sp[i].nkv);
+            istd[3]=(stdint_t)(sp[i].isolv);
+            istd[4]=(stdint_t)(sp[i].nmr);
+            istd[5]=(stdint_t)(sp[i].ncy);
+            istd[6]=(stdint_t)(sp[i].nmx);
+            istd[7]=(stdint_t)(sp[i].istop);
             dstd[0]=sp[i].res;
 
             if (endian==BIG_ENDIAN)
             {
-               bswap_int(7,istd);
+               bswap_int(8,istd);
                bswap_double(1,dstd);
             }
-            
-            iw=fwrite(istd,sizeof(stdint_t),7,fdat);
+
+            iw=fwrite(istd,sizeof(stdint_t),8,fdat);
             iw+=fwrite(dstd,sizeof(double),1,fdat);
-            error_root(iw!=8,1,"write_solver_parms [solver_parms.c]",
+            error_root(iw!=9,1,"write_solver_parms [solver_parms.c]",
                        "Incorrect write count");
          }
       }
@@ -392,42 +402,47 @@ void check_solver_parms(FILE *fdat)
 {
    int my_rank,endian;
    int ir,ie,i;
-   stdint_t istd[7];
+   stdint_t istd[8];
    double dstd[1];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
-   if ((my_rank==0)&&(init==1))
+
+   if (init==0)
+      init_sp();
+
+   if (my_rank==0)
    {
       ie=0;
-      
-      for (i=0;i<ISPMAX;i++)
+
+      for (i=0;(i<ISPMAX)&&(ie==0);i++)
       {
          if (sp[i].solver!=SOLVERS)
          {
-            ir=fread(istd,sizeof(stdint_t),7,fdat);
+            ir=fread(istd,sizeof(stdint_t),8,fdat);
             ir+=fread(dstd,sizeof(double),1,fdat);
-            error_root(ir!=8,1,"check_solver_parms [solver_parms.c]",
+            error_root(ir!=9,1,"check_solver_parms [solver_parms.c]",
                        "Incorrect read count");
 
             if (endian==BIG_ENDIAN)
             {
-               bswap_int(7,istd);
+               bswap_int(8,istd);
                bswap_double(1,dstd);
             }
-            
-            ie|=(istd[0]!=(stdint_t)(i));            
+
+            ie|=(istd[0]!=(stdint_t)(i));
             ie|=(istd[1]!=(stdint_t)(sp[i].solver));
-            ie|=(istd[3]!=(stdint_t)(sp[i].nkv));
-            ie|=(istd[4]!=(stdint_t)(sp[i].isolv));
-            ie|=(istd[5]!=(stdint_t)(sp[i].nmr));
-            ie|=(istd[6]!=(stdint_t)(sp[i].ncy));
+            ie|=(istd[2]!=(stdint_t)(sp[i].nkv));
+            ie|=(istd[3]!=(stdint_t)(sp[i].isolv));
+            ie|=(istd[4]!=(stdint_t)(sp[i].nmr));
+            ie|=(istd[5]!=(stdint_t)(sp[i].ncy));
+            ie|=(istd[6]!=(stdint_t)(sp[i].nmx));
+            ie|=(istd[7]!=(stdint_t)(sp[i].istop));
             ie|=(dstd[0]!=sp[i].res);
          }
       }
-         
+
       error_root(ie!=0,1,"check_solver_parms [solver_parms.c]",
-                 "Parameters do not match");         
+                 "Parameters do not match");
    }
 }

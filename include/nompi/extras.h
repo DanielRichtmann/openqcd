@@ -10,7 +10,7 @@
 *
 *******************************************************************************/
 
-#ifndef EXTRAS_H 
+#ifndef EXTRAS_H
 #define EXTRAS_H
 
 /* CHEBYSHEV_C */
@@ -30,7 +30,7 @@ extern void powell(int n,double *x0,double *x1,double *x2,
                    double omega2,double *xmin,int *status);
 
 /* I0M_C */
-extern double i0m(double x); 
+extern double i0m(double x);
 
 /* KS_TEST_C */
 extern void ks_test(int n,double f[],double *pkp,double *pkm);

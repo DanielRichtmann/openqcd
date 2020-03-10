@@ -20,7 +20,7 @@
 /* CGNE_C */
 extern double cgne(int vol,int icom,void (*Dop)(spinor *s,spinor *r),
                    void (*Dop_dble)(spinor_dble *s,spinor_dble *r),
-                   spinor **ws,spinor_dble **wsd,int nmx,double res,
+                   spinor **ws,spinor_dble **wsd,int nmx,int istop,double res,
                    spinor_dble *eta,spinor_dble *psi,int *status);
 
 /* FGCR4VD_C */
@@ -34,13 +34,13 @@ extern double fgcr4vd(int vol,int icom,
 extern double fgcr(int vol,int icom,
                    void (*Dop)(spinor_dble *s,spinor_dble *r),
                    void (*Mop)(int k,spinor *rho,spinor *phi,spinor *chi),
-                   spinor **ws,spinor_dble **wsd,int nkv,int nmx,double res,
-                   spinor_dble *eta,spinor_dble *psi,int *status);
+                   spinor **ws,spinor_dble **wsd,int nkv,int nmx,int istop,
+                   double res,spinor_dble *eta,spinor_dble *psi,int *status);
 
 /* MSCG_C */
 extern void mscg(int vol,int icom,int nmu,double *mu,
                  void (*Dop_dble)(double mu,spinor_dble *s,spinor_dble *r),
-                 spinor_dble **wsd,int nmx,double *res,
+                 spinor_dble **wsd,int nmx,int istop,double *res,
                  spinor_dble *eta,spinor_dble **psi,int *status);
 
 #endif

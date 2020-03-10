@@ -72,7 +72,7 @@ static void set_v2u(double *v,su3_dble *u)
    (*u).c32.re=v[14];
    (*u).c32.im=v[15];
    (*u).c33.re=v[16];
-   (*u).c33.im=v[17];   
+   (*u).c33.im=v[17];
 }
 
 
@@ -82,13 +82,12 @@ int main(void)
    stdint_t i[2];
    double d[2];
    char *ci[2],*cd[2];
-   
+
    printf("\n");
    printf("Test of the endianness and byte swapping programs\n");
    printf("-------------------------------------------------\n\n");
 
-   printf("sizeof(stdint_t) = %d\n",(int)(sizeof(stdint_t)));
-   printf("sizeof(double) = %d\n",(int)(sizeof(double)));
+   check_machine();
 
    ie=endianness();
    if (ie==LITTLE_ENDIAN)
@@ -104,12 +103,12 @@ int main(void)
    ci[0][0]='A';
    ci[0][1]='B';
    ci[0][2]='C';
-   ci[0][3]='D';   
-   
+   ci[0][3]='D';
+
    ci[1][0]='1';
    ci[1][1]='2';
    ci[1][2]='3';
-   ci[1][3]='4';   
+   ci[1][3]='4';
 
    printf("Byte swapping integers:\n");
    printf("%.4s, %.4s  ->  ",ci[0],ci[1]);
@@ -126,7 +125,7 @@ int main(void)
    cd[0][4]='E';
    cd[0][5]='F';
    cd[0][6]='G';
-   cd[0][7]='H';    
+   cd[0][7]='H';
 
    cd[1][0]='1';
    cd[1][1]='2';
@@ -135,7 +134,7 @@ int main(void)
    cd[1][4]='5';
    cd[1][5]='6';
    cd[1][6]='7';
-   cd[1][7]='8';    
+   cd[1][7]='8';
 
    printf("Byte swapping double precision numbers:\n");
    printf("%.8s, %.8s  ->  ",cd[0],cd[1]);
@@ -162,7 +161,7 @@ int main(void)
 
    printf("2x(byte swap) %d integer random numbers:\n",N);
    printf("Number of failures = %d\n\n",it);
-   
+
    bswap_double(N,dstd);
    bswap_double(N,dstd);
 
@@ -183,9 +182,9 @@ int main(void)
    bswap_double(N,ufld);
 
    for (k=0;k<(N/18);k++)
-      set_u2v(ufld+k,dstds+18*k);   
+      set_u2v(ufld+k,dstds+18*k);
 
-   bswap_double(N,dstds);   
+   bswap_double(N,dstds);
    it=0;
 
    for (k=0;k<N;k++)
@@ -194,6 +193,6 @@ int main(void)
 
    printf("Byte swap %d random su3_dble matrices:\n",N/18);
    printf("Number of failures = %d\n\n",it);
-   
+
    exit(0);
 }

@@ -3,7 +3,7 @@
 *
 * File tcharge.h
 *
-* Copyright (C) 2010, 2011 Martin Luescher
+* Copyright (C) 2010, 2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -27,9 +27,11 @@ extern u3_alg_dble **ftensor(void);
 /* TCHARGE_C */
 extern double tcharge(void);
 extern double tcharge_slices(double *qsl);
+extern void tcharge_fld(double *f);
 
 /* YM_ACTION_C */
 extern double ym_action(void);
 extern double ym_action_slices(double *asl);
+extern void ym_action_fld(double *f);
 
 #endif

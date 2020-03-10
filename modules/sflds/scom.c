@@ -3,7 +3,7 @@
 *
 * File scom.c
 *
-* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -24,8 +24,6 @@
 *     of the spinor components are copied, assuming the spinors s satisfy
 *     s=theta[ifc^(is&0x1)]*s, where ifc labels the faces of the local
 *     lattice on the sending process.
-*
-* Notes:
 *
 * The spinor fields passed to cps_int_bnd() and cps_ext_bnd() must have at
 * least NSPIN elements. They are interpreted as quark fields on the local

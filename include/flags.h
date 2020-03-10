@@ -3,7 +3,7 @@
 *
 * File flags.h
 *
-* Copyright (C) 2009-2014, 2016 Martin Luescher, Isabel Campos
+* Copyright (C) 2009-2014, 2016-2018 Martin Luescher, Isabel Campos
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -15,6 +15,10 @@
 
 #ifndef BLOCK_H
 #include "block.h"
+#endif
+
+#ifndef SU3_H
+#include "su3.h"
 #endif
 
 typedef enum
@@ -47,6 +51,12 @@ typedef enum
    ACF_TM2,ACF_TM2_EO,ACF_RAT,ACF_RAT_SDET,
    ACTIONS
 } action_t;
+
+typedef enum
+{
+   EXP,SIN,COS,
+   DFT_TYPES
+} dft_type_t;
 
 typedef enum
 {
@@ -115,6 +125,22 @@ typedef struct
 
 typedef struct
 {
+   dft_type_t type;
+   int n,b,c,*r;
+   complex_dble *w;
+   complex_dble *wb,*wc,*iwb,*iwc;
+} dft_parms_t;
+
+typedef struct
+{
+   int csize;
+   int ny[4],nf[4];
+   int *nx[4],*mf[4];
+   dft_parms_t *dp[4];
+} dft4d_parms_t;
+
+typedef struct
+{
    force_t force;
    int ipf,im0;
    int irat[3],imu[4];
@@ -132,7 +158,7 @@ typedef struct
 
 typedef struct
 {
-   int nk;
+   int nk,isw;
    double beta,c0,c1;
    double *kappa,*m0;
    double csw;
@@ -163,11 +189,6 @@ typedef struct
 
 typedef struct
 {
-   double m0,csw,cF[2];
-} sw_parms_t;
-
-typedef struct
-{
    int bs[4];
    int isolv;
    int nmr,ncy;
@@ -175,9 +196,23 @@ typedef struct
 
 typedef struct
 {
+   int npf,nlv;
+   int nact,nmu,iacc;
+   int *iact;
+   double gamma,eps,*mu;
+} smd_parms_t;
+
+typedef struct
+{
+   int isw;
+   double m0,csw,cF[2];
+} sw_parms_t;
+
+typedef struct
+{
    solver_t solver;
-   int nmx,nkv;
-   int isolv,nmr,ncy;
+   int nkv,isolv,nmr,ncy;
+   int nmx,istop;
    double res;
 } solver_parms_t;
 
@@ -223,6 +258,15 @@ extern void print_dfl_parms(int ipr);
 extern void write_dfl_parms(FILE *fdat);
 extern void check_dfl_parms(FILE *fdat);
 
+/* DFT_PARMS_C */
+extern int set_dft_parms(dft_type_t type,int n,int b,int c);
+extern dft_parms_t *dft_parms(int id);
+
+/* DFT4D_PARMS_C */
+extern int set_dft4d_parms(int *idp,int *nx,int csize);
+extern void reset_dft4d_parms(int id,int csize);
+extern dft4d_parms_t *dft4d_parms(int id);
+
 /* FORCE_PARMS_C */
 extern force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
                                      int *irat,int *imu,int *isp,int *ncr);
@@ -235,8 +279,8 @@ extern void write_force_parms(FILE *fdat);
 extern void check_force_parms(FILE *fdat);
 
 /* HMC_PARMS_C */
-extern hmc_parms_t set_hmc_parms(int nact,int *iact,int npf,
-                                 int nmu,double *mu,int nlv,double tau);
+extern hmc_parms_t set_hmc_parms(int nact,int *iact,int npf,int nmu,double *mu,
+                                 int nlv,double tau);
 extern hmc_parms_t hmc_parms(void);
 extern void print_hmc_parms(void);
 extern void write_hmc_parms(FILE *fdat);
@@ -244,7 +288,7 @@ extern void check_hmc_parms(FILE *fdat);
 
 /* LAT_PARMS_C */
 extern lat_parms_t set_lat_parms(double beta,double c0,
-                                 int nk,double *kappa,double csw);
+                                 int nk,double *kappa,int isw,double csw);
 extern lat_parms_t lat_parms(void);
 extern void print_lat_parms(void);
 extern void write_lat_parms(FILE *fdat);
@@ -275,6 +319,11 @@ extern void print_mdint_parms(void);
 extern void write_mdint_parms(FILE *fdat);
 extern void check_mdint_parms(FILE *fdat);
 
+/* PARMS_C */
+extern int write_parms(FILE *fdat,int n,int *i,int m,double *r);
+extern int read_parms(FILE *fdat,int *n,int **i,int *m,double **r);
+extern int check_parms(FILE *fdat,int n,int *i,int m,double *r);
+
 /* RAT_PARMS_C */
 extern rat_parms_t set_rat_parms(int irp,int degree,double *range);
 extern rat_parms_t rat_parms(int irp);
@@ -299,18 +348,22 @@ extern void print_sap_parms(int ipr);
 extern void write_sap_parms(FILE *fdat);
 extern void check_sap_parms(FILE *fdat);
 
+/* SMD_PARMS_C */
+extern smd_parms_t set_smd_parms(int nact,int *iact,int npf,int nmu,double *mu,
+                                 int nlv,double gamma,double eps,int iacc);
+extern smd_parms_t smd_parms(void);
+extern void print_smd_parms(void);
+extern void write_smd_parms(FILE *fdat);
+extern void check_smd_parms(FILE *fdat);
+
 /* SOLVER_PARMS_C */
 extern solver_parms_t set_solver_parms(int isp,solver_t solver,
                                        int nkv,int isolv,int nmr,int ncy,
-                                       int nmx,double res);
+                                       int nmx,int istop,double res);
 extern solver_parms_t solver_parms(int isp);
 extern void read_solver_parms(int isp);
 extern void print_solver_parms(int *isap,int *idfl);
 extern void write_solver_parms(FILE *fdat);
 extern void check_solver_parms(FILE *fdat);
-
-/* WFLOW_PARMS_C */
-extern wflow_parms_t set_wflow_parms(int n,double eps);
-extern wflow_parms_t wflow_parms(void);
 
 #endif

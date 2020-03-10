@@ -3,19 +3,18 @@
 *
 * File read1.c
 *
-* Copyright (C) 2010-2014 Martin Luescher
+* Copyright (C) 2010-2014, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Reads and evaluates data from the *.dat files created by the programs qcd1
-* and ym1. The file to be read has to be specified on the command line.
+* Reads and evaluates data from the <name>.dat files created by the programs
+* qcd1, qcd2, ym1 and ym2.
 *
-* This program writes the history of the MD energy deficit dH, the acceptance
-* flag iac and the average plaquette to the file <run name>.run1.dat in the
-* plots directory. In addition, some information about the distribution of dH
-* and the integrated autocorrelation time of the plaquette are printed to
-* stdout.
+* The program writes the history of the MD energy deficit dH, the acceptance
+* flag iac and the average plaquette to the file <name>.run.dat in the plots
+* directory. In addition, some information about the distribution of dH and
+* the integrated autocorrelation time of the plaquette are printed to stdout.
 *
 *******************************************************************************/
 
@@ -34,7 +33,7 @@ typedef struct
    double dH,avpl;
 } dat_t;
 
-static int nms,nfirst,nlast,neff;
+static int nms,neff,first,last,step;
 static dat_t *adat;
 
 
@@ -77,6 +76,7 @@ static int read_dat(int n,dat_t *ndat,FILE *fin)
 
 static void read_file(char *fin)
 {
+   int n,nt,nl,dn,ie;
    long ipos;
    dat_t ndat;
    FILE *fdat;
@@ -94,7 +94,7 @@ static void read_file(char *fin)
    error(nms==0,1,"read_file [read1.c]",
          "Empty data file");
 
-   adat=amalloc(nms*sizeof(*adat),3);
+   adat=malloc(nms*sizeof(*adat));
    error(adat==NULL,1,"read_file [read1.c]",
          "Unable to allocate data array");
 
@@ -102,81 +102,91 @@ static void read_file(char *fin)
    error(read_dat(nms,adat,fdat)!=nms,1,"read_file [read1.c]",
          "Error while reading data file");
    fclose(fdat);
+
+   ie=0;
+   dn=1;
+   nl=adat[0].nt;
+
+   for (n=1;n<nms;n++)
+   {
+      nt=adat[n].nt;
+
+      if (n==1)
+         dn=nt-nl;
+      else
+         ie|=(nt!=(nl+dn));
+
+      nl=nt;
+   }
+
+   error(ie!=0,1,"read_file [read1.c]","Varying trajectory separation");
 }
 
 
 static void select_range(void)
 {
-   int n,no,nf,nl;
-   int np,dn,ie;
+   int fst,lst,stp;
 
-   printf("There are %d measurements (trajectories no %d - %d).\n",
-          nms,adat[0].nt,adat[nms-1].nt);
-   printf("Range [nfirst,nlast] of trajectories to analyse: ");
-   scanf("%d %d",&nfirst,&nlast);
+   fst=adat[0].nt;
+   lst=adat[nms-1].nt;
 
-   nf=0;
-   nl=0;
-
-   for (n=0;n<nms;n++)
+   if (nms>1)
    {
-      no=adat[n].nt;
-
-      if (no<nfirst)
-         nf+=1;
-
-      if (no<=nlast)
-         nl+=1;
+      stp=adat[1].nt-adat[0].nt;
+      printf("There are %d measurements (trajectories no %d - %d by %d).\n",
+             nms,fst,lst,stp);
+   }
+   else
+   {
+      stp=1;
+      printf("There is 1 measurement (trajectory no %d).\n",fst);
    }
 
-   nfirst=nf;
-   nlast=nl;
-   neff=nlast-nfirst;
+   printf("Range first,last,step of trajectories to analyse: ");
+   scanf("%d",&first);
+   scanf(",");
+   scanf("%d",&last);
+   scanf(",");
+   scanf("%d",&step);
 
-   printf("Keep %d measurements (trajectories no %d - %d).\n\n",
-          neff,adat[nfirst].nt,adat[nlast-1].nt);
+   error((step<=0)||((step%stp)!=0),1,"select_range [read1.c]",
+         "Step must be positive and divisible by the trajectory separation");
 
+   if (first<fst)
+   {
+      first=first+((fst-first)/step)*step;
+      if (first<fst)
+         first+=step;
+   }
+
+   error((first>lst)||(((first-fst)%stp)!=0)||(last<first),1,
+         "select_cnfg_range [read1.c]","Improper trajectory range");
+
+   if (last>lst)
+      last=lst;
+   last=last-(last-first)%step;
+   neff=(last-first)/step+1;
    error(neff<2,1,"select_range [read1.c]",
          "Selected range contains less than 2 measurements");
 
-   np=adat[nfirst].nt;
-   dn=adat[nfirst+1].nt-adat[nfirst].nt;
-
-   if (dn<=0)
-      ie=1;
-   else
-   {
-      ie=0;
-
-      for (n=(nfirst+1);n<nlast;n++)
-      {
-         no=adat[n].nt;
-
-         if ((no-np)!=dn)
-         {
-            ie=2;
-            break;
-         }
-
-         np=no;
-      }
-   }
-
-   error(ie!=0,1,"select_range [read1.c]",
-         "Varying trajectory number separation in selected range");
+   printf("Keep %d measurements (trajectories no %d - %d by %d).\n\n",
+          neff,first,last,step);
 }
 
 
 static double tail(int n,double *a,double amx)
 {
-   int ia,ic;
+   int i,c;
 
-   ic=0;
+   c=0;
 
-   for (ia=0;ia<n;ia++)
-      ic+=(fabs(a[ia])>amx);
+   for (i=0;i<n;i++)
+   {
+      if (a[i]>amx)
+         c+=1;
+   }
 
-   return (double)(ic)/(double)(n);
+   return (double)(c)/(double)(n);
 }
 
 
@@ -188,9 +198,8 @@ static double f(int nx,double x[])
 
 static void print_plot(char *fin)
 {
-   int n,ims;
+   int n,ims,nt;
    char base[NAME_SIZE],plt_file[NAME_SIZE],*p;
-   dat_t *ndat;
    FILE *fout;
 
    p=strstr(fin,".dat");
@@ -208,18 +217,18 @@ static void print_plot(char *fin)
    strncpy(base,p,n);
    base[n]='\0';
 
-   error(name_size("plots/%s.run1.dat",base)>=NAME_SIZE,1,
+   error(name_size("plots/%s.run.dat",base)>=NAME_SIZE,1,
          "print_plot [read1.c]","File name is too long");
-   sprintf(plt_file,"plots/%s.run1.dat",base);
+   sprintf(plt_file,"plots/%s.run.dat",base);
    fout=fopen(plt_file,"w");
    error(fout==NULL,1,"print_plot [read1.c]",
          "Unable to open output file");
 
    fprintf(fout,"#\n");
-   fprintf(fout,"# Data written by the program ym1 or qcd1\n");
-   fprintf(fout,"# ---------------------------------------\n");
+   fprintf(fout,"# Data written by the program qcd1, qcd2, ym1 or ym2\n");
+   fprintf(fout,"# --------------------------------------------------\n");
    fprintf(fout,"#\n");
-   fprintf(fout,"# Number of measurements = %d\n",nms);
+   fprintf(fout,"# Number of measurements = %d\n",neff);
    fprintf(fout,"#\n");
    fprintf(fout,"# nt:   trajectory number\n");
    fprintf(fout,"# dH:   MD energy deficit\n");
@@ -228,17 +237,18 @@ static void print_plot(char *fin)
    fprintf(fout,"#  nt         dH      iac    <tr{U(p)}>\n");
    fprintf(fout,"#\n");
 
-   ndat=adat;
-
    for (ims=0;ims<nms;ims++)
    {
-      fprintf(fout," %5d  ",(*ndat).nt);
-      fprintf(fout," % .4e  ",(*ndat).dH);
-      fprintf(fout," %1d  ",(*ndat).iac);
-      fprintf(fout," %.8e",(*ndat).avpl);
-      fprintf(fout,"\n");
+      nt=adat[ims].nt;
 
-      ndat+=1;
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         fprintf(fout," %5d  ",nt);
+         fprintf(fout," % .4e  ",adat[ims].dH);
+         fprintf(fout," %1d  ",adat[ims].iac);
+         fprintf(fout," %.8e",adat[ims].avpl);
+         fprintf(fout,"\n");
+      }
    }
 
    fclose(fout);
@@ -249,24 +259,32 @@ static void print_plot(char *fin)
 
 int main(int argc,char *argv[])
 {
-   int n;
+   int ims,n,nt;
    double *a,abar;
 
    error(argc!=2,1,"main [read1.c]","Syntax: read1 <filename>");
 
    printf("\n");
-   printf("HMC simulation of QCD\n");
-   printf("---------------------\n\n");
+   printf("Simulation of QCD (program qcd1, qcd2, ym1 or ym2)\n");
+   printf("--------------------------------------------------\n\n");
 
    read_file(argv[1]);
    select_range();
 
-   a=malloc(neff*sizeof(double));
+   a=malloc(neff*sizeof(*a));
    error(a==NULL,1,"main [read1.c]",
          "Unable to allocate data array");
 
-   for (n=0;n<neff;n++)
-      a[n]=fabs(adat[nfirst+n].dH);
+   for (ims=0,n=0;ims<nms;ims++)
+   {
+      nt=adat[ims].nt;
+
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         a[n]=fabs(adat[ims].dH);
+         n+=1;
+      }
+   }
 
    printf("Fraction of trajectories with |dH| larger than\n\n");
    printf("    1.0: %.4f\n",tail(neff,a,1.0));
@@ -276,31 +294,62 @@ int main(int argc,char *argv[])
    printf(" 1000.0: %.4f\n",tail(neff,a,1000.0));
    printf("\n");
 
-   for (n=0;n<neff;n++)
-      a[n]=exp(-adat[nfirst+n].dH);
+   for (ims=0,n=0;ims<nms;ims++)
+   {
+      nt=adat[ims].nt;
 
-   printf("<exp(-dH)> = %.3f (%.3f)\n",
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         a[n]=exp(-adat[ims].dH);
+         n+=1;
+      }
+   }
+
+   printf("<exp(-dH)> = %.5f (%.5f)\n",
           average(neff,a),sigma0(neff,a));
 
-   for (n=0;n<neff;n++)
-     {
-       if (adat[nfirst+n].dH>0.0)
-	 a[n]=exp(-adat[nfirst+n].dH);
-       else
-	 a[n]=1.0;
-     }
+   for (ims=0,n=0;ims<nms;ims++)
+   {
+      nt=adat[ims].nt;
 
-   printf("<min{1,exp(-dH)}> = %.3f (%.3f)\n",
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         if (adat[ims].dH>0.0)
+            a[n]=exp(-adat[ims].dH);
+         else
+            a[n]=1.0;
+
+         n+=1;
+      }
+   }
+
+   printf("<min{1,exp(-dH)}> = %.5f (%.5f)\n",
           average(neff,a),sigma0(neff,a));
 
-   for (n=0;n<neff;n++)
-      a[n]=(double)(adat[nfirst+n].iac);
+   for (ims=0,n=0;ims<nms;ims++)
+   {
+      nt=adat[ims].nt;
+
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         a[n]=(double)(adat[ims].iac);
+         n+=1;
+      }
+   }
 
    printf("<iac> = %.3f (%.3f)\n\n",
           average(neff,a),sigma0(neff,a));
 
-   for (n=0;n<neff;n++)
-      a[n]=adat[nfirst+n].avpl;
+   for (ims=0,n=0;ims<nms;ims++)
+   {
+      nt=adat[ims].nt;
+
+      if ((nt>=first)&&(nt<=last)&&(((nt-first)%step)==0))
+      {
+         a[n]=adat[ims].avpl;
+         n+=1;
+      }
+   }
 
    printf("The integrated autocorrelation time and the associated"
           "\nstatistical error sigma of the plaquette is estimated ");
@@ -313,15 +362,14 @@ int main(int argc,char *argv[])
              "the jackknife errors of the binned series.\n\n");
 
    printf("The autocorrelation times are given in numbers of measurements\n"
-          "separated by %d trajectories.\n\n",
-          adat[nfirst+1].nt-adat[nfirst].nt);
+          "separated by %d trajectories.\n\n",step);
 
    if (neff>=100)
       abar=print_auto(neff,a);
    else
       abar=print_jack(1,neff,&a,f);
 
-   printf(" <tr{U(p)}> = %1.6f\n\n",abar);
+   printf(" <tr{U(p)}> = %1.9f\n\n",abar);
 
    print_plot(argv[1]);
    exit(0);

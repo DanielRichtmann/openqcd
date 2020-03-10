@@ -13,8 +13,9 @@ check5        Check of the program set_ltl_modes().
 
 time1         Timing of Awhat().
 
-The programs check2,..,time1 accept the option -bc <type> that allows the
-type of boundary condition to be chosen at runtime. When the option is not
-set, open boundary conditions are assumed.
+time2         Timing of set_Awhat().
 
-The option may be set but has no effect in the case of check1.
+The programs check2,..,time1 accept the option -bc <type> that allows the type
+of boundary condition to be chosen at runtime. When the option is not set,
+open boundary conditions are assumed. The option may be set but has no effect
+in the case of check1.

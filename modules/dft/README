@@ -1,0 +1,29 @@
+
+********************************************************************************
+
+                     Discrete Fourier transform (DFT)
+
+********************************************************************************
+
+
+Files
+-----
+
+dft4d.c        Parallel 4d Fourier transform.
+
+dft_com.c      Communication programs for the parallel discrete Fourier
+               transform.
+
+dft_shuf.c     Array reordering program for the parallel discrete Fourier
+               transform.
+
+fft.c          Fast Fourier transform.
+
+small_dft.c    Small discrete Fourier transforms.
+
+
+Include file
+------------
+
+The file dft.h defines the prototypes for all externally accessible functions
+that are defined in the *.c files listed above.

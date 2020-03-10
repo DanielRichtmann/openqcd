@@ -3,44 +3,42 @@
 *
 * File utils.c
 *
-* Copyright (C) 2005, 2008, 2011, 2016 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2016, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Collection of basic utility programs
-*
-* The externally accessible functions are
+* Collection of basic utility programs.
 *
 *   int safe_mod(int x,int y)
 *     Returns x mod y, where y is assumed positive and x can have any
-*     sign. The return value is in the interval [0,y)
+*     sign. The return value is in the interval [0,y).
 *
 *   void *amalloc(size_t size,int p)
 *     Allocates an aligned memory area of "size" bytes, with a starting
 *     address (the return value) that is an integer multiple of 2^p. A
-*     NULL pointer is returned if the allocation was not successful
+*     NULL pointer is returned if the allocation was not successful.
 *
 *   void afree(void *addr)
 *     Frees the aligned memory area at address "addr" that was previously
 *     allocated using amalloc. If the memory space at this address was
 *     already freed using afree, or if the address does not match an
 *     address previously returned by amalloc, the program does not do
-*     anything
+*     anything.
 *
 *   int mpi_permanent_tag(void)
 *     Returns a new send tag that is guaranteed to be unique and which
 *     is therefore suitable for use in permanent communication requests.
-*     The available number of tags of this kind is 16384
+*     The available number of tags of this kind is 16384.
 *
 *   int mpi_tag(void)
 *     Returns a new send tag for use in non-permanent communications.
 *     Note that the counter for these tags wraps around after 16384
-*     tags have been delivered
+*     tags have been delivered.
 *
 *   void message(char *format,...)
 *     Prints a message from process 0 to stdout. The usage and argument
-*     list is the same as in the case of the printf function
+*     list is the same as in the case of the printf function.
 *
 *******************************************************************************/
 

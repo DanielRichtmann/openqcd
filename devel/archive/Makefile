@@ -19,15 +19,19 @@ all: rmxeq mkdep mkxeq
 
 # main programs and modules to be compiled
 
-MAIN = check1 check2 check3 check4 check5 check6
+MAIN = check1 check2 check3 check4 check5
 
-ARCHIVE = archive sarchive
+LOCAL = cmpflds
 
-FLAGS = flags lat_parms hmc_parms dfl_parms
+ARCHIVE = archive marchive sarchive
 
-LATTICE = bcnds uidx geometry
+FLAGS = action_parms dfl_parms flags hmc_parms lat_parms smd_parms
+
+LATTICE = bcnds uidx ftidx geometry
 
 LINALG = liealg cmatrix_dble salg_dble
+
+MDFLDS = mdflds
 
 RANDOM = ranlux ranlxs ranlxd gauss
 
@@ -35,12 +39,14 @@ SFLDS = sflds
 
 SU3FCTS = chexp cm3x3 random_su3 su3prod su3ren
 
+TCHARGE = ftcom ftensor tcharge ym_action
+
 UFLDS = plaq_sum uflds udcom
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = endian error mutils qsum utils wspace
 
-MODULES = $(FLAGS) $(LATTICE) $(ARCHIVE) $(LINALG) $(RANDOM) $(UFLDS) \
-          $(SFLDS) $(SU3FCTS) $(UTILS)
+MODULES = $(LOCAL) $(ARCHIVE) $(FLAGS) $(LATTICE) $(LINALG) $(MDFLDS) \
+          $(RANDOM) $(SFLDS) $(SU3FCTS) $(TCHARGE) $(UFLDS) $(UTILS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -52,9 +58,9 @@ LOGOPTION =
 
 MDIR = ../../modules
 
-VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/archive:$(MDIR)/linalg:\
-          $(MDIR)/random:$(MDIR)/uflds:$(MDIR)/sflds:\
-          $(MDIR)/su3fcts:$(MDIR)/utils
+VPATH = .:$(MDIR)/archive:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/linalg:\
+          $(MDIR)/mdflds:$(MDIR)/random:$(MDIR)/sflds:$(MDIR)/su3fcts:\
+          $(MDIR)/tcharge:$(MDIR)/uflds:$(MDIR)/utils
 
 
 # additional include directories
@@ -71,9 +77,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

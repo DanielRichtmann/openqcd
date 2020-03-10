@@ -3,7 +3,7 @@
 *
 * File check5.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -113,6 +113,7 @@ int main(int argc,char *argv[])
    double phi[2],phi_prime[2],theta[3];
    double mu,pi,d,dmax;
    double mp,pt,pv,p[4],sp[4];
+   qflt rqsm;
    complex_dble z;
    spinor_dble **psd,s0,s1,s2,s3,s4;
    sw_parms_t swp;
@@ -142,7 +143,8 @@ int main(int argc,char *argv[])
                     "Syntax: check5 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -322,8 +324,10 @@ int main(int argc,char *argv[])
       Dw_dble(mu,psd[0],psd[2]);
 
       mulr_spinor_add_dble(VOLUME,psd[2],psd[1],-1.0);
-      d=norm_square_dble(VOLUME,1,psd[2])/norm_square_dble(VOLUME,1,psd[0]);
-      d=sqrt(d);
+      rqsm=norm_square_dble(VOLUME,1,psd[2]);
+      d=rqsm.q[0];
+      rqsm=norm_square_dble(VOLUME,1,psd[0]);
+      d=sqrt(d/rqsm.q[0]);
       if (d>dmax)
          dmax=d;
 

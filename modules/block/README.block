@@ -214,22 +214,27 @@ Which field arrays are allocated may be chosen when the program alloc_bnd()
 [block.c] is called.
 
 
-
 Block grids
 -----------
 
 Grids of blocks that cover the whole lattice without overlaps can be
 allocated and initialized using the programs in the module blk_grid.c.
 The enumeration type blk_grid_t (see block.h) lists the currently
-available block grids.
+available block grids, viz.
+
+  SAP_BLOCKS       Block grid used for the SAP preconditioner,
+
+  DFL_BLOCKS       Block grid used for the local deflation,
+
+  TEST_BLOCKS      Block grid used in check programs.
 
 The size of the blocks in a block grid can be chosen when the grid is
 allocated, but is required to divide the local lattice. Moreover, the
-number of blocks in the local lattice must be even and the total
-number of blocks in any space-time direction must also be even.
+number of blocks in the local lattice must be even and the total number
+of blocks in any space-time direction must also be even.
 
 Among the blocks of a block grid, the gauge, Dirac spinor and Weyl
 fields may be shared, i.e. they are allocated only on the first block
-in the local lattice and their addresses are copied to the other
-blocks. Which fields are shared can be determined by reading the bits
-of the flag b.shf on any one of the blocks b.
+in the local lattice and their addresses are copied to the other blocks.
+Which fields are shared can be determined by reading the bits of the flag
+b.shf on any one of the blocks.

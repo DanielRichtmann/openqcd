@@ -3,7 +3,7 @@
 *
 * File check8.c
 *
-* Copyright (C) 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2011-2013, 2016, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -38,7 +38,7 @@ static void blk_sd2zero(int ic,spinor_dble *sd)
    int nbh,n,nm,vol;
    block_t *b;
 
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
+   b=blk_list(TEST_BLOCKS,&nb,&isw);
    nbh=nb/2;
    vol=(*b).vol;
 
@@ -52,7 +52,7 @@ static void blk_sd2zero(int ic,spinor_dble *sd)
    for (;n<nm;n++)
    {
       set_sd2zero(vol,b[n].sd[0]);
-      assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,sd);
+      assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,sd);
    }
 }
 
@@ -64,6 +64,7 @@ int main(int argc,char *argv[])
    int bs[4],n,nm,vol,volh,ie;
    double phi[2],phi_prime[2],theta[3];
    double mu,d,dmax;
+   qflt rqsm;
    spinor_dble **psd;
    block_t *b;
    sw_parms_t swp;
@@ -99,7 +100,8 @@ int main(int argc,char *argv[])
                     "Syntax: check8 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -117,14 +119,14 @@ int main(int argc,char *argv[])
    start_ranlux(0,1234);
    geometry();
    set_dfl_parms(bs,2);
-   alloc_bgr(DFL_BLOCKS);
+   alloc_bgr(TEST_BLOCKS);
    alloc_wsd(4);
 
    swp=set_sw_parms(0.05);
    mu=0.123;
 
    if (my_rank==0)
-      printf("m0 = %.4e, mu = %.4e, csw = %.4e, cF = %.4e, cF' = %.4e\n\n",
+      printf("m0 = %.4e, mu = %.4e\n""csw = %.4e, cF = %.4e, cF' = %.4e\n\n",
              swp.m0,mu,swp.csw,swp.cF[0],swp.cF[1]);
 
    random_ud();
@@ -132,7 +134,7 @@ int main(int argc,char *argv[])
    sw_term(NO_PTS);
 
    psd=reserve_wsd(4);
-   b=blk_list(DFL_BLOCKS,&nb,&isw);
+   b=blk_list(TEST_BLOCKS,&nb,&isw);
    nbh=nb/2;
    vol=(*b).vol;
    volh=vol/2;
@@ -162,14 +164,14 @@ int main(int argc,char *argv[])
 
          for (;n<nm;n++)
          {
-            assign_ud2udblk(DFL_BLOCKS,n);
-            assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+            assign_ud2udblk(TEST_BLOCKS,n);
+            assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
             random_sd(vol,b[n].sd[1],1.0);
-            assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-            Dw_blk_dble(DFL_BLOCKS,n,mu,0,1);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,psd[2]);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,1,psd[3]);
+            assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+            Dw_blk_dble(TEST_BLOCKS,n,mu,0,1);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,psd[2]);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,1,psd[3]);
          }
 
          Dw_dble(mu,psd[0],psd[1]);
@@ -178,12 +180,14 @@ int main(int argc,char *argv[])
 
          mulr_spinor_add_dble(VOLUME,psd[0],psd[2],-1.0);
          mulr_spinor_add_dble(VOLUME,psd[1],psd[3],-1.0);
-
-         if (norm_square_dble(VOLUME,0,psd[0])!=0.0)
+         rqsm=norm_square_dble(VOLUME,0,psd[0]);
+         if (rqsm.q[0]!=0.0)
             ie=1;
 
-         d=norm_square_dble(VOLUME,1,psd[1])/
-            norm_square_dble(VOLUME,1,psd[3]);
+         rqsm=norm_square_dble(VOLUME,1,psd[1]);
+         d=rqsm.q[0];
+         rqsm=norm_square_dble(VOLUME,1,psd[3]);
+         d/=rqsm.q[0];
 
          if (d>dmax)
             dmax=d;
@@ -206,32 +210,35 @@ int main(int argc,char *argv[])
 
       for (n=0;n<nb;n++)
       {
-         assign_ud2udblk(DFL_BLOCKS,n);
-         assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+         assign_ud2udblk(TEST_BLOCKS,n);
+         assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[1],1);
-         Dwee_blk_dble(DFL_BLOCKS,n,mu,0,1);
-         assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,psd[2]);
-         assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,1,psd[3]);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[1],1);
+         Dwee_blk_dble(TEST_BLOCKS,n,mu,0,1);
+         assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,psd[2]);
+         assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,1,psd[3]);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,EVEN_PTS,psd[0],0);
-         assign_sd2sdblk(DFL_BLOCKS,n,ODD_PTS,psd[1],0);
-         Dwee_blk_dble(DFL_BLOCKS,n,mu,0,0);
+         assign_sd2sdblk(TEST_BLOCKS,n,EVEN_PTS,psd[0],0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ODD_PTS,psd[1],0);
+         Dwee_blk_dble(TEST_BLOCKS,n,mu,0,0);
          mulr_spinor_add_dble(vol,b[n].sd[0],b[n].sd[1],-1.0);
-         if (norm_square_dble(vol,0,b[n].sd[0])!=0.0)
+         rqsm=norm_square_dble(vol,0,b[n].sd[0]);
+         if (rqsm.q[0]!=0.0)
             ie=1;
       }
 
       Dwee_dble(mu,psd[0],psd[1]);
       mulr_spinor_add_dble(VOLUME,psd[0],psd[2],-1.0);
       mulr_spinor_add_dble(VOLUME,psd[1],psd[3],-1.0);
-
-      if (norm_square_dble(VOLUME,0,psd[0])!=0.0)
+      rqsm=norm_square_dble(VOLUME,0,psd[0]);
+      if (rqsm.q[0]!=0.0)
          ie=1;
 
-      d=norm_square_dble(VOLUME,1,psd[1])/
-         norm_square_dble(VOLUME,1,psd[3]);
+      rqsm=norm_square_dble(VOLUME,1,psd[1]);
+      d=rqsm.q[0];
+      rqsm=norm_square_dble(VOLUME,1,psd[3]);
+      d/=rqsm.q[0];
 
       if (d>dmax)
          dmax=d;
@@ -241,32 +248,35 @@ int main(int argc,char *argv[])
 
       for (n=0;n<nb;n++)
       {
-         assign_ud2udblk(DFL_BLOCKS,n);
-         assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+         assign_ud2udblk(TEST_BLOCKS,n);
+         assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[1],1);
-         Dwoo_blk_dble(DFL_BLOCKS,n,mu,0,1);
-         assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,psd[2]);
-         assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,1,psd[3]);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[1],1);
+         Dwoo_blk_dble(TEST_BLOCKS,n,mu,0,1);
+         assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,psd[2]);
+         assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,1,psd[3]);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ODD_PTS,psd[0],0);
-         assign_sd2sdblk(DFL_BLOCKS,n,EVEN_PTS,psd[1],0);
-         Dwoo_blk_dble(DFL_BLOCKS,n,mu,0,0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ODD_PTS,psd[0],0);
+         assign_sd2sdblk(TEST_BLOCKS,n,EVEN_PTS,psd[1],0);
+         Dwoo_blk_dble(TEST_BLOCKS,n,mu,0,0);
          mulr_spinor_add_dble(vol,b[n].sd[0],b[n].sd[1],-1.0);
-         if (norm_square_dble(vol,0,b[n].sd[0])!=0.0)
+         rqsm=norm_square_dble(vol,0,b[n].sd[0]);
+         if (rqsm.q[0]!=0.0)
             ie=1;
       }
 
       Dwoo_dble(mu,psd[0],psd[1]);
       mulr_spinor_add_dble(VOLUME,psd[0],psd[2],-1.0);
       mulr_spinor_add_dble(VOLUME,psd[1],psd[3],-1.0);
-
-      if (norm_square_dble(VOLUME,0,psd[0])!=0.0)
+      rqsm=norm_square_dble(VOLUME,0,psd[0]);
+      if (rqsm.q[0]!=0.0)
          ie=1;
 
-      d=norm_square_dble(VOLUME,1,psd[1])/
-         norm_square_dble(VOLUME,1,psd[3]);
+      rqsm=norm_square_dble(VOLUME,1,psd[1]);
+      d=rqsm.q[0];
+      rqsm=norm_square_dble(VOLUME,1,psd[3]);
+      d/=rqsm.q[0];
 
       if (d>dmax)
          dmax=d;
@@ -298,14 +308,14 @@ int main(int argc,char *argv[])
 
          for (;n<nm;n++)
          {
-            assign_ud2udblk(DFL_BLOCKS,n);
-            assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+            assign_ud2udblk(TEST_BLOCKS,n);
+            assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
-            assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-            assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[1],1);
-            Dweo_blk_dble(DFL_BLOCKS,n,0,1);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,psd[2]);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,1,psd[3]);
+            assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+            assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[1],1);
+            Dweo_blk_dble(TEST_BLOCKS,n,0,1);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,psd[2]);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,1,psd[3]);
          }
 
          Dweo_dble(psd[0],psd[1]);
@@ -314,12 +324,14 @@ int main(int argc,char *argv[])
 
          mulr_spinor_add_dble(VOLUME,psd[0],psd[2],-1.0);
          mulr_spinor_add_dble(VOLUME,psd[1],psd[3],-1.0);
-
-         if (norm_square_dble(VOLUME,0,psd[0])!=0.0)
+         rqsm=norm_square_dble(VOLUME,0,psd[0]);
+         if (rqsm.q[0]!=0.0)
             ie=1;
 
-         d=norm_square_dble(VOLUME,1,psd[1])/
-            norm_square_dble(VOLUME,1,psd[3]);
+         rqsm=norm_square_dble(VOLUME,1,psd[1]);
+         d=rqsm.q[0];
+         rqsm=norm_square_dble(VOLUME,1,psd[3]);
+         d/=rqsm.q[0];
 
          if (d>dmax)
             dmax=d;
@@ -352,14 +364,14 @@ int main(int argc,char *argv[])
 
          for (;n<nm;n++)
          {
-            assign_ud2udblk(DFL_BLOCKS,n);
-            assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+            assign_ud2udblk(TEST_BLOCKS,n);
+            assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
-            assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-            assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[1],1);
-            Dwoe_blk_dble(DFL_BLOCKS,n,0,1);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,0,psd[2]);
-            assign_sdblk2sd(DFL_BLOCKS,n,ALL_PTS,1,psd[3]);
+            assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+            assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[1],1);
+            Dwoe_blk_dble(TEST_BLOCKS,n,0,1);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,0,psd[2]);
+            assign_sdblk2sd(TEST_BLOCKS,n,ALL_PTS,1,psd[3]);
          }
 
          Dwoe_dble(psd[0],psd[1]);
@@ -368,12 +380,14 @@ int main(int argc,char *argv[])
 
          mulr_spinor_add_dble(VOLUME,psd[0],psd[2],-1.0);
          mulr_spinor_add_dble(VOLUME,psd[1],psd[3],-1.0);
-
-         if (norm_square_dble(VOLUME,0,psd[0])!=0.0)
+         rqsm=norm_square_dble(VOLUME,0,psd[0]);
+         if (rqsm.q[0]!=0.0)
             ie=1;
 
-         d=norm_square_dble(VOLUME,1,psd[1])/
-            norm_square_dble(VOLUME,1,psd[3]);
+         rqsm=norm_square_dble(VOLUME,1,psd[1]);
+         d=rqsm.q[0];
+         rqsm=norm_square_dble(VOLUME,1,psd[3]);
+         d/=rqsm.q[0];
 
          if (d>dmax)
             dmax=d;
@@ -393,25 +407,26 @@ int main(int argc,char *argv[])
 
       for (n=0;n<nb;n++)
       {
-         assign_ud2udblk(DFL_BLOCKS,n);
-         assign_swd2swdblk(DFL_BLOCKS,n,NO_PTS);
+         assign_ud2udblk(TEST_BLOCKS,n);
+         assign_swd2swdblk(TEST_BLOCKS,n,NO_PTS);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
-         Dwoe_blk_dble(DFL_BLOCKS,n,0,1);
-         Dwee_blk_dble(DFL_BLOCKS,n,mu,0,0);
-         Dwoo_blk_dble(DFL_BLOCKS,n,0.0,1,1);
-         Dweo_blk_dble(DFL_BLOCKS,n,1,0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
+         Dwoe_blk_dble(TEST_BLOCKS,n,0,1);
+         Dwee_blk_dble(TEST_BLOCKS,n,mu,0,0);
+         Dwoo_blk_dble(TEST_BLOCKS,n,0.0,1,1);
+         Dweo_blk_dble(TEST_BLOCKS,n,1,0);
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],1);
-         Dwhat_blk_dble(DFL_BLOCKS,n,mu,1,2);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],1);
+         Dwhat_blk_dble(TEST_BLOCKS,n,mu,1,2);
          mulr_spinor_add_dble(volh,b[n].sd[0],b[n].sd[2],-1.0);
-         d=norm_square_dble(volh,0,b[n].sd[0]);
-         if (d>dmax)
+         rqsm=norm_square_dble(volh,0,b[n].sd[0]);
+         if (rqsm.q[0]>dmax)
             dmax=d;
 
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,psd[0],0);
+         assign_sd2sdblk(TEST_BLOCKS,n,ALL_PTS,psd[0],0);
          mulr_spinor_add_dble(volh,b[n].sd[0]+volh,b[n].sd[1]+volh,-1.0);
-         if (norm_square_dble(volh,0,b[n].sd[0]+volh)!=0.0)
+         rqsm=norm_square_dble(volh,0,b[n].sd[0]+volh);
+         if (rqsm.q[0]!=0.0)
             ie=1;
       }
 

@@ -70,7 +70,7 @@ static sap_parms_t sap={{0,0,0,0},0,0,0};
 static void check_block_size(int *bs)
 {
    int n0,n1,n2,n3;
-   
+
    error_root((bs[0]<4)||(bs[1]<4)||(bs[2]<4)||(bs[3]<4)||
               (bs[0]>L0)||(bs[1]>L1)||(bs[2]>L2)||(bs[3]>L3),1,
               "check_block_size [sap_parms.c]",
@@ -79,7 +79,7 @@ static void check_block_size(int *bs)
    error_root((bs[0]%2)||(bs[1]%2)||(bs[2]%2)||(bs[3]%2),1,
               "check_block_size [sap_parms.c]",
               "Block sizes must be even");
-   
+
    error_root((L0%bs[0])||(L1%bs[1])||(L2%bs[2])||(L3%bs[3]),1,
               "check_block_size [sap_parms.c]",
               "Blocks do not divide the local lattice");
@@ -98,7 +98,6 @@ static void check_block_size(int *bs)
               "check_block_size [sap_parms.c]",
               "The number of blocks in the local lattice must be even");
 }
-
 
 
 sap_parms_t set_sap_parms(int *bs,int isolv,int nmr,int ncy)
@@ -130,7 +129,7 @@ sap_parms_t set_sap_parms(int *bs,int isolv,int nmr,int ncy)
                  "set_sap_parms [sap_parms.c]","bs[4] may be set only once");
    }
    else
-   {      
+   {
       check_block_size(bs);
       sap.bs[0]=bs[0];
       sap.bs[1]=bs[1];
@@ -141,11 +140,11 @@ sap_parms_t set_sap_parms(int *bs,int isolv,int nmr,int ncy)
    error_root((isolv<0)||(isolv>1)||(nmr<1)||(ncy<1),1,
               "set_sap_parms [sap_parms.c]",
               "Improper value of isolv, nmr or ncy");
-      
+
    sap.isolv=isolv;
    sap.nmr=nmr;
    sap.ncy=ncy;
-   
+
    return sap;
 }
 
@@ -159,7 +158,7 @@ sap_parms_t sap_parms(void)
 void print_sap_parms(int ipr)
 {
    int my_rank;
-   
+
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
@@ -171,7 +170,7 @@ void print_sap_parms(int ipr)
                 sap.bs[0],sap.bs[1],sap.bs[2],sap.bs[3]);
          printf("isolv = %d\n",sap.isolv);
          printf("nmr = %d\n",sap.nmr);
-         printf("ncy = %d\n\n",sap.ncy);         
+         printf("ncy = %d\n\n",sap.ncy);
       }
       else
       {
@@ -191,20 +190,20 @@ void write_sap_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if (my_rank==0)
    {
       for (i=0;i<4;i++)
          istd[i]=(stdint_t)(sap.bs[i]);
-      
+
       istd[4]=(stdint_t)(sap.isolv);
       istd[5]=(stdint_t)(sap.nmr);
       istd[6]=(stdint_t)(sap.ncy);
-      
+
       if (endian==BIG_ENDIAN)
          bswap_int(7,istd);
 
-      iw=fwrite(istd,sizeof(stdint_t),7,fdat);         
+      iw=fwrite(istd,sizeof(stdint_t),7,fdat);
       error_root(iw!=7,1,"write_sap_parms [sap_parms.c]",
                  "Incorrect write count");
    }
@@ -219,12 +218,12 @@ void check_sap_parms(FILE *fdat)
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
    endian=endianness();
-   
+
    if (my_rank==0)
    {
-      ir=fread(istd,sizeof(stdint_t),7,fdat);         
+      ir=fread(istd,sizeof(stdint_t),7,fdat);
       error_root(ir!=7,1,"check_sap_parms [sap_parms.c]",
-                 "Incorrect read count");         
+                 "Incorrect read count");
 
       if (endian==BIG_ENDIAN)
          bswap_int(7,istd);
@@ -237,7 +236,7 @@ void check_sap_parms(FILE *fdat)
       ie|=(istd[4]!=(stdint_t)(sap.isolv));
       ie|=(istd[5]!=(stdint_t)(sap.nmr));
       ie|=(istd[6]!=(stdint_t)(sap.ncy));
-         
+
       error_root(ie!=0,1,"check_sap_parms [sap_parms.c]",
                  "Parameters do not match");
    }

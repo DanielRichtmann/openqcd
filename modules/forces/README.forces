@@ -18,7 +18,7 @@ For detailed explanations see the notes "Molecular-dynamics quark forces"
 Normalization of the force fields
 ---------------------------------
 
-The total action S in the molecular-dynamics Hamilton function is a sum 
+The total action S in the molecular-dynamics Hamilton function is a sum
 
   S=S_0+S_1+S_2+...
 
@@ -35,7 +35,7 @@ The generators are assumed to be normalized such that
   tr{T^a*T^b}=-(1/2)*delta^{ab},
 
 but the 3x3 matrices F(x,mu)^a*T^a (summed over a) do not depend on this
-convention. 
+convention.
 
 
 Supported actions
@@ -77,20 +77,20 @@ Supported actions
 - Rational function pseudo-fermion action.
   Program: action3().
   Symbol: ACF_RAT.
-  Parameters: irat,ipf,isp [see force3.c], m0 [bare mass].  
+  Parameters: irat,ipf,isp [see force3.c], m0 [bare mass].
 
 - Rational function pseudo-fermion action plus "small determinant"
   action.
   Program: action3().
   Symbol: ACF_RAT_SDET.
-  Parameters: irat,ipf,isp [see force3.c], m0 [bare mass].  
+  Parameters: irat,ipf,isp [see force3.c], m0 [bare mass].
 
 
 Associated forces
 -----------------
 
 - Gauge force.
-  Program: force0(). 
+  Program: force0().
   Symbol: FRG.
   Parameters: none.
 
@@ -115,7 +115,7 @@ Associated forces
   Program: force2().
   Symbol: FRF_TM2.
   Parameters: mu0,mu1,ipf,isp,icr [see force2.c], m0 [bare mass].
-  
+
 - Two-parameter (Hasenbusch) twisted-mass pseudo-fermion force with
   even-odd preconditioning.
   Program: force5().
@@ -132,6 +132,11 @@ Associated forces
   Symbol: FRF_RAT_SDET.
   Parameters: irat,ipf,isp [see force3.c], m0 [bare mass].
 
+If the modified (exponential) variant of the SW term is chosen, the "small
+determinant" is constant and ignored by the programs. The programs with and
+without small determinant are the same in this case and are not distinguished
+in the molecular-dynamics evolution.
+
 
 Pseudo-fermion fields
 ---------------------
@@ -141,7 +146,7 @@ program. They are administered by the module mdflds/mdflds.c together with the
 momentum and the force fields.
 
 The maximal number npf of pseudo-fermion fields is set together with the other
-parameters of the HMC algorithm (see flags/hmc_parms.c).
+parameters of the simulation algorithm (see hmc_parms.c and smd_parms.c).
 
 
 Solver programs
@@ -174,7 +179,7 @@ of the SAP preconditioner and those related to the deflation subspace).
 Chronological solver
 --------------------
 
-The force programs force1() and force2() can be instructed to propagate the
+The force programs (except for force3.c) can be instructed to propagate the
 solutions of the Dirac equation along the molecular-dynamics trajectories. The
 stacks of previous solutions are handled by the module chrono.c.
 
@@ -198,6 +203,6 @@ the simulation programs it is advantageous to split these into a few rational
 functions of lower degree and to use a pseudo-fermion action for each of them.
 
 The data base for rational functions consists of two parts, one for the
-parameters of the basic Zolotarev rational functions (flags/rat_parms.c) and
-the other for the rational functions that occur in the pseudo-fermion actions
+parameters of the basic Zolotarev rational functions (rat_parms.c) and the
+other for the rational functions that occur in the pseudo-fermion actions
 (see ratfcts/ratfcts.c).

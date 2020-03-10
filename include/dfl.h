@@ -36,18 +36,14 @@ extern void dfl_modes2(int *status);
 extern void dfl_update2(int nsm,int *status);
 
 /* DFL_SAP_GCR_C */
-extern double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
+extern double dfl_sap_gcr(int nkv,int nmx,int istop,double res,double mu,
                           spinor_dble *eta,spinor_dble *psi,int *status);
-extern double dfl_sap_gcr2(int nkv,int nmx,double res,double mu,
+extern double dfl_sap_gcr2(int nkv,int nmx,int istop,double res,double mu,
                            spinor_dble *eta,spinor_dble *psi,int *status);
 
 /* DFL_SUBSPACE_C */
-extern void dfl_sd2vd(spinor_dble *sd,complex_dble *vd);
-extern void dfl_vd2sd(complex_dble *vd,spinor_dble *sd);
-extern void dfl_sub_vd2sd(complex_dble *vd,spinor_dble *sd);
 extern void dfl_s2v(spinor *s,complex *v);
 extern void dfl_v2s(complex *v,spinor *s);
-extern void dfl_sub_v2s(complex *v,spinor *s);
 extern void dfl_subspace(spinor **mds);
 
 /* LTL_GCR */

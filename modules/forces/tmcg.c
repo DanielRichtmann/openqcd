@@ -3,34 +3,30 @@
 *
 * File tmcg.c
 *
-* Copyright (C) 2011-2013 Martin Luescher, Stefan Schaefer
+* Copyright (C) 2011-2013, 2018 Martin Luescher, Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * CG solver for the normal Wilson-Dirac equation with a twisted-mass term.
 *
-* The externally accessible function is
-*
-*   double tmcg(int nmx,double res,double mu,
+*   double tmcg(int nmx,int istop,double res,double mu,
 *               spinor_dble *eta,spinor_dble *psi,int *status)
 *     Obtains an approximate solution psi of the normal Wilson-Dirac
-*     equation for given source eta (see the notes).
+*     equation for given source eta.
 *
-*   double tmcgeo(int nmx,double res,double mu,
+*   double tmcgeo(int nmx,int istop,double res,double mu,
 *                 spinor_dble *eta,spinor_dble *psi,int *status)
 *     Obtains an approximate solution psi of the normal even-odd
-*     preconditioned Wilson-Dirac equation for given source eta (see
-*     the notes).
-*
-* Notes:
+*     preconditioned Wilson-Dirac equation for given source eta. On
+*     the odd lattice points, the fields eta and psi are unchanged.
 *
 * The normal and the normal even-odd preconditioned Wilson-Dirac equations
 * are
 *
-*   (Dw^dag*Dw+mu^2)*psi=eta
+*   (Dw^dag*Dw+mu^2)*psi=eta,
 *
-*   (Dwhat^dag*Dwhat+mu^2)*psi=eta
+*   (Dwhat^dag*Dwhat+mu^2)*psi=eta,
 *
 * respectively.
 *
@@ -43,32 +39,33 @@
 *
 *   nmx     Maximal total number of CG iterations that may be performed.
 *
-*   res     Desired maximal relative residue |eta-(Dw^dag*Dw+mu^2)*psi|/|eta|
-*           of the calculated solution.
+*   istop   Stopping criterion (0: L_2 norm based, 1: uniform norm based).
+*
+*   res     Desired maximal relative residue of the calculated solution.
 *
 *   mu      Value of the twisted mass in the Dirac equation.
 *
-*   eta     Source field. Note that source fields must respect the chosen
-*           boundary conditions at time 0 and NPR0C0*L0-1, as has to be the
-*           the case for physical quark fields (see doc/dirac.pdf). On exit
-*           eta is unchanged unless psi=eta (which is permissible).
+*   eta     Source field. On exit eta is unchanged unless psi=eta (which
+*           is permissible).
 *
 *   psi     Calculated approximate solution of the Dirac equation.
 *
-*   status  If the program is able to solve the Dirac equation to the
-*           desired accuracy, status reports the number of CG iterations
-*           that were required for the solution. Negative values indicate
-*           that the program failed (-1: the algorithm did not converge,
-*           -2: the solution went out of range, -3: the inversion of the
-*           SW term was not safe).
+*   status  If the program terminates normally, status reports the total
+*           number of CG iterations that were required for the solution of
+*           the Dirac equation. Status is set to -1 if the solver did not
+*           converge and to -2 if [in the case of tmcgeo()] the inversion
+*           of the SW term was not safe.
 *
+* The fields eta and psi must be such that the Dirac operator can act on
+* them (see main/README.global). Moreover, the source eta is assumed to
+* respect the chosen boundary conditions (see doc/dirac.pdf).
+
 * The programs return the norm of the residue of the calculated approximate
-* solution if status[0]>=-1. Otherwise the field psi is set to zero and the
-* programs return the norm of the source eta.
+* solution if status[0]>=-1. Otherwise the program returns the norm of the
+* source eta and sets psi to zero if psi!=eta.
 *
-* The SW term is recalculated when needed. Evidently the solver is a global
-* program that must be called on all processes simultaneously. The required
-* workspaces are
+* The SW term is recalculated when needed. The solver is a global program that
+* must be called on all processes simultaneously. The required workspaces are
 *
 *  spinor              5
 *  spinor_dble         3
@@ -82,8 +79,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "mpi.h"
-#include "su3.h"
 #include "flags.h"
 #include "utils.h"
 #include "uflds.h"
@@ -115,16 +110,18 @@ static void Dop_dble(spinor_dble *s,spinor_dble *r)
 }
 
 
-double tmcg(int nmx,double res,double mu,
+double tmcg(int nmx,int istop,double res,double mu,
             spinor_dble *eta,spinor_dble *psi,int *status)
 {
-   double rho,rho0,fact;
+   int eoflg;
+   double rho0,rho;
    spinor **ws;
-   spinor_dble **rsd,**wsd;
+   spinor_dble **wsd,*rsd;
    tm_parms_t tm;
 
    tm=tm_parms();
-   if (tm.eoflg==1)
+   eoflg=tm.eoflg;
+   if (eoflg)
       set_tm_parms(0);
 
    if (query_flags(U_MATCH_UD)!=1)
@@ -136,41 +133,35 @@ double tmcg(int nmx,double res,double mu,
        (query_flags(SW_E_INVERTED)!=0)||(query_flags(SW_O_INVERTED)!=0))
       assign_swd2sw();
 
-   ws=reserve_ws(5);
-   wsd=reserve_wsd(2);
-   rsd=reserve_wsd(1);
+   status[0]=0;
+   rho=0.0;
+   rho0=unorm_dble(VOLUME,1,eta);
 
-   mus=(float)(mu);
-   mud=mu;
-   rho0=sqrt(norm_square_dble(VOLUME,1,eta));
-   fact=rho0/sqrt((double)(VOLUME)*(double)(24*NPROC));
-
-   if (fact!=0.0)
+   if (rho0!=0.0)
    {
-      assign_sd2sd(VOLUME,eta,rsd[0]);
-      scale_dble(VOLUME,1.0/fact,rsd[0]);
+      ws=reserve_ws(5);
+      wsd=reserve_wsd(3);
+      rsd=wsd[2];
 
-      rho=cgne(VOLUME,1,Dop,Dop_dble,ws,wsd,nmx,res,rsd[0],psi,status);
+      mus=(float)(mu);
+      mud=mu;
+      assign_sd2sd(VOLUME,eta,rsd);
+      scale_dble(VOLUME,1.0/rho0,rsd);
 
-      scale_dble(VOLUME,fact,psi);
-      rho*=fact;
+      rho=cgne(VOLUME,1,Dop,Dop_dble,ws,wsd,nmx,istop,res,rsd,
+               psi,status);
+
+      scale_dble(VOLUME,rho0,psi);
+      rho*=rho0;
+
+      release_wsd();
+      release_ws();
    }
-   else
-   {
-      status[0]=0;
-      rho=0.0;
+   else if (psi!=eta)
       set_sd2zero(VOLUME,psi);
-   }
 
-   release_wsd();
-   release_wsd();
-   release_ws();
-
-   if (status[0]<-1)
-   {
-      rho=rho0;
-      set_sd2zero(VOLUME,psi);
-   }
+   if (eoflg)
+      set_tm_parms(1);
 
    return rho;
 }
@@ -192,22 +183,21 @@ static void Doph_dble(spinor_dble *s,spinor_dble *r)
 }
 
 
-double tmcgeo(int nmx,double res,double mu,
+double tmcgeo(int nmx,int istop,double res,double mu,
               spinor_dble *eta,spinor_dble *psi,int *status)
 {
    int ifail;
-   double rho,rho0,fact;
+   double rho0,rho;
+   qflt rqsm;
    spinor **ws;
-   spinor_dble **rsd,**wsd;
+   spinor_dble **wsd,*rsd;
 
-   rho0=sqrt(norm_square_dble(VOLUME/2,1,eta));
    ifail=sw_term(ODD_PTS);
+   status[0]=0;
+   rho=0.0;
 
    if (ifail)
-   {
       status[0]=-2;
-      rho=rho0;
-   }
    else
    {
       if (query_flags(U_MATCH_UD)!=1)
@@ -217,40 +207,44 @@ double tmcgeo(int nmx,double res,double mu,
           (query_flags(SW_E_INVERTED)!=0)||(query_flags(SW_O_INVERTED)!=1))
          assign_swd2sw();
 
-      ws=reserve_ws(5);
-      wsd=reserve_wsd(2);
-      rsd=reserve_wsd(1);
+      rho0=unorm_dble(VOLUME/2,1,eta);
 
-      mus=(float)(mu);
-      mud=mu;
-      fact=rho0/sqrt((double)(VOLUME/2)*(double)(24*NPROC));
-
-      if (fact!=0.0)
+      if (rho0!=0.0)
       {
-         assign_sd2sd(VOLUME/2,eta,rsd[0]);
-         scale_dble(VOLUME/2,1.0/fact,rsd[0]);
+         ws=reserve_ws(5);
+         wsd=reserve_wsd(3);
+         rsd=wsd[2];
 
-         rho=cgne(VOLUME/2,1,Doph,Doph_dble,ws,wsd,nmx,res,rsd[0],psi,status);
+         mus=(float)(mu);
+         mud=mu;
+         assign_sd2sd(VOLUME/2,eta,rsd);
+         scale_dble(VOLUME/2,1.0/rho0,rsd);
 
-         scale_dble(VOLUME/2,fact,psi);
-         rho*=fact;
+         rho=cgne(VOLUME/2,1,Doph,Doph_dble,ws,wsd,nmx,istop,res,rsd,
+                  psi,status);
+
+         scale_dble(VOLUME/2,rho0,psi);
+         rho*=rho0;
+
+         release_wsd();
+         release_ws();
       }
-      else
-      {
-         status[0]=0;
-         rho=0.0;
+      else if (psi!=eta)
          set_sd2zero(VOLUME/2,psi);
-      }
-
-      release_wsd();
-      release_wsd();
-      release_ws();
    }
 
    if (status[0]<-1)
    {
-      rho=rho0;
-      set_sd2zero(VOLUME/2,psi);
+      if (psi!=eta)
+         set_sd2zero(VOLUME/2,psi);
+
+      if (istop)
+         rho=unorm_dble(VOLUME/2,1,eta);
+      else
+      {
+         rqsm=norm_square_dble(VOLUME/2,1,eta);
+         rho=sqrt(rqsm.q[0]);
+      }
    }
 
    return rho;

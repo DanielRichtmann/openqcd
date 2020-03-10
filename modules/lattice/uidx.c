@@ -43,11 +43,11 @@
 *
 * In the program plaq_uidx() it is taken for granted that 0<=ix<VOLUME.
 *
-* If SF or open-SF boundary conditions are chosen, the offsets ip[4]
+* If SF or open-SF boundary conditions are chosen, the offsets ip[0],..,ip[3]
 * returned by plaq_uidx() at global time NPROC0*L0-1 take into account the
-* fact that the boundary values of the gauge field are stored at the end
-* of the field array. On all MPI processes, and for all boundary conditions,
-* the correct field variables are thus found at the calculated offsets.
+* fact that the constant boundary values of the gauge field are stored at the 
+* end of the field array. In all cases, the correct field variables are thus 
+* found at the calculated offsets.
 *
 *******************************************************************************/
 

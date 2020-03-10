@@ -19,7 +19,7 @@
 
 typedef struct
 {
-   int npf;
+   int npf,*eo;
    su3_alg_dble *mom,*frc;
    spinor_dble **pf;
 } mdflds_t;
@@ -33,6 +33,7 @@ extern mdflds_t *mdflds(void);
 extern void set_frc2zero(void);
 extern void bnd_mom2zero(void);
 extern void random_mom(void);
-extern double momentum_action(int icom);
+extern void rotate_mom(double c1,double c2);
+extern qflt momentum_action(int icom);
 
 #endif

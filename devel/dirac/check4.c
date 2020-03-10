@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -279,6 +279,7 @@ int main(int argc,char *argv[])
    int my_rank,i;
    double phi[2],phi_prime[2],theta[3];
    double mu,d;
+   qflt rqsm;
    spinor_dble **psd;
    sw_parms_t swp;
    FILE *flog=NULL;
@@ -304,7 +305,8 @@ int main(int argc,char *argv[])
                     "Syntax: check1 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -349,20 +351,20 @@ int main(int argc,char *argv[])
    bnd_sd2zero(ALL_PTS,psd[4]);
    Dw_dble(mu,psd[0],psd[1]);
    mulr_spinor_add_dble(VOLUME,psd[4],psd[0],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[4]);
-   error(d!=0.0,1,"main [check4.c]","Dw_dble() changes the input field");
+   rqsm=norm_square_dble(VOLUME,1,psd[4]);
+   error(rqsm.q[0]!=0.0,1,"main [check4.c]","Dw_dble() changes the input field");
 
    Dw_dble(mu,psd[0],psd[4]);
    mulr_spinor_add_dble(VOLUME,psd[4],psd[1],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[4]);
-   error(d!=0.0,1,"main [check4.c]","Action of Dw_dble() depends "
+   rqsm=norm_square_dble(VOLUME,1,psd[4]);
+   error(rqsm.q[0]!=0.0,1,"main [check4.c]","Action of Dw_dble() depends "
          "on the boundary values of the input field");
 
    assign_sd2sd(VOLUME,psd[1],psd[4]);
    bnd_sd2zero(ALL_PTS,psd[4]);
    mulr_spinor_add_dble(VOLUME,psd[4],psd[1],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[4]);
-   error(d!=0.0,1,"main [check4.c]",
+   rqsm=norm_square_dble(VOLUME,1,psd[4]);
+   error(rqsm.q[0]!=0.0,1,"main [check4.c]",
          "Dw_dble() does not vanish at global time 0 and NPROC0*L0-1 ");
 
    transform_sd(psd[0],psd[2]);
@@ -372,7 +374,10 @@ int main(int argc,char *argv[])
    transform_sd(psd[1],psd[2]);
 
    mulr_spinor_add_dble(VOLUME,psd[3],psd[2],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[3])/norm_square_dble(VOLUME,1,psd[0]);
+   rqsm=norm_square_dble(VOLUME,1,psd[3]);
+   d=rqsm.q[0];
+   rqsm=norm_square_dble(VOLUME,1,psd[0]);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
    {

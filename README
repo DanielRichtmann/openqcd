@@ -1,7 +1,7 @@
 
 ********************************************************************************
 
-                         openQCD Simulation Program
+                        openQCD Simulation Programs
 
 ********************************************************************************
 
@@ -13,8 +13,7 @@ following:
 
 * 4-dimensional hypercubic N0xN1xN2xN3 lattice with even sizes N0,N1,N2,N3.
   Open, Schrödinger functional (SF), open-SF or periodic boundary conditions
-  in the time direction and periodic boundary conditions in the space
-  directions.
+  in the time direction. Periodic boundary conditions in the space directions.
 
 * SU(3) gauge group, plaquette plus planar double-plaquette gauge action
   (Wilson, Symanzik, Iwasaki,...).
@@ -26,17 +25,23 @@ following:
   supported.
 
 The O(a)-improvement includes the boundary counterterms required for the
-improvement of the correlation functions near the boundaries of the lattice in
-the time direction if open, SF or open-SF boundary conditions are chosen. For
-the quark fields phase-periodic boundary conditions in the space directions
-are implemented too.
+improvement of the correlation functions near the boundaries of the lattice
+in the time direction if open, SF or open-SF boundary conditions are chosen.
+Either the traditional implementation of the O(a) Pauli term in the quark
+action or an "exponential" variant (which offers some technical advantages)
+may be used. For the quark fields phase-periodic boundary conditions in the
+space directions are implemented too.
 
 
 SIMULATION ALGORITHM
 
-The simulation program is based on the HMC algorithm. For the heavier quarks,
-a version of the RHMC algorithm is used. Several advanced techniques are
-implemented that can be configured at run time:
+The simulation programs are based on the HMC or the SMD (Stochastic Molecular
+Dynamics) algorithm. For the strange and the heavier quarks, a rational
+approximation of the exact pseudo-fermion action is used as in the RHMC
+algorithm.
+
+Several advanced techniques are implemented that can be configured at run
+time:
 
 * Nested hierarchical integrators for the molecular-dynamics equations, based
   on any combination of the leapfrog, 2nd order Omelyan-Mryglod-Folk (OMF) and
@@ -54,9 +59,19 @@ implemented that can be configured at run time:
   equation, separately configurable for each force component and
   pseudo-fermion action.
 
+* Parallel I/O of gauge, momentum and quark fields.
+
 All of these depend on a number of parameters, whose values are passed to the
 simulation program together with those of the action parameters (coupling
 constants, quark masses, etc.) through a structured input parameter file.
+
+
+MASTER-FIELD SIMULATIONS
+
+Version 2.0 of openQCD includes various technical improvements (quadruple-
+precision accumulation of large sums, uniform-norm solver stopping criterion,
+etc.) which are expected to make master-field simulations of very large
+lattices numerically safe.
 
 
 PROGRAM FEATURES
@@ -79,9 +94,25 @@ of externally accessible functions whose functionality is described at the top
 of the file.
 
 The data layout is explained in various README files and detailed instructions
-are given on how to run the main programs. A set of further documentation
-files are included in the doc directory, where the normalization conventions,
-the chosen algorithms and other important program elements are described.
+are given on how to run the main programs. Further documentation, specifying
+the normalization conventions and algorithms used, is included in the doc
+directory.
+
+
+IEEE 754 COMPLIANCE
+
+The program is portable to a wide range of architectures. It assumes, however,
+that the machine and the compiler support a 4 byte integer type (short int or
+int) and the standard IEEE 754 floating-point types float (4 bytes) and double
+(8 bytes). Moreover, the floating-point arithmetic performed by the CPUs must
+comply with the standard too and the default rounding rules (rounding to
+nearest, ties to even) must be used.
+
+These conditions are usually satisfied on machines with 64bit OS, but on x86
+machines with 32bit OS some particular compiler options (such as the gcc
+option -mfpmath=sse) may have to be set. The main programs check whether the
+machine complies with the standard and abort the program with an informative
+error message if not.
 
 
 COMPILATION
@@ -99,8 +130,7 @@ The Makefiles assume that the following environment variables are set:
   GCC             GNU C compiler command [Example: /usr/bin/gcc].
 
   MPI_HOME        MPI home directory [Example: /usr/lib64/mpi/gcc/openmpi].
-                  The mpicc command used is the one in $MPI_HOME/bin and
-                  the MPI libraries are expected in $MPI_HOME/lib.
+                  The MPI libraries are expected in $MPI_HOME/lib.
 
   MPI_INCLUDE     Directory where the mpi.h file is to be found.
 
@@ -146,8 +176,8 @@ On recent x86-64 machines the recommended compiler flags are thus
 
     -std=c89 -O -mno-avx -DAVX -DFMA3 -DPM
 
-For older machines that do not support the AVX instruction set, the
-recommended flags are
+For older machines that only support the SSE3 instruction set, the recommended
+flags are
 
     -std=c89 -O -mno-avx -Dx64 -DPM
 
@@ -176,6 +206,8 @@ The available flags are:
 
 -DFGCR_DBG         GCR solver.
 
+-DFORCE_DBG        Quark forces in the molecular-dynamics evolution.
+
 -FGCR4VD_DBG       GCR solver for the little Dirac equation.
 
 -DMSCG_DBG         MSCG solver.
@@ -186,6 +218,9 @@ The available flags are:
 
 -DRWRAT_DBG        Computation of the rational function reweighting
                    factor.
+
+-DIGNORE_ERRORS    Error messages are printed as usual, but the program
+                   execution continues.
 
 
 RUNNING A SIMULATION
@@ -204,10 +239,10 @@ contained in the directory main/examples.
 EXPORTED FIELD FORMAT
 
 The field configurations generated in the course of a simulation are written
-to disk in a machine-independent format (see modules/misc/archive.c).
-Independently of the machine endianness, the fields are written in little
-endian format. A byte-reordering is therefore not required when machines with
-different endianness are used for the simulation and the physics analysis.
+to disk in a machine-independent format (see main/README.io). Independently of
+the machine endianness, the fields are written in little endian format. A
+byte-reordering is therefore not required when machines with different
+endianness are used for the simulation and the physics analysis.
 
 
 AUTHORS
@@ -215,9 +250,10 @@ AUTHORS
 The initial release of the openQCD package was written by Martin Lüscher and
 Stefan Schaefer. Support for Schrödinger functional boundary conditions was
 added by John Bulava. Phase-periodic boundary conditions for the quark fields
-were introduced by Isabel Campos. Several modules were taken over from the
-DD-HMC program tree, which includes contributions from Luigi Del Debbio,
-Leonardo Giusti, Björn Leder and Filippo Palombi.
+were introduced by Isabel Campos and the implementation of the "exponential"
+variant of the O(a) Pauli term was developed by Antonio Rago. Several modules
+were taken over from the DD-HMC program tree, which includes contributions
+from Luigi Del Debbio, Leonardo Giusti, Björn Leder and Filippo Palombi.
 
 
 ACKNOWLEDGEMENTS
@@ -225,8 +261,8 @@ ACKNOWLEDGEMENTS
 In the course of the development of the openQCD code, many people suggested
 corrections and improvements or tested preliminary versions of the programs.
 The authors are particularly grateful to Isabel Campos, Dalibor Djukanovic,
-Georg Engel, Leonardo Giusti, Björn Leder, Carlos Pena and Hubert Simma for
-their communications and help.
+Georg Engel, Leonardo Giusti, Björn Leder, Daniel Mohler, Carlos Pena and
+Hubert Simma for their communications and help.
 
 
 LICENSE
@@ -237,18 +273,28 @@ The software may be used under the terms of the GNU General Public Licence
 
 BUG REPORTS
 
-If a bug is discovered, please send a report to <luscher@mail.cern.ch>.
+If a bug is discovered, please send a report to <Martin.Luescher@cern.ch>.
 
 
 ALTERNATIVE PACKAGES AND COMPLEMENTARY PROGRAMS
 
-There is a publicly available BG/Q version of openQCD that takes advantage of
-the machine-specific features of IBM BlueGene/Q computers. The version is
-available at <http://hpc.desy.de/simlab/codes/>.
+A public BG/Q version of openQCD that takes advantage of the machine-specific
+features of IBM BlueGene/Q computers can be downloaded from
+<http://hpc.desy.de/simlab/codes/>.
+
+As explained in <https://arxiv.org/abs/1806.06043>, the most time-consuming
+parts of the programs can be further accelerated using AVX-512 intrinsics on
+machines supporting these instructions. A public code implementing this in
+openQCD-1.6 can be downloaded from <https://github.com/sa2c/OpenQCD-AVX512>
+and may work with later versions of openQCD too.
 
 The openQCD programs currently do not support reweighting in the quark
 masses, but a module providing this functionality can be downloaded from
 <http://www-ai.math.uni-wuppertal.de/~leder/mrw/>.
+
+Another extension of openQCD-1.6, available at <https://fastsum.gitlab.io/>,
+supports simulations of anisotropic lattices and pseudo-fermion actions, where
+the gauge-field variables are replaced by stout-smeared ones.
 
 Full-fledged QCD simulation programs tend to have many adjustable parameters.
 In the case of openQCD, most parameters are passed to the programs through a

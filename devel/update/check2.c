@@ -3,8 +3,8 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2007, 2009-2013, Martin Luescher, Filippo Palombi
-*               2016                   Stefan Schaefer
+* Copyright (C) 2005-2016, 2018 Martin Luescher, Filippo Palombi
+*                               Stefan Schaefer
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -34,12 +34,89 @@
 #include "update.h"
 #include "global.h"
 
-static int my_rank;
+#define N0 (NPROC0*L0)
+#define N1 (NPROC1*L1)
+#define N2 (NPROC2*L2)
+#define N3 (NPROC3*L3)
+
+static struct
+{
+   int type,nio_nodes,nio_streams;
+   int nb,ib;
+   char cnfg_dir[NAME_SIZE];
+} iodat;
+
+static int my_rank,first,last,step;
+static char line[NAME_SIZE],nbase[NAME_SIZE];
+static char cnfg_file[NAME_SIZE];
+static FILE *flog=NULL,*fin=NULL;
+
+
+static void read_iodat(void)
+{
+   int type,nion,nios;
+
+   if (my_rank==0)
+   {
+      find_section("Run name");
+      read_line("name","%s",nbase);
+
+      find_section("Configurations");
+      read_line("type","%s",line);
+
+      if (strchr(line,'e')!=NULL)
+         type=0x1;
+      else if (strchr(line,'b')!=NULL)
+         type=0x2;
+      else if (strchr(line,'l')!=NULL)
+         type=0x4;
+      else
+         type=0x0;
+
+      error_root((strlen(line)!=1)||(type==0x0),1,"read_iodat [check2.c]",
+                 "Improper configuration storage type");
+
+      read_line("cnfg_dir","%s",line);
+
+      if (type&0x6)
+      {
+         read_line("nio_nodes","%d",&nion);
+         read_line("nio_streams","%d",&nios);
+      }
+      else
+      {
+         nion=1;
+         nios=0;
+      }
+
+      read_line("first","%d",&first);
+      read_line("last","%d",&last);
+      read_line("step","%d",&step);
+
+      error_root((first<1)||(last<first)||(step<1)||((last-first)%step!=0),1,
+                 "read_iodat [check2.c]","Improper configuration range");
+   }
+
+   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(line,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
+   MPI_Bcast(&type,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nion,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&nios,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   iodat.type=type;
+   strcpy(iodat.cnfg_dir,line);
+   iodat.nio_nodes=nion;
+   iodat.nio_streams=nios;
+}
 
 
 static void read_lat_parms(void)
 {
-   int nk;
+   int nk,isw;
    double beta,c0,csw,*kappa;
 
    if (my_rank==0)
@@ -48,12 +125,14 @@ static void read_lat_parms(void)
       read_line("beta","%lf",&beta);
       read_line("c0","%lf",&c0);
       nk=count_tokens("kappa");
+      read_line("isw","%d",&isw);
       read_line("csw","%lf",&csw);
    }
 
    MPI_Bcast(&beta,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&c0,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(&nk,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&isw,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&csw,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
    if (nk>0)
@@ -68,7 +147,7 @@ static void read_lat_parms(void)
    else
       kappa=NULL;
 
-   set_lat_parms(beta,c0,nk,kappa,csw);
+   (void)(set_lat_parms(beta,c0,nk,kappa,isw,csw));
 
    if (nk>0)
       free(kappa);
@@ -122,7 +201,7 @@ static void read_bc_parms(void)
    MPI_Bcast(&cF_prime,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    MPI_Bcast(theta,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-   set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime,theta);
+   (void)(set_bc_parms(bc,cG,cG_prime,cF,cF_prime,phi,phi_prime,theta));
 }
 
 
@@ -358,7 +437,8 @@ static void read_solvers(void)
           (ap.action==ACF_RAT)||
           (ap.action==ACF_RAT_SDET))
       {
-         if ((ap.action==ACF_TM2)||(ap.action==ACF_TM2_EO))
+         if ((ap.action==ACF_TM2)||(ap.action==ACF_TM2_EO)||
+             (ap.action==ACF_RAT)||(ap.action==ACF_RAT_SDET))
             nsp=2;
          else
             nsp=1;
@@ -431,6 +511,115 @@ static void read_solvers(void)
 }
 
 
+static void check_files(void)
+{
+   int type,nion,nb,ib,n;
+   int ns[4],bs[4];
+   char *cnfg_dir;
+
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+   iodat.nb=0;
+   iodat.ib=NPROC;
+
+   if (type&0x1)
+   {
+      error(name_size("%s/%sn%d",cnfg_dir,nbase,last)>=NAME_SIZE,1,
+            "check_files [check2.c]","cnfg_dir name is too long");
+      check_dir_root(cnfg_dir);
+
+      sprintf(line,"%s/%sn%d",cnfg_dir,nbase,first);
+      lat_sizes(line,ns);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [check2.c]","Lattice size mismatch");
+   }
+   else if (type&0x2)
+   {
+      error(name_size("%s/0/0/%sn%d_b0",cnfg_dir,nbase,first)>=NAME_SIZE,1,
+            "check_files [check2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/0/0",cnfg_dir);
+      if ((cpr[0]==0)&&(cpr[1]==0)&&(cpr[2]==0)&&(cpr[3]==0))
+         check_dir(line);
+
+      sprintf(line,"%s/0/0/%sn%d_b0",cnfg_dir,nbase,first);
+      blk_sizes(line,ns,bs);
+      error_root((ns[0]!=N0)||(ns[1]!=N1)||(ns[2]!=N2)||(ns[3]!=N3),1,
+                 "check_files [check2.c]","Lattice size mismatch");
+
+      ib=blk_index(ns,bs,&nb);
+      nion=iodat.nio_nodes;
+      n=nb/nion;
+      error_root(nb%nion!=0,1,"check_files [check2.c]",
+                 "Number of blocks is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_b%d",cnfg_dir,nion-1,n-1,
+                      nbase,last,nb-1)>=NAME_SIZE,1,
+            "check_files [check2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,ib/n,ib%n);
+      strcpy(cnfg_dir,line);
+      if (((cpr[0]*L0)%bs[0]==0)&&((cpr[1]*L1)%bs[1]==0)&&
+          ((cpr[2]*L2)%bs[2]==0)&&((cpr[3]*L3)%bs[3]==0))
+         check_dir(cnfg_dir);
+
+      iodat.nb=nb;
+      iodat.ib=ib;
+   }
+   else if (type&0x4)
+   {
+      nion=iodat.nio_nodes;
+      n=NPROC/nion;
+      error_root(NPROC%nion!=0,1,"check_files [check2.c]",
+                 "Number of processes is not a multiple of nio_nodes");
+      error(name_size("%s/%d/%d/%sn%d_%d",cnfg_dir,nion-1,n-1,
+                      nbase,last,NPROC-1)>=NAME_SIZE,1,
+            "check_files [check2.c]","cnfg_dir name is too long");
+      sprintf(line,"%s/%d/%d",cnfg_dir,my_rank/n,my_rank%n);
+      strcpy(cnfg_dir,line);
+      check_dir(cnfg_dir);
+   }
+}
+
+
+static void set_fld(int icnfg)
+{
+   int type;
+   double wt1,wt2;
+   char *cnfg_dir;
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt1=MPI_Wtime();
+   type=iodat.type;
+   cnfg_dir=iodat.cnfg_dir;
+
+   if (type&0x1)
+   {
+      sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
+      import_cnfg(cnfg_file,0x0);
+   }
+   else if (type&0x2)
+   {
+      set_nio_streams(iodat.nio_streams);
+      sprintf(cnfg_file,"%s/%sn%d_b%d",cnfg_dir,nbase,icnfg,iodat.ib);
+      blk_import_cnfg(cnfg_file,0x0);
+   }
+   else
+   {
+      set_nio_streams(iodat.nio_streams);
+      sprintf(cnfg_file,"%s/%sn%d_%d",cnfg_dir,nbase,icnfg,my_rank);
+      read_cnfg(cnfg_file);
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   wt2=MPI_Wtime();
+
+   if (my_rank==0)
+   {
+      printf("Gauge field read from disk in %.2e sec\n\n",
+             wt2-wt1);
+      fflush(flog);
+   }
+}
+
+
 static void chk_mode_regen(int isp,int *status)
 {
    solver_parms_t sp;
@@ -442,7 +631,7 @@ static void chk_mode_regen(int isp,int *status)
 }
 
 
-static void start_hmc(double *act0,su3_dble *uold)
+static void start_hmc(qflt *act0,su3_dble *uold)
 {
    int i,n,nact,*iact;
    int status[3];
@@ -458,16 +647,21 @@ static void start_hmc(double *act0,su3_dble *uold)
    cm3x3_assign(4*VOLUME,udb,uold);
    set_ud_phase();
    random_mom();
-
    dfl=dfl_parms();
 
    if (dfl.Ns)
    {
-      dfl_modes(status);
-      error_root(status[0]<0,1,"start_hmc [hmc.c]",
-                 "Deflation subspace generation failed (status = %d)",
-                 status[0]);
-      add2counter("modes",0,status);
+      dfl_modes2(status);
+      error_root((status[1]<0)||((status[1]==0)&&(status[0]<0)),1,
+                 "start_hmc [check2.c]","Deflation subspace generation "
+                 "failed (status = %d;%d)",status[0],status[1]);
+
+      if (status[1]==0)
+         add2counter("modes",0,status);
+      else
+         add2counter("modes",2,status+1);
+
+      start_dfl_upd();
    }
 
    hmc=hmc_parms();
@@ -533,13 +727,14 @@ static void start_hmc(double *act0,su3_dble *uold)
 }
 
 
-static void end_hmc(double *act1)
+static void end_hmc(qflt *act1)
 {
-   int i,n,nact,*iact;
+   int i,n,ifr,nact,*iact;
    int status[3];
    double *mu;
    hmc_parms_t hmc;
    action_parms_t ap;
+   force_parms_t fp;
 
    hmc=hmc_parms();
    nact=hmc.nact;
@@ -550,6 +745,8 @@ static void end_hmc(double *act1)
    for (i=0;i<nact;i++)
    {
       ap=action_parms(iact[i]);
+      ifr=matching_force(iact[i]);
+      fp=force_parms(ifr);
 
       if (ap.action==ACG)
          act1[1]=action0(0);
@@ -559,17 +756,20 @@ static void end_hmc(double *act1)
          status[2]=0;
 
          if (ap.action==ACF_TM1)
-            act1[n]=action1(mu[ap.imu[0]],ap.ipf,ap.isp[0],0,status);
+            act1[n]=action1(mu[ap.imu[0]],ap.ipf,ap.isp[0],fp.icr[0],
+                            0,status);
          else if (ap.action==ACF_TM1_EO)
-            act1[n]=action4(mu[ap.imu[0]],ap.ipf,0,ap.isp[0],0,status);
+            act1[n]=action4(mu[ap.imu[0]],ap.ipf,0,ap.isp[0],fp.icr[0],
+                            0,status);
          else if (ap.action==ACF_TM1_EO_SDET)
-            act1[n]=action4(mu[ap.imu[0]],ap.ipf,1,ap.isp[0],0,status);
+            act1[n]=action4(mu[ap.imu[0]],ap.ipf,1,ap.isp[0],fp.icr[0],
+                            0,status);
          else if (ap.action==ACF_TM2)
             act1[n]=action2(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[0],
-                            0,status);
+                            fp.icr[0],0,status);
          else if (ap.action==ACF_TM2_EO)
             act1[n]=action5(mu[ap.imu[0]],mu[ap.imu[1]],ap.ipf,ap.isp[0],
-                            0,status);
+                            fp.icr[0],0,status);
          else if (ap.action==ACF_RAT)
             act1[n]=action3(ap.irat,ap.ipf,0,ap.isp[0],0,status);
          else if (ap.action==ACF_RAT_SDET)
@@ -588,11 +788,10 @@ static void end_hmc(double *act1)
 
 static void flip_mom(void)
 {
-   int status;
+   int status[2];
    su3_alg_dble *mom,*momm;
    mdflds_t *mdfs;
    dfl_parms_t dfl;
-   dfl_upd_parms_t dup;
 
    mdfs=mdflds();
    mom=(*mdfs).mom;
@@ -615,11 +814,17 @@ static void flip_mom(void)
 
    if (dfl.Ns)
    {
-      dup=dfl_upd_parms();
-      dfl_update(dup.nsm,&status);
-      error_root(status<0,1,"flip_mom [check2.c]",
-                 "Deflation subspace update failed (status = %d)",status);
-      add2counter("modes",1,&status);
+      dfl_modes2(status);
+      error_root((status[1]<0)||((status[1]==0)&&(status[0]<0)),1,
+                 "flip_mom [check2.c]","Deflation subspace generation "
+                 "failed (status = %d;%d)",status[0],status[1]);
+
+      if (status[1]==0)
+         add2counter("modes",0,status);
+      else
+         add2counter("modes",2,status+1);
+
+      start_dfl_upd();
    }
 }
 
@@ -665,8 +870,17 @@ static double cmp_ud(su3_dble *u,su3_dble *v)
 
 static double max_dev_ud(su3_dble *v)
 {
+   int iph;
    double d,dmax;
    su3_dble *u,*um;
+
+   if (query_flags(UD_PHASE_SET))
+   {
+      iph=1;
+      unset_ud_phase();
+   }
+   else
+      iph=0;
 
    u=udfld();
    um=u+4*VOLUME;
@@ -689,24 +903,52 @@ static double max_dev_ud(su3_dble *v)
       MPI_Bcast(&dmax,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    }
 
+   if (iph)
+      set_ud_phase();
+
    return sqrt(dmax);
+}
+
+
+static void sum_act(int nact,qflt *act0,qflt *act1,double *sm)
+{
+   int i;
+   double *qsm[2];
+   qflt act[2],da;
+
+   for (i=0;i<2;i++)
+   {
+      act[i].q[0]=0.0;
+      act[i].q[1]=0.0;
+      qsm[i]=act[i].q;
+   }
+
+   for (i=0;i<=nact;i++)
+   {
+      add_qflt(act0[i].q,act[0].q,act[0].q);
+      da.q[0]=-act0[i].q[0];
+      da.q[1]=-act0[i].q[1];
+      add_qflt(act1[i].q,da.q,da.q);
+      add_qflt(da.q,act[1].q,act[1].q);
+   }
+
+   global_qsum(2,qsm,qsm);
+
+   for (i=0;i<2;i++)
+      sm[i]=act[i].q[0];
 }
 
 
 int main(int argc,char *argv[])
 {
-   int first,last,step;
-   int nc,nsize,icnfg,nact,i;
+   int nc,icnfg,nact;
    int isap,idfl;
-   int nwud,nws,nwsd,nwv,nwvd;
-   double *act0,*act1,*act2;
-   double sm0[2],sm1[2],dud,dH;
+   int nwud,nws,nwv,nwvd;
+   double sm[2],dud,dH;
    double dudmin,dudmax,dudavg,dHmin,dHmax,dHavg;
+   qflt *act0,*act1,*act2;
    su3_dble **usv;
    hmc_parms_t hmc;
-   char cnfg_dir[NAME_SIZE],cnfg_file[NAME_SIZE];
-   char nbase[NAME_SIZE];
-   FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -723,21 +965,9 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
-
-      find_section("Configurations");
-      read_line("cnfg_dir","%s",cnfg_dir);
-      read_line("name","%s",nbase);
-      read_line("first","%d",&first);
-      read_line("last","%d",&last);
-      read_line("step","%d",&step);
    }
 
-   MPI_Bcast(cnfg_dir,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(nbase,NAME_SIZE,MPI_CHAR,0,MPI_COMM_WORLD);
-   MPI_Bcast(&first,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&last,1,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&step,1,MPI_INT,0,MPI_COMM_WORLD);
-
+   read_iodat();
    read_lat_parms();
    read_bc_parms();
    read_hmc_parms();
@@ -748,10 +978,10 @@ int main(int argc,char *argv[])
    if (my_rank==0)
       fclose(fin);
 
-   hmc_wsize(&nwud,&nws,&nwsd,&nwv,&nwvd);
+   hmc_wsize(&nwud,&nws,&nwv,&nwvd);
    alloc_wud(nwud);
    alloc_ws(nws);
-   alloc_wsd(nwsd);
+   wsd_uses_ws();
    alloc_wv(nwv);
    alloc_wvd(nwvd);
    usv=reserve_wud(1);
@@ -763,6 +993,7 @@ int main(int argc,char *argv[])
    act2=act1+nact+1;
    error(act0==NULL,1,"main [check2.c]","Unable to allocate action arrays");
 
+   check_machine();
    print_lat_parms();
    print_bc_parms(3);
    print_hmc_parms();
@@ -778,6 +1009,20 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
+      printf("Configuration storage type = ");
+
+      if (iodat.type&0x1)
+         printf("exported\n");
+      else if (iodat.type&0x2)
+         printf("block-exported\n");
+      else
+         printf("local\n");
+
+      if (iodat.type&0x6)
+         printf("Parallel configuration input: "
+                "nio_nodes = %d, nio_streams = %d\n",
+                iodat.nio_nodes,iodat.nio_streams);
+      printf("\n");
       printf("Configurations %sn%d -> %sn%d in steps of %d\n\n",
              nbase,first,nbase,last,step);
       fflush(flog);
@@ -785,19 +1030,13 @@ int main(int argc,char *argv[])
 
    start_ranlux(0,1234);
    geometry();
-
-   error_root(((last-first)%step)!=0,1,"main [check2.c]",
-              "last-first is not a multiple of step");
-   check_dir_root(cnfg_dir);
-
-   nsize=name_size("%s/%sn%d",cnfg_dir,nbase,last);
-   error_root(nsize>=NAME_SIZE,1,"main [check2.c]",
-              "Configuration file name is too long");
+   check_files();
 
    hmc_sanity_check();
    set_mdsteps();
    setup_counters();
    setup_chrono();
+   print_msize(2);
 
    dudmin=0.0;
    dudmax=0.0;
@@ -808,39 +1047,27 @@ int main(int argc,char *argv[])
 
    for (icnfg=first;icnfg<=last;icnfg+=step)
    {
-      sprintf(cnfg_file,"%s/%sn%d",cnfg_dir,nbase,icnfg);
-      import_cnfg(cnfg_file);
-
       if (my_rank==0)
       {
-         printf("Configuration no %d\n",icnfg);
+         printf("Configuration no %d\n\n",icnfg);
          fflush(flog);
       }
+
+      set_fld(icnfg);
 
       start_hmc(act0,usv[0]);
       dud=max_dev_ud(usv[0]);
       run_mdint();
       end_hmc(act1);
-
-      sm0[0]=0.0;
-      sm0[1]=0.0;
-
-      for (i=0;i<=nact;i++)
-      {
-         sm0[0]+=act0[i];
-         sm0[1]+=(act1[i]-act0[i]);
-      }
-
-      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(sm1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      sum_act(nact,act0,act1,sm);
 
       if (my_rank==0)
       {
          printf("start_hmc:\n");
          printf("max|U_ij-U'_ij| = %.1e\n",dud);
          printf("run_mdint:\n");
-         printf("H = %.6e\n",sm1[0]);
-         printf("dH = %.2e\n",sm1[1]);
+         printf("H = %.6e\n",sm[0]);
+         printf("dH = %.2e\n",sm[1]);
          fflush(flog);
       }
 
@@ -849,26 +1076,15 @@ int main(int argc,char *argv[])
       flip_mom();
       run_mdint();
       end_hmc(act2);
+      sum_act(nact,act0,act2,sm);
 
-      sm0[0]=0.0;
-      sm0[1]=0.0;
-
-      for (i=0;i<=nact;i++)
-      {
-         sm0[0]+=act2[i];
-         sm0[1]+=(act2[i]-act0[i]);
-      }
-
-      MPI_Reduce(sm0,sm1,2,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(sm1,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
-
-      dH=fabs(sm1[1]);
+      dH=fabs(sm[1]);
       dud=max_dev_ud(usv[0]);
 
       if (my_rank==0)
       {
          printf("Flip momenta and run_mdint:\n");
-         printf("H  = %.6e\n",sm1[0]);
+         printf("H  = %.6e\n",sm[0]);
          printf("|dH| = % .2e\n",dH);
          printf("max|U_ij-U'_ij| = %.2e\n\n",dud);
          fflush(flog);

@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2011, 2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -51,12 +51,12 @@ static void set_ud(void)
 }
 
 
-static void set_sd(spinor_dble *sd)
+static void set_sd(spinor *s)
 {
    int x0,x1,x2,x3,ix;
    int y0,y1,y2,y3;
 
-   set_sd2zero(VOLUME,sd);
+   set_s2zero(VOLUME,s);
 
    for (x0=0;x0<L0;x0++)
    {
@@ -73,10 +73,10 @@ static void set_sd(spinor_dble *sd)
 
                ix=ipt[x3+L3*x2+L2*L3*x1+L1*L2*L3*x0];
 
-               sd[ix].c1.c2.im=(double)(y0);
-               sd[ix].c2.c2.im=(double)(y1);
-               sd[ix].c3.c2.im=(double)(y2);
-               sd[ix].c4.c2.im=(double)(y3);
+               s[ix].c1.c2.im=(double)(y0);
+               s[ix].c2.c2.im=(double)(y1);
+               s[ix].c3.c2.im=(double)(y2);
+               s[ix].c4.c2.im=(double)(y3);
             }
          }
       }
@@ -361,7 +361,7 @@ int main(int argc,char *argv[])
    int my_rank,nb,isw;
    int n,mu,k;
    double phi[2],phi_prime[2],theta[3];
-   spinor_dble **wsd;
+   spinor **ws;
    b2b_flds_t *b2b;
    FILE *fin=NULL,*flog=NULL;
 
@@ -393,7 +393,7 @@ int main(int argc,char *argv[])
                     "Syntax: check2 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -415,17 +415,17 @@ int main(int argc,char *argv[])
    alloc_bgr(DFL_BLOCKS);
    blk_list(DFL_BLOCKS,&nb,&isw);
 
-   alloc_wsd(Ns);
-   wsd=reserve_wsd(Ns);
+   alloc_ws(Ns);
+   ws=reserve_ws(Ns);
    set_ud();
 
    for (k=0;k<Ns;k++)
-      set_sd(wsd[k]);
+      set_sd(ws[k]);
 
    for (n=0;n<nb;n++)
    {
       for (k=0;k<Ns;k++)
-         assign_sd2sdblk(DFL_BLOCKS,n,ALL_PTS,wsd[k],k+1);
+         assign_s2sblk(DFL_BLOCKS,n,ALL_PTS,ws[k],k+1);
    }
 
    for (n=0;n<nb;n++)

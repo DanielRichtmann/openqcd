@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2011, 2013, 2016, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -499,13 +499,7 @@ int main(int argc,char *argv[])
 
    for (igr=0;igr<(int)(BLK_GRIDS);igr++)
    {
-      if (igr==0)
-         grid=SAP_BLOCKS;
-      else if (igr==1)
-         grid=DFL_BLOCKS;
-      else
-         error_root(1,1,"main [check1.c]","Unknown block grid");
-
+      grid=(blk_grid_t)(igr);
       alloc_bgr(grid);
 
       test1(grid,bs);

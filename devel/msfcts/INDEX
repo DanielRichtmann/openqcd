@@ -1,0 +1,18 @@
+
+Generic observable measurement functions.
+
+check1       Check of the programs gather_fld() and scatter_fld().
+
+check2       Check of the convolution and shift programs.
+
+check3       Average and error of the Yang-Mills action density.
+
+check4       Computation of the topological susceptibility.
+
+check5       Correlation function of E(x).
+
+check6       Writing and reading observable fields.
+
+check7       Exporting and importing observable fields.
+
+check8       Importing previously exported observable fields.

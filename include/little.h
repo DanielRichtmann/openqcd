@@ -60,11 +60,10 @@ extern void Awhat_dble(complex_dble *v,complex_dble *w);
 
 /* AW_GEN_C */
 extern void gather_ud(int vol,int *imb,su3_dble *ud,su3_dble *vd);
-extern void gather_sd(int vol,int *imb,spinor_dble *sd,spinor_dble *rd);
-extern void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                       spinor_dble *rd);
-extern void apply_udag2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                          spinor_dble *rd);
+extern void gather_s(int vol,int *imb,spinor *s,spinor_dble *rd);
+extern void apply_u2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd);
+extern void apply_udag2s(int vol,int *imb,su3_dble *ud,spinor *s,
+                         spinor_dble *rd);
 extern void (*spinor_prod_gamma[])(int vol,spinor_dble *sd,spinor_dble *rd,
                                    complex_dble *sp);
 

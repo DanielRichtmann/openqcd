@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2011-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -258,7 +258,7 @@ static double cmp_sw2swd(ptset_t set)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,bc,ix,ie;
+   int my_rank,bc,is,ix,ie;
    double phi[2],phi_prime[2],theta[3];
    double d,dmax;
    pauli *sw;
@@ -278,17 +278,25 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
       printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
       bc=find_opt(argc,argv,"-bc");
+      is=find_opt(argc,argv,"-sw");
 
       if (bc!=0)
          error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check1.c]",
-                    "Syntax: check1 [-bc <type>]");
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
+
+      if (is!=0)
+         error_root(sscanf(argv[is+1],"%d",&is)!=1,1,"main [check1.c]",
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&is,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   set_lat_parms(5.5,1.0,0,NULL,is,1.978);
    print_lat_parms();
 
-   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
@@ -303,6 +311,14 @@ int main(int argc,char *argv[])
    geometry();
 
    set_sw_parms(-0.0123);
+
+   if (is)
+   {
+      if (my_rank==0)
+         printf("Exponential variant of the SW term: N = %d\n\n",
+                sw_order());
+   }
+
    sw=swfld();
    swd=swdfld();
    ie=1;

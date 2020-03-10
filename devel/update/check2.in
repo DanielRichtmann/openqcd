@@ -1,15 +1,21 @@
 
+[Run name]
+name         Snoopy137
+
 [Configurations]
-cnfg_dir     /home/data/openQCD/cnfg
-name         16x8x8x8b6.00id2
-first        7
-last         7
-step         2
+type         b
+cnfg_dir     /data/qcd2/cnfg
+nio_nodes    12
+nio_streams  8
+first        1
+last         4
+step         1
 
 [Lattice parameters]
 beta         6.0
 c0           1.6667
 kappa        0.1300 0.12505
+isw          0
 csw          1.234
 
 [Boundary conditions]
@@ -29,15 +35,15 @@ mu           0.1 1.0
 nlv          3
 tau          0.5
 
+[Action 0]
+action       ACG
+
 [Action 1]
 action       ACF_TM1
 ipf          0
 im0          0
 imu          1
 isp          0
-
-[Action 0]
-action       ACG
 
 [Action 2]
 action       ACF_TM2
@@ -51,14 +57,14 @@ action       ACF_RAT_SDET
 ipf          2
 im0          1
 irat         0 0 6
-isp          2
+isp          2 2
 
 [Action 4]
 action       ACF_RAT
 ipf          3
 im0          1
 irat         0 7 11
-isp          2
+isp          2 2
 
 [Rational 0]
 degree       12
@@ -103,6 +109,7 @@ isp          5
 [Solver 0]
 solver       CGNE
 nmx          256
+istop        0
 res          1.0e-12
 
 [Solver 1]
@@ -112,16 +119,19 @@ isolv        1
 nmr          4
 ncy          5
 nmx          24
+istop        0
 res          1.0e-12
 
 [Solver 2]
 solver       MSCG
 nmx          256
+istop        0
 res          1.0e-12
 
 [Solver 3]
 solver       CGNE
 nmx          256
+istop        1
 res          1.0e-10
 
 [Solver 4]
@@ -131,11 +141,13 @@ isolv        1
 nmr          4
 ncy          5
 nmx          24
+istop        1
 res          1.0e-10
 
 [Solver 5]
 solver       MSCG
 nmx          256
+istop        1
 res          1.0e-10
 
 [SAP]

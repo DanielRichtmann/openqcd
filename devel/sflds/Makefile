@@ -19,7 +19,7 @@ all: rmxeq mkdep mkxeq
 
 # main programs and modules to be compiled
 
-MAIN = check1 check2
+MAIN = check1 check2 check3
 
 FLAGS = flags lat_parms dfl_parms
 
@@ -29,13 +29,13 @@ LINALG = cmatrix_dble liealg salg salg_dble
 
 RANDOM = ranlux ranlxs ranlxd gauss
 
-SFLDS = sflds Pbnd Pbnd_dble scom sdcom
+SFLDS = sflds Pbnd Pbnd_dble scom sdcom unorm
 
 SU3FCTS = su3prod su3ren cm3x3 random_su3
 
 UFLDS = uflds
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = endian error mutils qsum utils wspace
 
 MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(LINALG) $(UTILS) \
           $(UFLDS) $(SFLDS) $(SU3FCTS)
@@ -68,9 +68,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

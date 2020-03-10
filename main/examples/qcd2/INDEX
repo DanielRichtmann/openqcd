@@ -1,0 +1,20 @@
+
+********************************************************************************
+
+                  Input parameter files for the program qcd2
+
+********************************************************************************
+
+48x24v1.in        Two-flavour QCD with Wilson plaquette action, traditional
+                  form of the O(a)-improvement term, open boundary conditions,
+		  twisted-mass reweighting of the second kind and even-odd
+		  preconditioning. Parameters tuned for simulations of 48x24^3
+		  lattices.
+
+96x32v1.in        2+1-flavour QCD with quark masses m_u=m_d=m_s, tree-level
+                  Symanzik improved action, "exponential" form of the O(a)-
+		  improvement term, periodic boundary conditions, twisted-mass
+		  reweighting of the second kind and even-odd preconditioning.
+		  Parameters tuned for simulations of 96x32^3 lattices.
+
+96x32v2.in        Same as 96x32v1.in, but with quark masses m_u=m_d<m_s.

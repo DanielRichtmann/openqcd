@@ -3,22 +3,18 @@
 *
 * File ltl_gcr.c
 *
-* Copyright (C) 2011-2013 Martin Luescher
+* Copyright (C) 2011-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * GCR solver for the little Dirac equation Aw*psi=eta.
 *
-* The externally accessible functions are
-*
 *   double ltl_gcr(int nkv,int nmx,double res,double mu,
 *                  complex_dble *eta,complex_dble *psi,int *status)
 *     Obtains an approximate solution psi of the little Dirac equation for
 *     given source eta using the even-odd preconditioned GCR algorithm. See
 *     the notes for the explanation of the parameters of the program.
-*
-* Notes:
 *
 * The program is based on the flexible GCR algorithm for complex fields (see
 * linsolv/fgcr4vd.c). The improvement coefficients, the quark mass in the SW
@@ -34,13 +30,13 @@
 *
 *   nmx     Maximal total number of Krylov vectors that may be generated.
 *
-*   res     Desired maximal relative residue |eta-Aw*psi|/|eta| of the
-*           calculated solution.
+*   res     Desired maximal relative residue of the calculated solution
+*           of the even-odd preconditioned system.
 *
 *   mu      Value of the twisted mass in the Dirac equation.
 *
-*   eta     Source field. eta is unchanged on exit if psi does not
-*           coincide with eta (which is permissible).
+*   eta     Source field. eta is unchanged on exit unless psi=eta (which
+*           is permissible).
 *
 *   psi     Calculated approximate solution of the little Dirac equation.
 *
@@ -137,9 +133,14 @@ static void Lvd(complex_dble *v,complex_dble *w)
 {
    int i;
    complex_dble z;
+   complex_qflt cqsm;
 
    for (i=0;i<Ns;i++)
-      cs1[i]=vprod_dble(nvh,0,vds[i],v);
+   {
+      cqsm=vprod_dble(nvh,0,vds[i],v);
+      cs1[i].re=cqsm.re.q[0];
+      cs1[i].im=cqsm.im.q[0];
+   }
 
    sum_vprod(Ns,cs1,cs2);
    cmat_vec_dble(Ns,awd,cs2,cs1);
@@ -159,9 +160,14 @@ static void RLvd(complex_dble *v,complex_dble *w)
 {
    int i;
    complex_dble z;
+   complex_qflt cqsm;
 
    for (i=0;i<Ns;i++)
-      cs1[i]=vprod_dble(nvh,0,vds[i],w);
+   {
+      cqsm=vprod_dble(nvh,0,vds[i],w);
+      cs1[i].re=cqsm.re.q[0];
+      cs1[i].im=cqsm.im.q[0];
+   }
 
    sum_vprod(Ns,cs1,cs2);
    cmat_vec_dble(Ns,awd,cs2,cs1);
@@ -220,6 +226,7 @@ double ltl_gcr(int nkv,int nmx,double res,double mu,
 {
    int ifail;
    double rho,rho0,fact;
+   qflt rqsm;
    complex **wv;
    complex_dble **wvd,z;
 
@@ -227,7 +234,8 @@ double ltl_gcr(int nkv,int nmx,double res,double mu,
       set_constants();
 
    status[0]=0;
-   rho0=sqrt(vnorm_square_dble(nv,1,eta));
+   rqsm=vnorm_square_dble(nv,1,eta);
+   rho0=sqrt(rqsm.q[0]);
    rho=rho0;
    ifail=set_Awhat(mu);
 

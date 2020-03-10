@@ -47,7 +47,7 @@ int main(void)
 
    u=amalloc(2*sizeof(*u),4);
    X=amalloc(sizeof(*X),4);
-   Y=amalloc(sizeof(*Y),4);
+   Y=amalloc(3*sizeof(*Y),4);
    error((u==NULL)||(X==NULL)||(Y==NULL),1,
          "main [time4.c]","Unable to allocate auxiliary variables");
    v=u+1;
@@ -56,7 +56,7 @@ int main(void)
    random_su3_dble(u);
    random_su3_dble(v);
    ranlxd((double*)(X),8);
-   ranlxd((double*)(Y),9);
+   ranlxd((double*)(Y),27);
 
    n=(int)(1.0e6);
    dt=0.0;
@@ -108,6 +108,24 @@ int main(void)
 
    dt*=2.0e6/(double)(n);
 
-   printf("rotate_su3alg: %4.3f nsec [%d Mflops]\n\n",1.0e3*dt,(int)(274.0/dt));
+   printf("rotate_su3alg: %4.3f nsec [%d Mflops]\n",1.0e3*dt,(int)(274.0/dt));
+
+   n=(int)(1.0e6);
+   dt=0.0;
+
+   while (dt<2.0)
+   {
+      t1=(double)clock();
+      for (count=0;count<n;count++)
+         lieprod_u3alg(Y,Y+1,Y+2);
+      t2=(double)clock();
+      dt=(t2-t1)/(double)(CLOCKS_PER_SEC);
+      n*=2;
+   }
+
+   dt*=2.0e6/(double)(n);
+
+   printf("lieprod_u3alg: %4.3f nsec [%d Mflops]\n",1.0e3*dt,(int)(105.0/dt));
+
    exit(0);
 }

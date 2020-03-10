@@ -8,26 +8,22 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Chebyshev approximation and integration
-*
-* The externally accessible functions are
+* Chebyshev approximation and integration.
 *
 *   int cheby_fit(double a,double b,double (*f)(double x),
 *                                   int nmax,double eps,double c[])
-*     Computes the coefficients c[0],...,c[n], with n<=nmax being the 
-*     value returned by the program and eps the desired absolute precision 
-*     of the approximation
+*     Computes the coefficients c[0],...,c[n], with n<=nmax being the
+*     value returned by the program and eps the desired absolute precision
+*     of the approximation.
 *
 *   double cheby_val(double a,double b,int n,double c[],double x)
 *     Computes the value of the Chebyshev approximation at x, assuming
-*     the coefficients c_k are stored in the array c[0],...,c[n]
+*     the coefficients c_k are stored in the array c[0],...,c[n].
 *
 *   double cheby_int(double a,double b,double (*f)(double x),
 *                                      int nmax,double eps)
 *     Computes the definite integral of f(x) in the range a<=x<=b to an
-*     absolute precision eps, using Chebyshev polynomials of degree n<=nmax
-*
-* Notes:
+*     absolute precision eps, using Chebyshev polynomials of degree n<=nmax.
 *
 * For the numerical approximation and integration of a given function f(x),
 * using the Chebyshev polynomials
@@ -89,19 +85,19 @@ static void update_clist(int n)
    kmin=0;
    kmax=2*max_degree;
    dk=max_degree/n;
-   
+
    if (n>32)
    {
       kmin=dk;
       dk*=2;
    }
-   
+
    for (k=kmin;k<kmax;k+=dk)
    {
       x=(double)(k)*dx;
       clist[k]=cos(x);
    }
-}  
+}
 
 
 static void update_flist(int n,double a,double b,double (*f)(double x))
@@ -132,7 +128,7 @@ static void compute_alist(int n)
 {
    int i,k,dk;
    double sum,r;
-   
+
    dk=max_degree/n;
    r=2.0/(double)n;
 
@@ -154,7 +150,7 @@ static void compute_blist(int n,double a,double b)
 {
    int i,k,dk;
    double sum,r;
-   
+
    dk=max_degree/n;
    r=2.0/(double)n;
 
@@ -189,7 +185,7 @@ static int test_convergence(int n)
    for (i=0;i<4;++i)
    {
       m[i]=0.0;
-      
+
       for (k=0;k<kmax;++k)
       {
          a=fabs(alist[i*kmax+k]);
@@ -198,7 +194,7 @@ static int test_convergence(int n)
       }
    }
 
-   if ((m[0]>=1.0e2*m[1])&&(m[0]>=1.0e4*m[2])&&(m[0]>=1.0e6*m[3]))   
+   if ((m[0]>=1.0e2*m[1])&&(m[0]>=1.0e4*m[2])&&(m[0]>=1.0e6*m[3]))
       return(0);
 
    return(1);
@@ -216,7 +212,7 @@ static double abs_error(int n)
    for (k=0;k<kmin;++k)
       err+=fabs(alist[k]);
    err*=(DBL_EPSILON);
-   
+
    for (k=kmin;k<n;++k)
       err+=fabs(alist[k]);
 
@@ -247,7 +243,7 @@ int cheby_fit(double a,double b,double (*f)(double x),
 {
    int n,k,itest;
    double err;
-   
+
    if ((a>=b)||(nmax<16)||(eps<=0.0))
    {
       printf("Error in cheby_fit\n");
@@ -277,7 +273,7 @@ int cheby_fit(double a,double b,double (*f)(double x),
             c[k]=alist[k];
          break;
       }
-   }   
+   }
 
    free_arrays();
 
@@ -289,7 +285,7 @@ int cheby_fit(double a,double b,double (*f)(double x),
       exit(0);
    }
 
-   n=economize(n,eps,err,c); 
+   n=economize(n,eps,err,c);
    return(n);
 }
 
@@ -330,7 +326,7 @@ double cheby_int(double a,double b,double (*f)(double x),
 {
    int n,k,itest;
    double err,sum;
-   
+
    if ((a>=b)||(nmax<16)||(eps<=0.0))
    {
       printf("Error in cheby_int\n");
@@ -360,7 +356,7 @@ double cheby_int(double a,double b,double (*f)(double x),
             sum+=alist[k];
          break;
       }
-   }   
+   }
 
    free_arrays();
 

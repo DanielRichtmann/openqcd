@@ -3,12 +3,12 @@
 *
 * File check5.c
 *
-* Copyright (C) 2007, 2011, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Checks on the programs in the module valg_dble
+* Checks on the programs in the module valg_dble.
 *
 *******************************************************************************/
 
@@ -62,8 +62,10 @@ int main(int argc,char *argv[])
    int icom,ieo;
    double r,zsq;
    double d,dmax,dall;
+   qflt qr;
    complex_dble w,z;
    complex_dble **wvd,*pk,*pl;
+   complex_qflt qz;
    FILE *flog=NULL,*fin=NULL;
 
    MPI_Init(&argc,&argv);
@@ -91,6 +93,7 @@ int main(int argc,char *argv[])
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
 
+   check_machine();
    start_ranlux(0,12345);
    geometry();
 
@@ -160,15 +163,23 @@ int main(int argc,char *argv[])
                else
                   w=sp(vol,pk,pl);
 
-               z=vprod_dble(vol,icom,pk,pl);
-               r=vnorm_square_dble(vol,icom,pk)*vnorm_square_dble(vol,icom,pl);
+               qz=vprod_dble(vol,icom,pk,pl);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
+               qr=vnorm_square_dble(vol,icom,pk);
+               r=qr.q[0];
+               qr=vnorm_square_dble(vol,icom,pl);
+               r*=qr.q[0];
                d=(z.re-w.re)*(z.re-w.re)+(z.im-w.im)*(z.im-w.im);
                d=sqrt(d/r);
                if (d>dmax)
                   dmax=d;
 
-               z=vprod_dble(vol,icom,pk,pk);
-               r=vnorm_square_dble(vol,icom,pk);
+               qz=vprod_dble(vol,icom,pk,pk);
+               z.re=qz.re.q[0];
+               z.im=qz.im.q[0];
+               qr=vnorm_square_dble(vol,icom,pk);
+               r=qr.q[0];
 
                d=fabs(z.im/r);
                if (d>dmax)
@@ -197,13 +208,17 @@ int main(int argc,char *argv[])
                pk=wvd[i]+off;
                pl=wvd[i+1]+off;
 
-               w=vprod_dble(vol,icom,pk,pl);
-               r=vnorm_square_dble(vol,icom,pk)+
-                  zsq*vnorm_square_dble(vol,icom,pl)
-                  +2.0f*(z.re*w.re-z.im*w.im);
+               qz=vprod_dble(vol,icom,pk,pl);
+               w.re=qz.re.q[0];
+               w.im=qz.im.q[0];
+               qr=vnorm_square_dble(vol,icom,pk);
+               r=qr.q[0];
+               qr=vnorm_square_dble(vol,icom,pl);
+               r+=zsq*qr.q[0]+2.0*(z.re*w.re-z.im*w.im);
                mulc_vadd_dble(vol,pk,pl,z);
 
-               d=fabs(r/vnorm_square_dble(vol,icom,pk)-1.0);
+               qr=vnorm_square_dble(vol,icom,pk);
+               d=fabs(r/qr.q[0]-1.0);
                if (d>dmax)
                   dmax=d;
             }
@@ -229,19 +244,20 @@ int main(int argc,char *argv[])
                {
                   pl=wvd[i-1]+off;
                   vproject_dble(vol,icom,pk,pl);
-                  z=vprod_dble(vol,icom,pk,pl);
+                  qz=vprod_dble(vol,icom,pk,pl);
+                  z.re=qz.re.q[0];
+                  z.im=qz.im.q[0];
+                  qr=vnorm_square_dble(vol,icom,pk);
 
-                  d=(fabs(z.re)+fabs(z.im))/
-                     sqrt(vnorm_square_dble(vol,icom,pk));
-
+                  d=(fabs(z.re)+fabs(z.im))/sqrt(qr.q[0]);
                   if (d>dmax)
                      dmax=d;
                }
 
-               vnormalize_dble(vol,icom,pk);
-               r=vnorm_square_dble(vol,icom,pk);
+               (void)(vnormalize_dble(vol,icom,pk));
+               qr=vnorm_square_dble(vol,icom,pk);
 
-               d=fabs(r-1.0);
+               d=fabs(qr.q[0]-1.0);
                if (d>dmax)
                   dmax=d;
             }
@@ -287,14 +303,15 @@ int main(int argc,char *argv[])
                   mulc_vadd_dble(vol,pk,pl,z);
                }
 
-               r=vnorm_square_dble(vol,icom,pk);
+               qr=vnorm_square_dble(vol,icom,pk);
 
-               d=fabs(r);
+               d=fabs(qr.q[0]);
                if (d>dmax)
                   dmax=d;
             }
 
-            dmax/=vnorm_square_dble(vol,icom,wvd[0]+off);
+            qr=vnorm_square_dble(vol,icom,wvd[0]+off);
+            dmax/=qr.q[0];
             dmax=sqrt(dmax);
 
             if (my_rank==0)

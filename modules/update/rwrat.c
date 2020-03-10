@@ -3,20 +3,19 @@
 *
 * File rwrat.c
 *
-* Copyright (C) 2012-2014 Martin Luescher
+* Copyright (C) 2012-2014, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Rational function reweighting factor.
 *
-* The externally accessible function is
-*
-*   double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status)
+*   qflt rwrat(int irp,int n,int *np,int *isp,qflt *sqn,int **status)
 *     Generates a random pseudo-fermion field with normal distribution,
 *     assigns its square norm to sqn and returns -ln(r) (see the notes).
 *
-* Notes:
+* The quadruple-precision types qflt is defined in su3.h. See doc/qsum.pdf
+* for further explanations.
 *
 * The computation of the reweighting factor needed to correct for the inexact
 * pseudo-fermion action used for the charm and the strange quark is discussed
@@ -76,8 +75,11 @@
 *           number of subspace regenerations that were required.
 *
 * It is taken for granted that the solver parameters have been set by
-* set_solver_parms() [flags/sparms.c]. The bare quark mass is taken to be
-* the one last set by set_sw_parms() [flags/lat_parms.c].
+* set_solver_parms() [flags/solver-parms.c] and that the deflation subspace
+* has been properly set up if the DFL_SAP_GCR solver is used. The bare quark
+* mass is the one last set by set_sw_parms() [flags/lat_parms.c]. If phase-
+* periodic boundary conditions are chosen, the calling program must ensure
+* that the gauge field is phase-set.
 *
 * The computation of -ln(r) involves a series expansion of (1+Z)^(-1/2),
 * which is stopped when the remainder of the series is estimated to be
@@ -149,7 +151,7 @@ static void set_nsps(int n,int *np,int *isp)
 }
 
 
-static double set_eta(spinor_dble *eta)
+static qflt set_eta(spinor_dble *eta)
 {
    random_sd(VOLUME/2,eta,1.0);
    set_sd2zero(VOLUME/2,eta+(VOLUME/2));
@@ -194,7 +196,7 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
       rsd=reserve_wsd(np);
 
       set_res(np,sp.res);
-      tmcgm(sp.nmx,rs,np,mu,eta,rsd,status);
+      tmcgm(sp.nmx,sp.istop,rs,np,mu,eta,rsd,status);
 
       error_root(status[0]<0,1,"apply_Rk [rwrat.c]","MSCG solver failed "
                  "(isp=%d, status=%d)",isp,status[0]);
@@ -216,10 +218,10 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
 
       for (k=0;k<np;k++)
       {
-         sap_gcr(sp.nkv,sp.nmx,sp.res,mu[k],eta,rsd[0],stat);
+         sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,mu[k],eta,rsd[0],stat);
          mulg5_dble(VOLUME/2,rsd[0]);
          set_sd2zero(VOLUME/2,rsd[0]+(VOLUME/2));
-         sap_gcr(sp.nkv,sp.nmx,sp.res,-mu[k],rsd[0],rsd[1],stat+1);
+         sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,-mu[k],rsd[0],rsd[1],stat+1);
 
          error_root((stat[0]<0)||(stat[1]<0),1,"apply_Rk [rwrat.c]",
                     "SAP_GCR solver failed (isp=%d, status=%d;%d)",
@@ -249,10 +251,12 @@ static void apply_Rk(int np,int isp,double *mu,double *rmu,
 
       for (k=0;k<np;k++)
       {
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu[k],eta,rsd[0],stat);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,mu[k],eta,
+                      rsd[0],stat);
          mulg5_dble(VOLUME/2,rsd[0]);
          set_sd2zero(VOLUME/2,rsd[0]+(VOLUME/2));
-         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,-mu[k],rsd[0],rsd[1],stat+3);
+         dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,-mu[k],rsd[0],
+                      rsd[1],stat+3);
 
          error_root((stat[0]<0)||(stat[1]<0)||(stat[3]<0)||(stat[4]<0),1,
                     "apply_Rk [rwrat.c]","DFL_SAP_GCR solver failed (isp=%d, "
@@ -391,10 +395,11 @@ static void avg_stat(int nz,int n,int *isp,int **status)
 }
 
 
-double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status)
+qflt rwrat(int irp,int n,int *np,int *isp,qflt *sqn,int **status)
 {
    int k,l,ie,irat[3],iprms[2];
-   double lnr,delta,r[2];
+   double delta,tol;
+   qflt lnr,r0,r1;
    spinor_dble **wsd;
    ratfct_t rf;
    tm_parms_t tm;
@@ -458,31 +463,40 @@ double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status)
 
    k=1;
    apply_Z(n,np,isp,&rf,wsd[0],wsd[1],status);
-   r[0]=spinor_prod_re_dble(VOLUME/2,1,wsd[0],wsd[1]);
-   r[1]=norm_square_dble(VOLUME/2,1,wsd[1]);
-   lnr=cfs[0]*r[0]+cfs[1]*r[1];
+   r0=spinor_prod_re_dble(VOLUME/2,1,wsd[0],wsd[1]);
+   r1=norm_square_dble(VOLUME/2,1,wsd[1]);
+   tol=r1.q[0]*delta;
 
 #ifdef RWRAT_DBG
    message("[rwrat]: irp = %d, delta = %.1e, n = %d, precision limit = %.1e\n",
            irp,delta,n,PRECISION_LIMIT);
    message("[rwrat]: sqn = %.4e, <Z> = %.4e, <Z^2> = %.4e",
-           (*sqn),r[0],r[1]);
+           (*sqn).q[0],r0.q[0],r1.q[0]);
 #endif
 
-   if ((delta*r[1])>PRECISION_LIMIT)
+   scl_qflt(cfs[0],r0.q);
+   scl_qflt(cfs[1],r1.q);
+   add_qflt(r0.q,r1.q,lnr.q);
+
+   if (tol>PRECISION_LIMIT)
    {
       k=2;
       apply_Z(n,np,isp,&rf,wsd[1],wsd[0],status);
-      r[0]=spinor_prod_re_dble(VOLUME/2,1,wsd[1],wsd[0]);
-      r[1]=norm_square_dble(VOLUME/2,1,wsd[0]);
-      lnr+=(cfs[2]*r[0]+cfs[3]*r[1]);
+      r0=spinor_prod_re_dble(VOLUME/2,1,wsd[1],wsd[0]);
+      r1=norm_square_dble(VOLUME/2,1,wsd[0]);
+      tol=r1.q[0]*delta;
 
 #ifdef RWRAT_DBG
-      message(", <Z^3> = %.4e, <Z^4> = %.4e",r[0],r[1]);
+      message(", <Z^3> = %.4e, <Z^4> = %.4e",r0.q[0],r1.q[0]);
 #endif
 
-      error_root((delta*r[1])>PRECISION_LIMIT,1,"rwrat [rwrat.c]",
+      error_root(tol>PRECISION_LIMIT,1,"rwrat [rwrat.c]",
                  "Unable to reach the required precision");
+
+      scl_qflt(cfs[2],r0.q);
+      scl_qflt(cfs[3],r1.q);
+      add_qflt(r0.q,lnr.q,lnr.q);
+      add_qflt(r1.q,lnr.q,lnr.q);
    }
 
 #ifdef RWRAT_DBG
@@ -493,7 +507,7 @@ double rwrat(int irp,int n,int *np,int *isp,double *sqn,int **status)
    release_wsd();
 
 #ifdef RWRAT_DBG
-   message("[rwrat]: -ln(r) = %.4e\n",lnr);
+   message("[rwrat]: -ln(r) = %.4e\n",lnr.q[0]);
 #endif
 
    return lnr;

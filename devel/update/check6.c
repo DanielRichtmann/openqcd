@@ -3,7 +3,7 @@
 *
 * File check6.c
 *
-* Copyright (C) 2012-2014, 2016 Stefan Schaefer, Martin Luescher
+* Copyright (C) 2012-2016, 2018 Stefan Schaefer, Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -36,24 +36,31 @@
 #include "global.h"
 
 
-static double random_pf(void)
+static qflt random_pf(void)
 {
+   qflt nrm;
+   spinor_dble *phi,**wsd;
    mdflds_t *mdfs;
 
+   wsd=reserve_wsd(1);
+   phi=wsd[0];
+   random_sd(VOLUME/2,phi,1.0);
+   bnd_sd2zero(EVEN_PTS,phi);
+   nrm=norm_square_dble(VOLUME/2,1,phi);
+
    mdfs=mdflds();
-   random_sd(VOLUME/2,(*mdfs).pf[0],1.0);
+   assign_sd2sd(VOLUME/2,phi,(*mdfs).pf[0]);
+   release_wsd();
 
-   set_sd2zero(VOLUME/2,(*mdfs).pf[0]+VOLUME/2);
-   bnd_sd2zero(ALL_PTS,(*mdfs).pf[0]);
-
-   return norm_square_dble(VOLUME/2,1,(*mdfs).pf[0]);
+   return nrm;
 }
 
 
 static void divide_pf(double mu,int isp,int *status)
 {
+   spinor_dble *phi,**wsd;
+   spinor_dble *chi,**rsd;
    mdflds_t *mdfs;
-   spinor_dble *phi,*chi,**wsd;
    solver_parms_t sp;
    sap_parms_t sap;
    tm_parms_t tm;
@@ -62,24 +69,25 @@ static void divide_pf(double mu,int isp,int *status)
    if (tm.eoflg!=1)
       set_tm_parms(1);
 
+   wsd=reserve_wsd(1);
+   phi=wsd[0];
    mdfs=mdflds();
-   phi=(*mdfs).pf[0];
+   assign_sd2sd(VOLUME/2,(*mdfs).pf[0],phi);
    sp=solver_parms(isp);
 
    if (sp.solver==CGNE)
    {
-      tmcgeo(sp.nmx,sp.res,mu,phi,phi,status);
+      tmcgeo(sp.nmx,sp.istop,sp.res,mu,phi,phi,status);
 
       error_root(status[0]<0,1,"divide_pf [check6.c]",
                  "CGNE solver failed (parameter set no %d, status = %d)",
                  isp,status[0]);
 
-      wsd=reserve_wsd(1);
-      chi=wsd[0];
+      rsd=reserve_wsd(1);
+      chi=rsd[0];
       assign_sd2sd(VOLUME/2,phi,chi);
       Dwhat_dble(-mu,chi,phi);
       mulg5_dble(VOLUME/2,phi);
-      set_sd2zero(VOLUME/2,phi+VOLUME/2);
       release_wsd();
    }
    else if (sp.solver==SAP_GCR)
@@ -89,8 +97,7 @@ static void divide_pf(double mu,int isp,int *status)
 
       mulg5_dble(VOLUME/2,phi);
       set_sd2zero(VOLUME/2,phi+VOLUME/2);
-      sap_gcr(sp.nkv,sp.nmx,sp.res,mu,phi,phi,status);
-      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+      sap_gcr(sp.nkv,sp.nmx,sp.istop,sp.res,mu,phi,phi,status);
 
       error_root(status[0]<0,1,"divide_pf [check6.c]",
                  "SAP_GCR solver failed (parameter set no %d, status = %d)",
@@ -103,25 +110,27 @@ static void divide_pf(double mu,int isp,int *status)
 
       mulg5_dble(VOLUME/2,phi);
       set_sd2zero(VOLUME/2,phi+VOLUME/2);
-      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.res,mu,phi,phi,status);
-      set_sd2zero(VOLUME/2,phi+VOLUME/2);
+      dfl_sap_gcr2(sp.nkv,sp.nmx,sp.istop,sp.res,mu,phi,phi,status);
 
       error_root((status[0]<0)||(status[1]<0),1,
                  "divide_pf [check6.c]","DFL_SAP_GCR solver failed "
                  "(parameter set no %d, status = (%d,%d,%d))",
                  isp,status[0],status[1],status[2]);
    }
+
+   assign_sd2sd(VOLUME/2,phi,(*mdfs).pf[0]);
+   release_wsd();
 }
 
 
 int main(int argc,char *argv[])
 {
    int my_rank,bc,irw,isp,status[6],mnkv;
-   int bs[4],Ns,nmx,nkv,nmr,ncy,ninv;
+   int bs[4],Ns,nmx,nkv,nmr,ncy,ninv,idmy;
    double chi[2],chi_prime[2],theta[3];
-   double kappa,mu,res;
-   double mu1,mu2,act0,act1,sqn0,sqn1;
-   double da,ds,damx,dsmx;
+   double kappa,mu,mu1,mu2,mu1sq,mu2sq,res;
+   double da,ds,damx,dsmx,rdmy;
+   qflt act0,act1,sqn0,sqn1;
    solver_parms_t sp;
    FILE *flog=NULL,*fin=NULL;
 
@@ -148,7 +157,8 @@ int main(int argc,char *argv[])
                     "Syntax: check6 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.782);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.782);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -223,7 +233,11 @@ int main(int argc,char *argv[])
    MPI_Bcast(&nmx,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&res,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
    set_dfl_pro_parms(nkv,nmx,res);
-   set_hmc_parms(0,NULL,1,0,NULL,1,1.0);
+
+   idmy=0;
+   rdmy=0.0;
+   set_action_parms(0,ACF_TM1_EO,0,0,NULL,&idmy,&idmy);
+   set_hmc_parms(1,&idmy,1,1,&rdmy,1,1.0);
 
    print_solver_parms(status,status+1);
    print_sap_parms(0);
@@ -277,6 +291,9 @@ int main(int argc,char *argv[])
             mu2=0.0123;
          }
 
+         mu1sq=mu1*mu1;
+         mu2sq=mu2*mu2;
+
          random_ud();
          set_ud_phase();
 
@@ -291,7 +308,10 @@ int main(int argc,char *argv[])
          sqn0=random_pf();
 
          if ((irw&0x1)==1)
-            act0=(mu2*mu2-mu1*mu1)*action4(mu1,0,0,isp,1,status);
+         {
+            act0=action4(mu1,0,0,isp,0,1,status);
+            scl_qflt(mu2sq-mu1sq,act0.q);
+         }
          else
          {
             if ((isp==0)||(isp==1))
@@ -299,9 +319,12 @@ int main(int argc,char *argv[])
             else
                divide_pf(mu1,isp,status+3);
 
-            act0=mu1*mu1*(mu2*mu2-mu1*mu1)*action4(mu1,0,0,isp,1,status);
-            act0+=2.0*mu2*mu2*mu2*mu2*action4(sqrt(2.0)*mu2,0,0,isp,1,status);
-            act0*=((mu2*mu2-mu1*mu1)/(2*mu2*mu2-mu1*mu1));
+            act0=action4(mu1,0,0,isp,0,1,status);
+            act1=action4(sqrt(2.0)*mu2,0,0,isp,0,1,status);
+            scl_qflt(mu1sq*(mu2sq-mu1sq),act0.q);
+            scl_qflt(2.0*mu2sq*mu2sq,act1.q);
+            add_qflt(act1.q,act0.q,act0.q);
+            scl_qflt((mu2sq-mu1sq)/(2.0*mu2sq-mu1sq),act0.q);
          }
 
          if (my_rank==0)
@@ -323,8 +346,15 @@ int main(int argc,char *argv[])
          else
             act1=rwtm2eo(mu1,mu2,isp,&sqn1,status);
 
-         da=fabs(1.0-act1/act0);
-         ds=fabs(1.0-sqn1/sqn0);
+         act1.q[0]=-act1.q[0];
+         act1.q[1]=-act1.q[1];
+         sqn1.q[0]=-sqn1.q[0];
+         sqn1.q[1]=-sqn1.q[1];
+         add_qflt(act0.q,act1.q,act1.q);
+         add_qflt(sqn0.q,sqn1.q,sqn1.q);
+
+         da=fabs(act1.q[0]/act0.q[0]);
+         ds=fabs(sqn1.q[0]/sqn0.q[0]);
 
          if (da>damx)
             damx=da;

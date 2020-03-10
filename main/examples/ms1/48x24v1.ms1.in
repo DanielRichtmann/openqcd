@@ -1,43 +1,50 @@
 
 ################################################################################
 #
-# Two-flavour QCD with open boundary conditions, twisted-mass reweighting of
-# the first kind and decomposition of the reweighting factor in 2 factors.
+# Two-flavour QCD with SF boundary conditions, twisted-mass reweighting of
+# the second kind, even-odd preconditioning and no decomposition of the
+# reweighting factor.
+#
+# The specified block sizes assume the local lattice L0xL1xL2xL3 to contain
+# an even number of 4x4x6x6 blocks. Other lattice sizes can be accommodated
+# by changing the block sizes "bs" in the various parameter sections.
 #
 ################################################################################
 
 [Run name]
 name         48x24v1
 
-[Directories]
+[Log and data directories]
 log_dir      /data/openQCD/ms1/log
 dat_dir      /data/openQCD/ms1/dat
-loc_dir      /ndata/openQCD/cnfg
-cnfg_dir     /data/openQCD/cnfg
 
 [Configurations]
-first        100
-last         150
-step         1
+type         e
+cnfg_dir     /data/openQCD/qcd1/cnfg
+first        4
+last         64
+step         4
 nrw          1
 
 [Random number generator]
 level        0
-seed         79232
+seed         88705
 
 [Lattice parameters]
-kappa        0.13625
+kappa        0.13635
+isw          0
 csw          1.90952
 
 [Boundary conditions]
 type         0
+cG           1.0
 cF           1.0
 theta        0.0 0.0 0.0
 
 [Reweighting factor 0]
-rwfact       RWTM1
+rwfact       RWTM2_EO
 im0          0
-mu           0.001 0.003
+mu           4.5e-3
 isp          0
 nsrc         24
 
@@ -48,13 +55,14 @@ isolv        1
 nmr          4
 ncy          5
 nmx          128
+istop        0
 res          1.0e-11
 
 [SAP]
-bs           4 6 6 4
+bs           4 4 6 6
 
 [Deflation subspace]
-bs           4 6 6 4
+bs           4 4 6 6
 Ns           28
 
 [Deflation subspace generation]

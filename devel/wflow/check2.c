@@ -325,7 +325,7 @@ static double max_dev_ud(su3_dble *v)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,n;
+   int my_rank,iact,n;
    double phi[2],phi_prime[2],theta[3];
    double eps,dev;
    su3_dble *udb,**usv;
@@ -372,6 +372,9 @@ int main(int argc,char *argv[])
    theta[0]=0.0;
    theta[1]=0.0;
    theta[2]=0.0;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,0.973,1.127,1.0,1.0,phi,phi_prime,theta);
    print_bc_parms(0);
 

@@ -3,14 +3,12 @@
 *
 * File ranlux.c
 *
-* Copyright (C) 2011, 2013 Martin Luescher
+* Copyright (C) 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Initialization of the ranlux generators
-*
-* The externally accessible functions are
 *
 *   void start_ranlux(int level,int seed)
 *     Initializes the random number generators ranlxs and ranlxd on all
@@ -33,8 +31,6 @@
 *     coincide with the actual values of these parameters. The program then
 *     resets the generators on all processes to the state read from the file.
 *     The value returned is the tag read from the file.
-*
-* Notes:
 *
 * The program start_ranlux() guarantees that all generators are initialized
 * with different seed values. Moreover, the initialization is guaranteed to
@@ -74,26 +70,6 @@
 
 static int *rlxs_state=NULL,*rlxd_state;
 static stdint_t *state;
-
-
-static int check_machine(void)
-{
-   int np,ie;
-
-   MPI_Comm_size(MPI_COMM_WORLD,&np);
-
-   error_root(np!=NPROC,1,"check_machine [ranlux.c]",
-              "Actual number of processes does not match NPROC");
-
-   error_root(sizeof(stdint_t)!=4,1,"check_machine [ranlux.c]",
-              "Size of a stdint_t integer is not 4");
-
-   ie=endianness();
-   error_root(ie==UNKNOWN_ENDIAN,1,"check_machine [ranlux.c]",
-              "Unkown endianness");
-
-   return ie;
-}
 
 
 static int alloc_state(void)
@@ -150,7 +126,7 @@ static void reset_state(void)
 void start_ranlux(int level,int seed)
 {
    int my_rank,max_seed,loc_seed;
-   int n,iprms[2];
+   int np,n,iprms[2];
 
    if (NPROC>1)
    {
@@ -164,11 +140,13 @@ void start_ranlux(int level,int seed)
    }
 
    max_seed=INT_MAX/NPROC;
-
    error_root((level<0)||(level>1)||(seed<1)||(seed>max_seed),1,
               "start_ranlux [ranlux.c]","Parameters are out of range");
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+   MPI_Comm_size(MPI_COMM_WORLD,&np);
+   error(np!=NPROC,1,"start_ranlux [ranlux.c]",
+         "Actual number of MPI processes does not match NPROC");
    loc_seed=0;
 
    for (n=0;n<NPROC;n++)
@@ -184,7 +162,7 @@ void start_ranlux(int level,int seed)
 
 void export_ranlux(int tag,char *out)
 {
-   int my_rank,ie,iw;
+   int my_rank,iw,endian;
    int dmy,tag0,tag1;
    int n,ip,ns,k;
    stdint_t lsize[9];
@@ -197,7 +175,7 @@ void export_ranlux(int tag,char *out)
    tag0=mpi_tag();
    tag1=mpi_tag();
    iw=0;
-   ie=check_machine();
+   endian=endianness();
    ns=alloc_state();
 
    if (my_rank==0)
@@ -217,7 +195,7 @@ void export_ranlux(int tag,char *out)
       lsize[7]=(stdint_t)(L2);
       lsize[8]=(stdint_t)(L3);
 
-      if (ie==BIG_ENDIAN)
+      if (endian==BIG_ENDIAN)
          bswap_int(9,lsize);
 
       iw+=fwrite(lsize,sizeof(stdint_t),9,fout);
@@ -249,7 +227,7 @@ void export_ranlux(int tag,char *out)
          for (k=0;k<ns;k++)
             state[k]=(stdint_t)(rlxs_state[k]);
 
-         if (ie==BIG_ENDIAN)
+         if (endian==BIG_ENDIAN)
             bswap_int(ns,state);
 
          iw+=fwrite(state,sizeof(stdint_t),ns,fout);
@@ -267,7 +245,7 @@ void export_ranlux(int tag,char *out)
 
 int import_ranlux(char *in)
 {
-   int my_rank,ie,ir;
+   int my_rank,ir,endian;
    int dmy,tag0,tag1;
    int n,ip,ns,k;
    stdint_t lsize[9];
@@ -280,7 +258,7 @@ int import_ranlux(char *in)
    tag0=mpi_tag();
    tag1=mpi_tag();
    ir=0;
-   ie=check_machine();
+   endian=endianness();
    ns=alloc_state();
 
    if (my_rank==0)
@@ -291,7 +269,7 @@ int import_ranlux(char *in)
 
       ir+=fread(lsize,sizeof(stdint_t),9,fin);
 
-      if (ie==BIG_ENDIAN)
+      if (endian==BIG_ENDIAN)
          bswap_int(9,lsize);
 
       n=0;
@@ -317,7 +295,7 @@ int import_ranlux(char *in)
       {
          ir+=fread(state,sizeof(stdint_t),ns,fin);
 
-         if (ie==BIG_ENDIAN)
+         if (endian==BIG_ENDIAN)
             bswap_int(ns,state);
 
          for (k=0;k<ns;k++)

@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2007, 2008, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -31,58 +31,50 @@
 #include "global.h"
 
 
-static void check_basis(int Ns,double *dev0,double *dev1)
+static double check_basis(int Ns)
 {
    int nb,isw,i,j;
-   double dev,x[2],y[2];
+   double dev,dmx;
    complex_dble z;
+   complex_qflt zq;
    block_t *b,*bm;
 
    b=blk_list(DFL_BLOCKS,&nb,&isw);
    bm=b+nb;
 
-   x[0]=0.0;
-   x[1]=0.0;
+   dmx=0.0;
 
    for (;b<bm;b++)
    {
       for (i=1;i<=Ns;i++)
       {
+         assign_s2sd((*b).vol,(*b).s[i],(*b).sd[0]);
+
          for (j=1;j<=i;j++)
          {
-            z=spinor_prod_dble((*b).vol,0,(*b).sd[i],(*b).sd[j]);
+            assign_s2sd((*b).vol,(*b).s[j],(*b).sd[1]);
+            zq=spinor_prod_dble((*b).vol,0,(*b).sd[0],(*b).sd[1]);
+            z.re=zq.re.q[0];
+            z.im=zq.im.q[0];
             dev=sqrt(z.re*z.re+z.im*z.im);
 
             if (i==j)
                dev=fabs(1.0-dev);
 
-            if (dev>x[0])
-               x[0]=dev;
+            if (dev>dmx)
+               dmx=dev;
          }
-
-         assign_s2sd((*b).vol,(*b).s[i],(*b).sd[0]);
-         mulr_spinor_add_dble((*b).vol,(*b).sd[0],(*b).sd[i],-1.0);
-         dev=norm_square_dble((*b).vol,0,(*b).sd[0]);
-         dev=sqrt(dev);
-
-         if (dev>x[1])
-            x[1]=dev;
       }
    }
 
    if (NPROC>1)
    {
-      MPI_Reduce(x,y,2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(y,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      dev=dmx;
+      MPI_Reduce(&dev,&dmx,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+      MPI_Bcast(&dmx,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+   }
 
-      (*dev0)=y[0];
-      (*dev1)=y[1];
-   }
-   else
-   {
-      (*dev0)=x[0];
-      (*dev1)=x[1];
-   }
+   return dmx;
 }
 
 
@@ -91,11 +83,9 @@ int main(int argc,char *argv[])
    int my_rank,bc,i;
    int bs[4],Ns,nv;
    double phi[2],phi_prime[2],theta[3];
-   double dev,dev0,dev1;
+   double dev,dmx[3];
    complex **vm,**wv,z;
-   complex_dble **wvd;
    spinor **ws;
-   spinor_dble **wsd;
    FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -128,6 +118,7 @@ int main(int argc,char *argv[])
                     "Syntax: check2 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -146,15 +137,11 @@ int main(int argc,char *argv[])
    set_dfl_parms(bs,Ns);
 
    alloc_ws(Ns+1);
-   alloc_wsd(1);
    alloc_wv(2);
-   alloc_wvd(2);
 
    ws=reserve_ws(Ns+1);
-   wsd=reserve_wsd(1);
    vm=vflds()+Ns;
    wv=reserve_wv(2);
-   wvd=reserve_wvd(2);
    nv=Ns*VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
 
    for (i=0;i<Ns;i++)
@@ -164,13 +151,9 @@ int main(int argc,char *argv[])
    }
 
    dfl_subspace(ws);
-   check_basis(Ns,&dev0,&dev1);
-
-   message("Orthonormality of the basis vectors: %.1e\n",dev0);
-   message("Single-precision basis vectors:      %.1e\n\n",dev1);
-
-   dev0=0.0;
-   dev1=0.0;
+   dmx[0]=check_basis(Ns);
+   dmx[1]=0.0;
+   dmx[2]=0.0;
 
    for (i=0;i<Ns;i++)
    {
@@ -178,59 +161,33 @@ int main(int argc,char *argv[])
       mulr_spinor_add(VOLUME,ws[Ns],ws[i],-1.0f);
       dev=(double)(norm_square(VOLUME,1,ws[Ns])/
                    norm_square(VOLUME,1,ws[i]));
-      if (dev>dev0)
-         dev0=dev;
-
-      assign_s2s(VOLUME,ws[i],ws[Ns]);
-      dfl_sub_v2s(vm[i],ws[Ns]);
-      dev=(double)(norm_square(VOLUME,1,ws[Ns])/
-                   norm_square(VOLUME,1,ws[i]));
-      if (dev>dev1)
-         dev1=dev;
+      if (dev>dmx[1])
+         dmx[1]=dev;
    }
+
+   for (i=0;i<10;i++)
+   {
+      random_v(nv,wv[0],1.0f);
+      dfl_v2s(wv[0],ws[Ns]);
+      dfl_s2v(ws[Ns],wv[1]);
+      z.re=-1.0f;
+      z.im=0.0f;
+      mulc_vadd(nv,wv[0],wv[1],z);
+      dev=(double)(vnorm_square(nv,1,wv[0])/vnorm_square(nv,1,wv[1]));
+
+      if (dev>dmx[2])
+         dmx[2]=dev;
+   }
+
+   dmx[2]=sqrt(dmx[2]);
 
    if (my_rank==0)
    {
-      printf("Check of the single-precision vector modes:\n");
-      printf("Using dfl_v2s:     %.1e\n",sqrt(dev0));
-      printf("Using dfl_sub_v2s: %.1e\n\n",sqrt(dev1));
-   }
-
-   dev0=0.0;
-   dev1=0.0;
-
-   random_v(nv,wv[0],1.0f);
-   random_vd(nv,wvd[0],1.0);
-
-   dfl_v2s(wv[0],ws[Ns]);
-   dfl_s2v(ws[Ns],wv[1]);
-   z.re=-1.0f;
-   z.im=0.0f;
-   mulc_vadd(nv,wv[0],wv[1],z);
-   dev0=(double)(vnorm_square(nv,1,wv[0])/
-                 vnorm_square(nv,1,wv[1]));
-
-   dfl_vd2sd(wvd[0],wsd[0]);
-   dfl_sd2vd(wsd[0],wvd[1]);
-   diff_vd2v(nv,wvd[0],wvd[1],wv[0]);
-   assign_vd2v(nv,wvd[1],wv[1]);
-   dev1=(double)(vnorm_square(nv,1,wv[0])/
-                 vnorm_square(nv,1,wv[1]));
-
-   dfl_sub_vd2sd(wvd[1],wsd[0]);
-   dev=norm_square_dble(VOLUME,1,wsd[0])/vnorm_square_dble(nv,1,wvd[1]);
-   if (dev>dev1)
-      dev1=dev;
-
-   if (my_rank==0)
-   {
-      printf("Check of\n");
-      printf("dfl_s2v,..:   %.1e\n",sqrt(dev0));
-      printf("dfl_sd2vd,..: %.1e\n\n",sqrt(dev1));
-   }
-
-   if (my_rank==0)
+      printf("Orthonormality of the basis vectors:        %.1e\n",dmx[0]);
+      printf("Check of the single-precision vector modes: %.1e\n",dmx[1]);
+      printf("Check of dfl_s2v() and dfl_v2s():           %.1e\n\n",dmx[2]);
       fclose(flog);
+   }
 
    MPI_Finalize();
    exit(0);

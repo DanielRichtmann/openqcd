@@ -3,14 +3,12 @@
 *
 * File Aw_ops.c
 *
-* Copyright (C) 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2011-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Allocation and initialization of the little Dirac operator.
-*
-* The externally accessible functions are
 *
 *   Aw_t Awop(void)
 *     Returns a structure containing the matrices that describe the
@@ -41,14 +39,14 @@
 *     updated as well (see ltl_modes.c). On exit the program returns 0 if
 *     all matrix inversions were safe and 1 if not.
 *
-* Notes:
-*
 * For a description of the little Dirac operator and the associated data
 * structures see README.Aw. The twisted-mass flag is retrieved from the
 * parameter data base (see flags/lat_parms.c).
 *
 * The inversion of a double-precision complex matrix is considered to be
 * safe if and only if its Frobenius condition number is less than 10^6.
+* The program set_Awhat() calls set_ltl_modes() [ltl_modes.c], which
+* requires a workspace of 2 double-precision complex vector fields.
 *
 * All programs in this module may involve global communications and must
 * be called simultaneously on all processes.
@@ -64,6 +62,7 @@
 #include "su3.h"
 #include "flags.h"
 #include "utils.h"
+#include "sflds.h"
 #include "vflds.h"
 #include "linalg.h"
 #include "sw_term.h"
@@ -235,12 +234,16 @@ static void assign_Awd2Aw(Aw_dble_t *Bwd,Aw_t *Bw)
 static void update_Awdiag(double m0,double mu,int eo)
 {
    int nbs,isw,vol,volh;
-   int n,nsw,k,l;
+   int n,nsw,k,l,iupd;
    double dm0,dme,dmo;
-   complex_dble w,*z;
+   complex_dble *z;
+   complex_qflt cqsm;
+   spinor **s;
    spinor_dble **sd;
    block_t *b;
+   sw_parms_t swp;
 
+   swp=sw_parms();
    dm0=m0-old_m0[0];
    dme=mu-old_mu[0];
 
@@ -263,7 +266,13 @@ static void update_Awdiag(double m0,double mu,int eo)
    vol=(*b).vol;
    volh=vol/2;
 
-   if ((nupd<MAX_UPDATE)&&(fabs(dm0)<1.0)&&(fabs(dme)<1.0)&&(fabs(dmo)<1.0))
+   iupd=(nupd<MAX_UPDATE);
+   iupd&=(fabs(dm0)<1.0);
+   iupd&=(fabs(dme)<1.0);
+   iupd&=(fabs(dmo)<1.0);
+   iupd&=((swp.isw==0)||(dm0==0.0));
+
+   if (iupd)
    {
       for (n=0;n<nb;n++)
       {
@@ -274,6 +283,7 @@ static void update_Awdiag(double m0,double mu,int eo)
          else
             z=Awd.Aoo[nsw-nbh];
 
+         s=(*b).s;
          sd=(*b).sd;
 
          for (k=0;k<Ns;k++)
@@ -282,37 +292,49 @@ static void update_Awdiag(double m0,double mu,int eo)
 
             if (dme!=0.0)
             {
+               assign_s2sd(volh,s[k+1],sd[0]);
+
                for (l=k;l<Ns;l++)
                {
-                  w=spinor_prod5_dble(volh,0,sd[k+1],sd[l+1]);
-
                   if (l!=k)
                   {
-                     z[Ns*k+l].re-=dme*w.im;
-                     z[Ns*k+l].im+=dme*w.re;
-                     z[Ns*l+k].re+=dme*w.im;
-                     z[Ns*l+k].im+=dme*w.re;
+                     assign_s2sd(volh,s[l+1],sd[1]);
+                     cqsm=spinor_prod5_dble(volh,0,sd[0],sd[1]);
+
+                     z[Ns*k+l].re-=dme*cqsm.im.q[0];
+                     z[Ns*k+l].im+=dme*cqsm.re.q[0];
+                     z[Ns*l+k].re+=dme*cqsm.im.q[0];
+                     z[Ns*l+k].im+=dme*cqsm.re.q[0];
                   }
                   else
-                     z[Ns*k+k].im+=dme*w.re;
+                  {
+                     cqsm=spinor_prod5_dble(volh,0,sd[0],sd[0]);
+                     z[Ns*k+k].im+=dme*cqsm.re.q[0];
+                  }
                }
             }
 
             if (dmo!=0.0)
             {
+               assign_s2sd(volh,s[k+1]+volh,sd[0]);
+
                for (l=k;l<Ns;l++)
                {
-                  w=spinor_prod5_dble(volh,0,sd[k+1]+volh,sd[l+1]+volh);
-
                   if (l!=k)
                   {
-                     z[Ns*k+l].re-=dmo*w.im;
-                     z[Ns*k+l].im+=dmo*w.re;
-                     z[Ns*l+k].re+=dmo*w.im;
-                     z[Ns*l+k].im+=dmo*w.re;
+                     assign_s2sd(volh,s[l+1]+volh,sd[1]);
+                     cqsm=spinor_prod5_dble(volh,0,sd[0],sd[1]);
+
+                     z[Ns*k+l].re-=dmo*cqsm.im.q[0];
+                     z[Ns*k+l].im+=dmo*cqsm.re.q[0];
+                     z[Ns*l+k].re+=dmo*cqsm.im.q[0];
+                     z[Ns*l+k].im+=dmo*cqsm.re.q[0];
                   }
                   else
-                     z[Ns*k+k].im+=dmo*w.re;
+                  {
+                     cqsm=spinor_prod5_dble(volh,0,sd[0],sd[0]);
+                     z[Ns*k+k].im+=dmo*cqsm.re.q[0];
+                  }
                }
             }
          }
@@ -337,14 +359,28 @@ static void update_Awdiag(double m0,double mu,int eo)
          else
             z=Awd.Aoo[nsw-nbh];
 
+         s=(*b).s;
          sd=(*b).sd;
 
          for (l=0;l<Ns;l++)
          {
-            Dw_blk_dble(DFL_BLOCKS,n,mu,l+1,0);
+            assign_s2sd(vol,s[l+1],sd[0]);
+            Dw_blk_dble(DFL_BLOCKS,n,mu,0,1);
+
+            cqsm=spinor_prod_dble(vol,0,sd[0],sd[1]);
+            z[Ns*l+l].re=cqsm.re.q[0];
+            z[Ns*l+l].im=cqsm.im.q[0];
 
             for (k=0;k<Ns;k++)
-               z[Ns*k+l]=spinor_prod_dble(vol,0,sd[k+1],sd[0]);
+            {
+               if (k!=l)
+               {
+                  assign_s2sd(vol,s[k+1],sd[0]);
+                  cqsm=spinor_prod_dble(vol,0,sd[0],sd[1]);
+                  z[Ns*k+l].re=cqsm.re.q[0];
+                  z[Ns*k+l].im=cqsm.im.q[0];
+               }
+            }
          }
 
          b+=1;
@@ -366,10 +402,12 @@ void set_Aw(double mu)
    int eo,nbs,isw,vol,ibn,k,l;
    double dprms[1],m0;
    complex_dble *z,*w,sp[2];
+   complex_qflt cqsm;
+   spinor **s;
    spinor_dble **sd,**sde,**sdo;
    block_t *b;
    b2b_flds_t *b2b;
-   sw_parms_t sw;
+   sw_parms_t swp;
    tm_parms_t tm;
 
    if (NPROC>1)
@@ -383,8 +421,8 @@ void set_Aw(double mu)
    if (Awd.Ns==0)
       alloc_Awd(&Awd);
 
-   sw=sw_parms();
-   m0=sw.m0;
+   swp=sw_parms();
+   m0=swp.m0;
    tm=tm_parms();
    eo=tm.eoflg;
 
@@ -410,14 +448,28 @@ void set_Aw(double mu)
          z=Awd.Aoo[nsw-nbh];
 
       vol=(*b).vol;
+      s=(*b).s;
       sd=(*b).sd;
 
       for (l=0;l<Ns;l++)
       {
-         Dw_blk_dble(DFL_BLOCKS,n,mu,l+1,0);
+         assign_s2sd(vol,s[l+1],sd[0]);
+         Dw_blk_dble(DFL_BLOCKS,n,mu,0,1);
+
+         cqsm=spinor_prod_dble(vol,0,sd[0],sd[1]);
+         z[Ns*l+l].re=cqsm.re.q[0];
+         z[Ns*l+l].im=cqsm.im.q[0];
 
          for (k=0;k<Ns;k++)
-            z[Ns*k+l]=spinor_prod_dble(vol,0,sd[k+1],sd[0]);
+         {
+            if (k!=l)
+            {
+               assign_s2sd(vol,s[k+1],sd[0]);
+               cqsm=spinor_prod_dble(vol,0,sd[0],sd[1]);
+               z[Ns*k+l].re=cqsm.re.q[0];
+               z[Ns*k+l].im=cqsm.im.q[0];
+            }
+         }
       }
 
       for (nu=0;nu<4;nu++)
@@ -529,12 +581,12 @@ int set_Awhat(double mu)
 {
    int eo,n,m,ifc,ifail;
    double m0,cn;
-   sw_parms_t sw;
+   sw_parms_t swp;
    tm_parms_t tm;
 
    set_Aw(mu);
-   sw=sw_parms();
-   m0=sw.m0;
+   swp=sw_parms();
+   m0=swp.m0;
    tm=tm_parms();
    eo=tm.eoflg;
 

@@ -18,7 +18,7 @@ Currently three elementary integration schemes are supported, the leapfrog,
 the 2nd order Omelyan-Mryglod-Folk (OMF) and a 4th order OMF integrator. They
 are labeled LPFR, OMF2 and OMF4, respectively.
 
-All these integrators consist in a sequence of update steps 
+All these integrators consist in a sequence of update steps
 
  TP(eps,F): P,U -> P-eps*F,U
 
@@ -53,8 +53,8 @@ where r0 is a tunable parameter, usually set to a value in the range from 1/6
 to 0.2, while
 
   r1=0.08398315262876693
-  r2=0.2539785108410595 
-  r3=0.6822365335719091 
+  r2=0.2539785108410595
+  r3=0.6822365335719091
   r4=-0.03230286765269967
 
 are already fine-tuned values (in the literature, the parameter r0 is often
@@ -95,7 +95,7 @@ and, for each level,
   nstep       Power of the elementary integrator
   nfr         Number of forces integrated at this level
   ifr         Indices of these forces
- 
+
 The force indices refer to the force data base (see forces/README.forces). The
 step sizes need not be given, since these can be inferred from the the data
 provided.
@@ -108,18 +108,18 @@ The data characterizing a hierarchical integrator are administered by the
 parameter data base in the directory modules/flags. The data base consists
 of various components that are managed by the following modules:
 
-hmc_parms.c        Basic HMC parameters
-mdint_parms.c      Descriptions of the integrator levels
-action_parms.c     Action parameter sets
-force_parms.c      Force parameter sets
-solver_parms.c     Solver parameter sets
+hmc_parms.c        Basic HMC parameters.
+smd_parms.c        Basic SMD parameters.
+mdint_parms.c      Descriptions of the integrator levels.
+action_parms.c     Action parameter sets.
+force_parms.c      Force parameter sets.
+solver_parms.c     Solver parameter sets.
 
 In the last three cases, the different parameter sets are labeled by an
-integer index. Detailed descriptions of the available parameters are given at
-the top of these modules.
+integer index. Detailed descriptions of the available parameters are given
+at the top of these modules.
 
 In a main program, the desired parameter sets must first be entered into the
 data base. They can then be referred to by their index (where appropriate) and
 be easily retrieved in any subprogram. See main/qcd1.in for an example of a
 parameter file that contains a complete specification of an MD integrator.
-

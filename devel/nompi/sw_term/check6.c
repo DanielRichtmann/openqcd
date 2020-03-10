@@ -3,12 +3,12 @@
 *
 * File check6.c
 *
-* Copyright (C) 2005, 2009, 2010, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Accuracy of inv_pauli_dble()
+* Accuracy of inv_pauli_dble().
 *
 *******************************************************************************/
 
@@ -36,7 +36,11 @@ typedef union
 } spin_dble_t;
 
 static spin_t vs ALIGNED16;
+#if (defined AVX)
+static spin_dble_t vd ALIGNED32;
+#else
 static spin_dble_t vd ALIGNED16;
+#endif
 static const weyl vs0={{{0.0f,0.0f},{0.0f,0.0f},{0.0f,0.0f}},
                        {{0.0f,0.0f},{0.0f,0.0f},{0.0f,0.0f}}};
 static const weyl_dble vd0={{{0.0,0.0},{0.0,0.0},{0.0,0.0}},
@@ -54,7 +58,9 @@ int main(void)
    printf("Accuracy of inv_pauli_dble()\n");
    printf("----------------------------\n\n");
 
-#if (defined x64)
+#if (defined AVX)
+   printf("Using AVX instructions\n\n");
+#elif (defined x64)
    printf("Using SSE3 instructions and up to 16 xmm registers\n\n");
 #endif
 

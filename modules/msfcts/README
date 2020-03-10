@@ -1,0 +1,25 @@
+
+********************************************************************************
+
+                   Generic master-field measurement functions
+
+********************************************************************************
+
+
+Files
+-----
+
+farchive.c       I/O functions for real-valued observable fields.
+
+fldops.c         Basic utility programs for observable fields.
+
+latavg.c         Lattice averages of observable fields.
+
+pt2pt.c          Computation of point-to-point correlation functions.
+
+
+Include file
+------------
+
+The file msfcts.h defines the prototypes for all externally accessible
+functions that are defined in the *.c files listed above.

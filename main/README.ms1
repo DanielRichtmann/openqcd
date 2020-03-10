@@ -3,7 +3,7 @@ Main program ms1
 
 SYNTAX
 
-ms1 -i <filename> [-noexp] [-a [-norng]]
+ms1 -i <filename> [-a [-norng]]
 
 
 DESCRIPTION
@@ -21,21 +21,17 @@ through an input file. The options are
                  a fully qualified name or be specified relative to the
                  working directory.
 
--noexp           Field configurations are normally read in exported
-                 file format from the specified configuration directory.
-                 If this option is set, the configurations are instead
-                 expected in the imported file format on the local disks.
-
 -a               This option specifies that the run is a continuation of
                  a previous run. All output data are appended to the
                  previous output files.
 
--norng           Continuation runs normally start from the saved state
-                 of the random number generators. This option specifies
-                 that the traditional initialization of the generators is
-                 to be used (see section RANDOM NUMBER GENERATOR below).
-                 NOTE: starting from the saved state is not possible if
-                 the process grid sizes NPROC0,..,NPROC3 are changed.
+-norng           Continuation runs normally start from the saved state of
+                 the random number generators. This option specifies that
+                 the generators should be reinitialized using the level and
+                 seed specified in the input parameter file. An error occurs
+                 if these values coincide with previously used ones.
+                 NOTE: Starting from the saved state is not possible if the
+                 process grid sizes NPROC0,..,NPROC3 are changed.
 
 
 INPUT PARAMETERS
@@ -46,44 +42,51 @@ example of a valid input file is ms1.in in this directory. The parameter
 values specified in this file are:
 
 [Run name]
-name         Snoopy137             # Run name = configuration base name
+name         Snoopy137             # Run name = configuration base name.
 
-[Directories]
-log_dir      ../data/ms1/log       # Log file directory
-dat_dir      ../data/ms1/dat       # Data file directory
-loc_dir      /ndata/qcd1/cnfg      # Local configuration directory
-cnfg_dir     /data/qcd1/cnfg       # Exported configuration directory
+[Log and data directories]
+log_dir      ../data/ms1/log       # Log file directory.
+dat_dir      ../data/ms1/dat       # Data file directory.
 
 [Configurations]
-first        1                     # No of the first configuration to consider
-last         4                     # No of the last configuration
+type         e                     # Configuration storage type (e=exported,
+                                   # b=block-exported, l=local).
+cnfg_dir     /data/qcd1/cnfg       # Configuration directory.
+nio_nodes    12                    # Number of top level subdirectories used
+                                   # for block-exported or local storage.
+nio_streams  8                     # Number of parallel I/O streams (block-
+                                   # exported or local storage).
+first        1                     # No of the first configuration to consider.
+last         4                     # No of the last configuration.
 step         1                     # Configuration separation (last-first must
-                                   # be an integer multiple of step)
+                                   # be an integer multiple of step).
 nrw          2                     # Number of reweighting factors to be
-                                   # computed in this run
+                                   # computed in this run.
 
 [Random number generator]
-level        0                     # Ranlux level
-seed         73099                 # Ranlux seed
+level        0                     # Ranlux level.
+seed         73099                 # Ranlux seed.
 
 [Lattice parameters]
-kappa        0.1300 0.1290         # List of sea-quark hopping parameters
+kappa        0.1300 0.1290         # List of sea-quark hopping parameters.
+isw          0                     # Form of the SW term (0: traditional,
+                                   # 1: exponential).
 csw          1.234                 # Coefficient of the SW term in the
-                                   # Dirac operator
+                                   # Dirac operator.
 
 [Boundary conditions]
 type         2                     # Type of boundary condition (0: open,
-                                   # 1: SF, 2: open-SF, 3: periodic)
+                                   # 1: SF, 2: open-SF, 3: periodic).
 phi          0.12 -0.56            # Boundary values of the gauge field at
-                                   # time 0
+                                   # time 0.
 phi'         0.92 0.76             # Boundary values of the gauge field at
-                                   # time NPROC0*L0
+                                   # time NPROC0*L0.
 cF           0.95                  # Fermion action improvement coefficient
-                                   # at time 0
+                                   # at time 0.
 cF'          0.90                  # Fermion action improvement coefficient
-                                   # at time NPROC0*L0
+                                   # at time NPROC0*L0.
 theta        0.5 1.0 -0.5          # Angles specifying the phase-periodic bc
-                                   # of the quark fields in space
+                                   # of the quark fields in space.
 
 Then follows a description of the reweighting factors labeled by an index that
 runs from 0 to nrw-1 (see flags/rw_parms.c). The available reweighting factors
@@ -94,52 +97,66 @@ further explanations).
 Reweighting factors of type RWRAT require a choice of a rational function. The
 solvers to be used need to be specified too (see doc/parms.pdf).
 
-Superfluous sections and parameters may be deleted or commented out. If
-present they are not read by the program and the specified values (if any)
-have no effect on the run. As already mentioned, the indices of the parameter
-sections describing the reweighting factors must increase in steps of 1 from 0
-to nrw-1. The indices of the solver sections can be freely chosen in the range
-0,..,31.
+The chosen parameter values must satisfy the following constraints:
+
+- In the case of configuration storage of type "b", the block size bs must
+  divide the lattice size and the local lattice must divide the block size.
+  Moreover, nio_nodes and nio_streams must divide the number nb of blocks.
+
+- In the case of storage of type "l", nio_nodes and nio_streams must divide
+  the number NPROC of MPI processes.
+
+- Continuation runs (option -a) require all algorithmic parameters to be
+  the same as in the previous run.
+
+As already mentioned, the indices of the parameter sections describing the
+reweighting factors must increase in steps of 1 from 0 to nrw-1. Superfluous
+sections and parameters may be deleted or commented out. If present they are
+not read by the program and the specified values (if any) have no effect on
+the run.
+
+
+CONFIGURATION DIRECTORY STRUCTURE
+
+The configuration directory tree is expected to be of the form described in
+README.ym1.
 
 
 FILES
 
-The program searches for exported field configurations
+The program searches for field configurations
 
-  <run name>n<int>
+  <name>n<int>
 
-in the directory cnfg_dir, where <int> is the configuration number.
-Imported configurations
-
-  <run name>n<int>_0       (on process 0)
-  <run name>n<int>_1       (on process 1)
-  <run name>n<int>_2       (on process 2)
-        ...                     ...
-
-are searched in the directory loc_dir.
+in the directory cnfg_dir or in its subdirectories in the case of storage of
+type "b" and "l", where <int> is the configuration number. In the latter two
+cases the suffix _b<block number> and _<process rank>, respectively, is added
+to the configuration file name.
 
 The program writes the results of the computations to the files
 
-  <run name>.ms1.log   Log file
-  <run name>.ms1.log~  Backup log file
+  <name>.ms1.log   Log file
+  <name>.ms1.log~  Backup log file
 
-  <run name>.ms1.dat   Measurement data file
-  <run name>.ms1.dat~  Backup data file
+  <name>.ms1.dat   Measurement data file
+  <name>.ms1.dat~  Backup data file
 
-  <run name>.ms1.par   Parameter data file
-  <run name>.ms1.par~  Backup parameter data file
+  <name>.ms1.par   Parameter data file
+  <name>.ms1.par~  Backup parameter data file
 
-  <run name>.ms1.rng   Exported state of the random number generators
-  <run name>.ms1.rng~  Backup random number generator state file
+  <name>.ms1.rng   Exported state of the random number generators
+  <name>.ms1.rng~  Backup random number generator state file
 
 in the directories log_dir (log file) and dat_dir (data files). The parameter
 file is created at the beginning of the run and remains unchanged after that.
 The backup copies *.log~, *.dat~ and *.rng~ of the *.log, *.dat and *.rng file
 are updated each time a configuration is fully processed.
 
-The directories log_dir and dat_dir, as well as the directory cnfg_dir if the
-option -noexp is not set, must be accessible from process 0. If the -noexp
-option is set, the directory loc_dir must be accessible from all processes.
+The directories log_dir and dat_dir, as well as the directory cnfg_dir in the
+case of configuration storage type "e" must be accessible from process 0. If
+the storage type is "b" or "l", the directory cnfg_dir must be accessible from
+the processes that write to the configuration files (see README.io and
+README.ym1).
 
 
 OUTPUT DATA
@@ -163,11 +180,12 @@ After the header data, the data file contains a sequence of structures
 static struct
 {
    int nc;
-   double ***sqn,***lnr;
+   qflt ***sqn,***lnr;
 } data;
 
-labeled by the field configuration number nc. For each configuration, the data
-are
+labeled by the field configuration number nc. The quadruple-precision type
+qflt is defined in su3.h. See doc/qsum.pdf for further explanations. For each
+configuration, the data are
 
   sqn[irw][ifct][isrc]    Square norm of the source field number isrc
                           generated in the course of the calculation of
@@ -176,7 +194,7 @@ are
 
   lnr[irw][ifct][isrc]    The logarithm, -ln(r), of the associated stochastic
                           estimate of the reweighting factor r (irw=0,..,nrw-1,
-                          ifct=0,..,nfct[irw-1], isrc=0,..,nsrc[irw]-1).
+                          ifct=0,..,nfct[irw]-1, isrc=0,..,nsrc[irw]-1).
 
 See the functions write_file_head() and write_data() in the file ms1.c for the
 exact order in which the data are written to the output files.
@@ -222,26 +240,20 @@ initialization of the generator is as follows:
 
   o If the option -norng is set, the parameters "level" and "seed" are read
     from the input parameter file and the generator is initialized using
-    "seed"^n (bitwise exclusive or) as the seed value, where n is the number
-    of the last field configuration saved in the previous run.
+    these.
 
-  o Otherwise the state of the generator is read from the file
-    <run name>.ms1.rng. The generator is thus reset to the state it had at the
-    end of the previous run. Note that the process grid NPROC0x..xNPROC3 must
-    be unchanged in this case from one run to the next (an error occurs if it
-    is not).
+  o Otherwise the state of the generator is read from the file <name>.rng.
+    The generator is thus reset to the state it had at the end of the previous
+    run. Note that the process grid NPROC0x..xNPROC3 must be unchanged in this
+    case.
 
-In a sequence of continuation runs, it is therefore recommended to leave the
-process grid unchanged and to make no use of the option -norng. If the process
-grid is changed at some point, the next run must start from an exported field
-configuration and the option -norng must be set. In all cases, the parameters
-"level" and "seed" on the input parameter file may be left unchanged.
+  In a sequence of such continuation runs, it is therefore recommended to
+  leave the process grid unchanged and to make no use of the option -norng.
 
-Note that if the configurations are read in imported form, the state of the
-generator is *not* set to the one stored on the configuration file. The
-generated random numbers, and consequently the computed reweighting factors,
-are therefore independent of whether the configurations are read in imported
-or exported form.
+Note that if the configurations are available in the "l" storage format, the
+state of the generator is *not* set to the one stored on the configuration
+files. The generated random numbers, and consequently the computed reweighting
+factors, are therefore independent of the storage type of the configurations.
 
 
 SAFETY MEASURES AND ERROR REPORTING

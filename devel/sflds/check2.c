@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2013, 2016 Martin Luescher
+* Copyright (C) 2013-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -43,7 +43,6 @@ typedef union
 
 static double p[4];
 static spinor_dble rs ALIGNED16;
-static const spinor_dble sd0={{{0.0}}};
 
 
 static int is_zero_dble(spinor_dble *s)
@@ -616,6 +615,7 @@ int main(int argc,char *argv[])
    int my_rank,bc,ie,is,k;
    double phi[2],phi_prime[2],theta[3];
    double d,dmax;
+   qflt rqsm;
    spinor **ps;
    spinor_dble **psd;
    FILE *flog=NULL;
@@ -641,6 +641,7 @@ int main(int argc,char *argv[])
                     "Syntax: check2 [-bc <type>]");
    }
 
+   check_machine();
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.0;
    phi[1]=0.0;
@@ -726,7 +727,8 @@ int main(int argc,char *argv[])
       assign_sd2sd(VOLUME,psd[0],psd[1]);
       cpsd_int_bnd(is,psd[0]);
       mulr_spinor_add_dble(VOLUME,psd[1],psd[0],-1.0);
-      d=norm_square_dble(VOLUME,1,psd[1]);
+      rqsm=norm_square_dble(VOLUME,1,psd[1]);
+      d=rqsm.q[0];
       if (d>dmax)
          dmax=d;
       d=check_cpsd_int(is,psd[0]);
@@ -746,7 +748,8 @@ int main(int argc,char *argv[])
       assign_sd2sd(NSPIN,psd[0],psd[1]);
       cpsd_ext_bnd(is,psd[0]);
       mulr_spinor_add_dble(NSPIN-VOLUME,psd[1]+VOLUME,psd[0]+VOLUME,-1.0);
-      d=norm_square_dble(NSPIN-VOLUME,1,psd[1]+VOLUME);
+      rqsm=norm_square_dble(NSPIN-VOLUME,1,psd[1]+VOLUME);
+      d=rqsm.q[0];
       if (d>dmax)
          dmax=d;
       mulr_spinor_add_dble(VOLUME,psd[0],psd[1],-1.0);

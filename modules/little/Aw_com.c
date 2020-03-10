@@ -3,7 +3,7 @@
 *
 * File Aw_com.c
 *
-* Copyright (C) 2011, 2013 Martin Luescher
+* Copyright (C) 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,8 +32,6 @@
 *     operator on the (even) interior boundary points of the local block
 *     lattice to the neighbouring MPI processes.
 *
-* Notes:
-*
 * The program b2b_flds() writes the extracted spinor fields to internally
 * allocated field arrays. These are reused when the program is called
 * the next time. The data in the field arrays returned by b2b_flds() are
@@ -47,7 +45,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "flags.h"
 #include "utils.h"
 #include "uflds.h"
@@ -63,7 +60,7 @@ typedef struct
    int *ise[2];
    int *iso[2];
    su3_dble *ud[2];
-   spinor_dble **sd[2];
+   spinor **s[2];
    spinor_dble **snd_buf[2];
    b2b_flds_t b2b;
 } bsd_t;
@@ -238,8 +235,8 @@ static void alloc_bsd(void)
             iud+=1;
          }
 
-         (*brd).sd[0]=b[n].sd+1;
-         (*brd).sd[1]=b[m].sd+1;
+         (*brd).s[0]=b[n].s+1;
+         (*brd).s[1]=b[m].s+1;
          (*brd).ise[0]=bb[ifc].ipp+vol;
          (*brd).iso[0]=bb[ifc].ipp;
          (*brd).ise[1]=bb[ifc].map;
@@ -316,7 +313,8 @@ b2b_flds_t *b2b_flds(int n,int mu)
    int ifc,vol,ibn;
    int k,*imb;
    su3_dble *ud;
-   spinor_dble **sd,**rd;
+   spinor **s;
+   spinor_dble **rd;
    bsd_t *brd;
    b2b_flds_t *b2b;
 
@@ -330,7 +328,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
    ibn=(*b2b).ibn;
 
    imb=(*brd).ise[0];
-   sd=(*brd).sd[0];
+   s=(*brd).s[0];
 
    if (ibn)
       rd=(*brd).snd_buf[0];
@@ -338,10 +336,10 @@ b2b_flds_t *b2b_flds(int n,int mu)
       rd=(*b2b).sde[0];
 
    for (k=0;k<Ns;k++)
-      gather_sd(vol,imb,sd[k],rd[k]);
+      gather_s(vol,imb,s[k],rd[k]);
 
    imb=(*brd).ise[1];
-   sd=(*brd).sd[1];
+   s=(*brd).s[1];
 
    if (ibn)
       rd=(*brd).snd_buf[1];
@@ -349,7 +347,7 @@ b2b_flds_t *b2b_flds(int n,int mu)
       rd=(*b2b).sde[1];
 
    for (k=0;k<Ns;k++)
-      gather_sd(vol,imb,sd[k],rd[k]);
+      gather_s(vol,imb,s[k],rd[k]);
 
    if (ibn)
       send_bufs_bsd(ifc,0);
@@ -364,11 +362,11 @@ b2b_flds_t *b2b_flds(int n,int mu)
 
    imb=(*brd).iso[0];
    ud=(*brd).ud[0];
-   sd=(*brd).sd[0];
+   s=(*brd).s[0];
    rd=(*b2b).sdo[0];
 
    for (k=0;k<Ns;k++)
-      apply_udag2sd(vol,imb,ud,sd[k],rd[k]);
+      apply_udag2s(vol,imb,ud,s[k],rd[k]);
 
    if (ibn)
    {
@@ -386,11 +384,11 @@ b2b_flds_t *b2b_flds(int n,int mu)
 
    imb=(*brd).iso[1];
    ud=(*brd).ud[1];
-   sd=(*brd).sd[1];
+   s=(*brd).s[1];
    rd=(*b2b).sdo[1];
 
    for (k=0;k<Ns;k++)
-      apply_u2sd(vol,imb,ud,sd[k],rd[k]);
+      apply_u2s(vol,imb,ud,s[k],rd[k]);
 
    if (ibn)
       wait_bufs_bsd(ifc^0x1,1);
@@ -414,17 +412,23 @@ static void set_snd_req_Aoe(void)
       raddr=npr[ifc^0x1];
       tag=mpi_permanent_tag();
 
-      MPI_Send_init(Aw.Aoe[8*nbh+obbo[ifc]-nbbh],nbf,
-                    MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aoe[ifc]);
-      MPI_Recv_init(rcv_buf_Aoe[ifc][0],nbf,
-                    MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aoe[ifc]);
+      if (nbf)
+      {
+         MPI_Send_init(Aw.Aoe[8*nbh+obbo[ifc]-nbbh],nbf,
+                       MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aoe[ifc]);
+         MPI_Recv_init(rcv_buf_Aoe[ifc][0],nbf,
+                       MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aoe[ifc]);
+      }
 
       tag=mpi_permanent_tag();
 
-      MPI_Send_init(Aw.Aeo[8*nbh+obbo[ifc]-nbbh],nbf,
-                    MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aeo[ifc]);
-      MPI_Recv_init(rcv_buf_Aeo[ifc][0],nbf,
-                    MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aeo[ifc]);
+      if (nbf)
+      {
+         MPI_Send_init(Aw.Aeo[8*nbh+obbo[ifc]-nbbh],nbf,
+                       MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aeo[ifc]);
+         MPI_Recv_init(rcv_buf_Aeo[ifc][0],nbf,
+                       MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aeo[ifc]);
+      }
    }
 }
 
@@ -643,10 +647,13 @@ static void set_snd_req_Aee(void)
       raddr=npr[ifc^0x1];
       tag=mpi_permanent_tag();
 
-      MPI_Send_init(snd_buf_Aee[ifc][0],nbf,
-                    MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aee[ifc]);
-      MPI_Recv_init(Aw.Aee[nbh+obbe[ifc^0x1]],nbf,
-                    MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aee[ifc]);
+      if (nbf)
+      {
+         MPI_Send_init(snd_buf_Aee[ifc][0],nbf,
+                       MPI_DOUBLE,saddr,tag,MPI_COMM_WORLD,&snd_req_Aee[ifc]);
+         MPI_Recv_init(Aw.Aee[nbh+obbe[ifc^0x1]],nbf,
+                       MPI_DOUBLE,raddr,tag,MPI_COMM_WORLD,&rcv_req_Aee[ifc]);
+      }
    }
 }
 

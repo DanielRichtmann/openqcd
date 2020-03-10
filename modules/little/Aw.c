@@ -3,14 +3,12 @@
 *
 * File Aw.c
 *
-* Copyright (C) 2007, 2011 Martin Luescher
+* Copyright (C) 2007, 2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Application of the single-precision little Wilson-Dirac operator Aw
-*
-* The externally accessible functions are
+* Application of the single-precision little Wilson-Dirac operator Aw.
 *
 *   void Aw(complex *v,complex *w)
 *     Applies the little Dirac operator to the field v and assigns the
@@ -33,7 +31,7 @@
 *
 *   void Aweo(complex *v,complex *w)
 *     Applies the even-odd part of the little Dirac operator to the field v
-*     and *subtracts* the result from the field w on the even blocks. On the 
+*     and *subtracts* the result from the field w on the even blocks. On the
 *     odd blocks, w is unchanged.
 *
 *   void Awhat(complex *v,complex *w)
@@ -41,13 +39,11 @@
 *     v and assigns the result to the field w on the even blocks. On the odd
 *     blocks, w is unchanged.
 *
-* Notes:
-*
 * The little Dirac operator and the associated data structures are described
 * in the file README.Aw.
 *
 * The programs Aw(), Awoe() and Aweo() take it for granted that the little
-* Dirac operator is up-to-date, while the other programs, Aweeinv(), Awooinv() 
+* Dirac operator is up-to-date, while the other programs, Aweeinv(), Awooinv()
 * and Awhat(), assume the even-odd preconditioned operator to be up-to-date
 * (see Aw_ops.c).
 *
@@ -62,7 +58,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "flags.h"
 #include "utils.h"
 #include "vflds.h"
@@ -89,9 +84,9 @@ static void alloc_vs(void)
    nbh=nb/2;
    nbbh=grd.nbb/2;
    inn=grd.inn;
-   
+
    vs=amalloc(Ns*sizeof(*vs),ALIGN);
-   
+
    error(vs==NULL,1,"alloc_vs [Aw.c]",
          "Unable to allocate auxiliary array");
 }
@@ -100,7 +95,7 @@ static void alloc_vs(void)
 static void apply_Aoe(int *nn,complex **A,complex *v)
 {
    int ifc;
-   
+
    cmat_vec(Ns,*A,v+nn[0]*Ns,vs);
    A+=1;
 
@@ -115,7 +110,7 @@ static void apply_Aoe(int *nn,complex **A,complex *v)
 static void apply_Aeo(int *nn,complex **A,complex *v)
 {
    int ifc;
-   
+
    for (ifc=0;ifc<8;ifc++)
    {
       cmat_vec_assign(Ns,*A,vs,v+nn[ifc]*Ns);
@@ -129,10 +124,10 @@ static void apply_Aee(complex **A,complex *v,complex *w)
    complex **Am;
 
    Am=A+nbh;
-   
+
    for (;A<Am;A++)
    {
-      cmat_vec(Ns,*A,v,w);      
+      cmat_vec(Ns,*A,v,w);
       v+=Ns;
       w+=Ns;
    }
@@ -149,7 +144,7 @@ static void apply_Aoo(complex **A,complex *v,complex *w)
 
    for (;A<Am;A++)
    {
-      cmat_vec(Ns,*A,v,w);      
+      cmat_vec(Ns,*A,v,w);
       v+=Ns;
       w+=Ns;
    }
@@ -165,25 +160,25 @@ void Aw(complex *v,complex *w)
 
    if (Ns==0)
       alloc_vs();
-   
+
    Aw=Awop();
    apply_Aee(Aw.Aee,v,w);
    apply_Aoo(Aw.Aoo,v,w);
-   
+
    if (NPROC>1)
    {
-      set_v2zero(nbbh*Ns,w+nb*Ns);      
+      set_v2zero(nbbh*Ns,w+nb*Ns);
       cpv_int_bnd(v);
    }
-   
+
    Aoe=Aw.Aoe;
    Aeo=Aw.Aeo;
    rv=v+nbh*Ns;
    rw=w+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       apply_Aoe(*nn,Aoe,v);
@@ -198,19 +193,19 @@ void Aw(complex *v,complex *w)
 
          (*rs).re=(*rv).re;
          (*rs).im=(*rv).im;
-         
+
          rw+=1;
          rv+=1;
       }
-      
-      apply_Aeo(*nn,Aeo,w);      
+
+      apply_Aeo(*nn,Aeo,w);
 
       Aoe+=8;
       Aeo+=8;
    }
 
    if (NPROC>1)
-      cpv_ext_bnd(w);   
+      cpv_ext_bnd(w);
 }
 
 
@@ -225,15 +220,15 @@ void Aweeinv(complex *v,complex *w)
    apply_Aee(Aw.Aee,v,w);
 }
 
-   
+
 void Awooinv(complex *v,complex *w)
 {
    Aw_t Aw;
 
    if (Ns==0)
       alloc_vs();
-   
-   Aw=Awophat();   
+
+   Aw=Awophat();
    apply_Aoo(Aw.Aoo,v,w);
 }
 
@@ -242,7 +237,7 @@ void Awoe(complex *v,complex *w)
 {
    int (*nn)[8],(*nm)[8];
    complex *rw,*rs,*rm;
-   complex **Aoe;   
+   complex **Aoe;
    Aw_t Aw;
 
    if (Ns==0)
@@ -250,14 +245,14 @@ void Awoe(complex *v,complex *w)
 
    if (NPROC>1)
       cpv_int_bnd(v);
-      
+
    Aw=Awop();
    Aoe=Aw.Aoe;
    rw=w+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       apply_Aoe(*nn,Aoe,v);
@@ -271,7 +266,7 @@ void Awoe(complex *v,complex *w)
          (*rw).im=(*rs).im;
          rw+=1;
       }
-      
+
       Aoe+=8;
    }
 }
@@ -281,22 +276,22 @@ void Aweo(complex *v,complex *w)
 {
    int (*nn)[8],(*nm)[8];
    complex *rv,*rs,*rm;
-   complex **Aeo;  
+   complex **Aeo;
    Aw_t Aw;
 
    if (Ns==0)
       alloc_vs();
 
    if (NPROC>1)
-      set_v2zero(nbbh*Ns,w+nb*Ns); 
+      set_v2zero(nbbh*Ns,w+nb*Ns);
 
-   Aw=Awop();   
+   Aw=Awop();
    Aeo=Aw.Aeo;
    rv=v+nbh*Ns;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
-   
+
    for (;nn<nm;nn++)
    {
       rs=vs;
@@ -308,14 +303,14 @@ void Aweo(complex *v,complex *w)
          (*rs).im=-(*rv).im;
          rv+=1;
       }
-      
-      apply_Aeo(*nn,Aeo,w);      
 
-      Aeo+=8;   
+      apply_Aeo(*nn,Aeo,w);
+
+      Aeo+=8;
    }
 
    if (NPROC>1)
-      cpv_ext_bnd(w);   
+      cpv_ext_bnd(w);
 }
 
 
@@ -328,9 +323,9 @@ void Awhat(complex *v,complex *w)
 
    if (Ns==0)
       alloc_vs();
-   
+
    assign_v2v(nbh*Ns,v,w);
-   
+
    if (NPROC>1)
    {
       set_v2zero(nbbh*Ns,w+nb*Ns);
@@ -340,7 +335,7 @@ void Awhat(complex *v,complex *w)
    Aw=Awophat();
    Aoe=Aw.Aoe;
    Aeo=Aw.Aeo;
-   
+
    nn=inn+nbh;
    nm=inn+nb;
 
@@ -357,12 +352,12 @@ void Awhat(complex *v,complex *w)
          (*rs).im=-(*rs).im;
       }
 
-      apply_Aeo(*nn,Aeo,w);      
+      apply_Aeo(*nn,Aeo,w);
 
       Aoe+=8;
       Aeo+=8;
    }
 
    if (NPROC>1)
-      cpv_ext_bnd(w);   
+      cpv_ext_bnd(w);
 }

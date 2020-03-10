@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2008-2013, 2016 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005-2016, 2018 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -28,179 +28,30 @@
 #include "mdflds.h"
 #include "linalg.h"
 #include "forces.h"
+#include "auxfcts.h"
 #include "global.h"
 
 #define N0 (NPROC0*L0)
 
 
-static void rot_ud(double eps)
+static qflt dSdt(double c)
 {
-   int bc,ix,t,ifc;
-   su3_dble *u;
-   su3_alg_dble *mom;
-   mdflds_t *mdfs;
-
-   bc=bc_type();
-   mdfs=mdflds();
-   mom=(*mdfs).mom;
-   u=udfld();
-
-   for (ix=(VOLUME/2);ix<VOLUME;ix++)
-   {
-      t=global_time(ix);
-
-      if (t==0)
-      {
-         expXsu3(eps,mom,u);
-         mom+=1;
-         u+=1;
-
-         if (bc!=0)
-            expXsu3(eps,mom,u);
-         mom+=1;
-         u+=1;
-
-         for (ifc=2;ifc<8;ifc++)
-         {
-            if (bc!=1)
-               expXsu3(eps,mom,u);
-            mom+=1;
-            u+=1;
-         }
-      }
-      else if (t==(N0-1))
-      {
-         if (bc!=0)
-            expXsu3(eps,mom,u);
-         mom+=1;
-         u+=1;
-
-         for (ifc=1;ifc<8;ifc++)
-         {
-            expXsu3(eps,mom,u);
-            mom+=1;
-            u+=1;
-         }
-      }
-      else
-      {
-         for (ifc=0;ifc<8;ifc++)
-         {
-            expXsu3(eps,mom,u);
-            mom+=1;
-            u+=1;
-         }
-      }
-   }
-
-   set_flags(UPDATED_UD);
-}
-
-
-static int is_frc_zero(su3_alg_dble *f)
-{
-   int ie;
-
-   ie=1;
-   ie&=((*f).c1==0.0);
-   ie&=((*f).c2==0.0);
-   ie&=((*f).c3==0.0);
-   ie&=((*f).c4==0.0);
-   ie&=((*f).c5==0.0);
-   ie&=((*f).c6==0.0);
-   ie&=((*f).c7==0.0);
-   ie&=((*f).c8==0.0);
-
-   return ie;
-}
-
-
-static int check_bnd_frc(su3_alg_dble *frc)
-{
-   int bc,ix,t,ifc,ie;
-
-   bc=bc_type();
-   ie=0;
-
-   for (ix=(VOLUME/2);ix<VOLUME;ix++)
-   {
-      t=global_time(ix);
-
-      if ((t==0)&&(bc==0))
-      {
-         ie|=is_frc_zero(frc);
-         frc+=1;
-
-         ie|=(is_frc_zero(frc)^0x1);
-         frc+=1;
-
-         for (ifc=2;ifc<8;ifc++)
-         {
-            ie|=is_frc_zero(frc);
-            frc+=1;
-         }
-      }
-      else if ((t==0)&&(bc==1))
-      {
-         ie|=is_frc_zero(frc);
-         frc+=1;
-
-         ie|=is_frc_zero(frc);
-         frc+=1;
-
-         for (ifc=2;ifc<8;ifc++)
-         {
-            ie|=(is_frc_zero(frc)^0x1);
-            frc+=1;
-         }
-      }
-      else if ((t==(N0-1))&&(bc==0))
-      {
-         ie|=(is_frc_zero(frc)^0x1);
-         frc+=1;
-
-         for (ifc=1;ifc<8;ifc++)
-         {
-            ie|=is_frc_zero(frc);
-            frc+=1;
-         }
-      }
-      else
-      {
-         for (ifc=0;ifc<8;ifc++)
-         {
-            ie|=is_frc_zero(frc);
-            frc+=1;
-         }
-      }
-   }
-
-   return ie;
-}
-
-
-static double dSdt(double c)
-{
-   int ie;
    mdflds_t *mdfs;
 
    mdfs=mdflds();
-   ie=check_bnd_frc((*mdfs).mom);
-   error(ie!=0,1,"dSdt [check3.c]",
-         "Momentum field vanishes on an incorrect set of links");
+   check_bnd_fld((*mdfs).mom);
 
    force0(c);
-   ie=check_bnd_frc((*mdfs).frc);
-   error(ie!=0,1,"dSdt [check3.c]",
-         "Force field vanishes on an incorrect set of links");
+   check_bnd_fld((*mdfs).frc);
 
-   return scalar_prod_alg(4*VOLUME,0,(*mdfs).mom,(*mdfs).frc);
+   return scalar_prod_alg(4*VOLUME,1,(*mdfs).mom,(*mdfs).frc);
 }
 
 
 static double chk_chs(double c)
 {
    double dev;
+   qflt rqsm;
    su3_alg_dble **wfd;
    mdflds_t *mdfs;
 
@@ -214,8 +65,10 @@ static double chk_chs(double c)
    set_ud_phase();
    force0(c);
    muladd_assign_alg(4*VOLUME,-1.0,(*mdfs).frc,wfd[0]);
-   dev=norm_square_alg(4*VOLUME,0,wfd[0])/
-      norm_square_alg(4*VOLUME,0,(*mdfs).frc);
+   rqsm=norm_square_alg(4*VOLUME,1,wfd[0]);
+   dev=rqsm.q[0];
+   rqsm=norm_square_alg(4*VOLUME,1,(*mdfs).frc);
+   dev/=rqsm.q[0];
    release_wfd();
 
    return sqrt(dev);
@@ -224,10 +77,11 @@ static double chk_chs(double c)
 
 int main(int argc,char *argv[])
 {
-   int my_rank,k,ie,bc;
-   double c,eps,act0,act1,dact,dsdt;
-   double dev_frc,sig_loss,rdmy;
+   int my_rank,k,iact,ie,bc;
+   double c,eps;
+   double dev_frc,sig_loss;
    double phi[2],phi_prime[2],theta[3];
+   qflt dsdt,act,act0,act1;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -252,7 +106,8 @@ int main(int argc,char *argv[])
                     "Syntax: check3 [-bc <type>]");
    }
 
-   set_lat_parms(3.5,0.33,0,NULL,1.0);
+   check_machine();
+   set_lat_parms(3.5,0.33,0,NULL,0,1.0);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -263,6 +118,9 @@ int main(int argc,char *argv[])
    theta[0]=0.38;
    theta[1]=-1.25;
    theta[2]=0.54;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,0.9012,1.2034,1.0,1.0,phi,phi_prime,theta);
    print_bc_parms(3);
 
@@ -283,41 +141,38 @@ int main(int argc,char *argv[])
       random_mom();
       dsdt=dSdt(c);
 
-      eps=1.0e-4;
+      eps=2.0e-4;
       rot_ud(eps);
-      act0=2.0*action0(0)/3.0;
+      act0=action0(1);
+      scl_qflt(2.0/3.0,act0.q);
       rot_ud(-eps);
 
       rot_ud(-eps);
-      act1=2.0*action0(0)/3.0;
+      act1=action0(1);
+      scl_qflt(-2.0/3.0,act1.q);
       rot_ud(eps);
 
       rot_ud(2.0*eps);
-      act0-=action0(0)/12.0;
+      act=action0(1);
+      scl_qflt(-1.0/12.0,act.q);
+      add_qflt(act0.q,act.q,act0.q);
       rot_ud(-2.0*eps);
 
       rot_ud(-2.0*eps);
-      act1-=action0(0)/12.0;
+      act=action0(1);
+      scl_qflt(1.0/12.0,act.q);
+      add_qflt(act1.q,act.q,act1.q);
       rot_ud(2.0*eps);
 
-      act0*=c;
-      act1*=c;
+      scl_qflt(c,act0.q);
+      scl_qflt(c,act1.q);
 
-      dact=(act0-act1)/eps;
-      dev_frc=dsdt-dact;
-      sig_loss=-log10(fabs(1.0-act0/act1));
+      add_qflt(act0.q,act1.q,act.q);
+      sig_loss=-log10(fabs(act.q[0]/act0.q[0]));
 
-      rdmy=dsdt;
-      MPI_Reduce(&rdmy,&dsdt,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dsdt,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-
-      rdmy=dev_frc;
-      MPI_Reduce(&rdmy,&dev_frc,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(&dev_frc,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-
-      rdmy=sig_loss;
-      MPI_Reduce(&rdmy,&sig_loss,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-      MPI_Bcast(&sig_loss,1,MPI_DOUBLE,0,MPI_COMM_WORLD);
+      scl_qflt(-1.0/eps,act.q);
+      add_qflt(dsdt.q,act.q,act.q);
+      dev_frc=act.q[0]/dsdt.q[0];
 
       unset_ud_phase();
       ie=check_bc(0.0);
@@ -326,7 +181,7 @@ int main(int argc,char *argv[])
 
       if (my_rank==0)
       {
-         printf("Relative deviation of dS/dt = %.2e ",fabs(dev_frc/dsdt));
+         printf("Relative deviation of dS/dt = %.2e ",fabs(dev_frc));
          printf("[significance loss = %d digits]\n",(int)(sig_loss));
       }
    }

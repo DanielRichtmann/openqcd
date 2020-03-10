@@ -1,14 +1,15 @@
 
-Calculation of the Sheikholeslami-Wohlert term
+Calculation of the Sheikholeslami-Wohlert term.
 
 check1        Allocation, assignment and inversion of the global SW arrays.
 
 check2        Check of the gauge covariance of the SW term.
 
-check3        Check of the SW term for abelian background fields.
+check3        Check of the SW term for Abelian background fields.
 
 time1         Timing of the program sw_term().
 
-All programs accept the option -bc <type> that allows the type of boundary
-condition to be chosen. When the option is not set, open boundary conditions
-are assumed.
+All programs accept the options -bc <type> and -sw <type> that allow the type
+of the boundary conditions and the SW term to be chosen. The default choices
+(open boundary conditions, traditional SW term) apply if the options are not
+set.

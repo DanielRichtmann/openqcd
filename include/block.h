@@ -3,7 +3,7 @@
 *
 * File block.h
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -47,7 +47,7 @@ typedef struct
 
 typedef enum
 {
-   SAP_BLOCKS,DFL_BLOCKS,
+   SAP_BLOCKS,DFL_BLOCKS,TEST_BLOCKS,
    BLK_GRIDS
 } blk_grid_t;
 

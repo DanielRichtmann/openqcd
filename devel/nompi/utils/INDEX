@@ -1,6 +1,10 @@
 
-Utility functions
+Utility functions.
 
-check1        Test of the endianness and byte swapping programs
+check1        Test of the endianness and byte swapping programs.
 
-check2        Test of the program fdigits()
+check2        Test of the program fdigits().
+
+check3        Test of the programs in the module array.c.
+
+check4        Test of the program name_size().

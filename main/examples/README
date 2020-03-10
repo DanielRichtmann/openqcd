@@ -6,6 +6,6 @@
 ********************************************************************************
 
 Some of the input parameter files included in these directories have been used
-in actual simulation and measurement runs. Note, however, that simulations
-require thermalization in the course of which the parameters may have to be
-chosen differently.
+in actual simulation and measurement runs. Simulations may however require
+thermalization and an adiabatic adjustment of parameters until a stationary
+state is reached.

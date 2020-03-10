@@ -1,10 +1,12 @@
 
-Simple analysis programs for the data files produced by the programs in the
-directory main
+Simple analysis programs for data files produced by the programs in the
+directory "main".
 
-read1         Reads the run data files <name>.dat produced by the
-              simulation programs qcd1 and ym1.
+read1         Reads and evaluates the data on the data files <name>.dat
+              produced by the simulation programs qcd1, qcd2, ym1 and ym2.
 
-read2         Reads the data files produced by the measurement
-              program ms1.
+read2         Reads and evaluates the data on the data files <name>.ms1.dat
+              produced by the reweighting-factor measurement program ms1.
 
+The path of the data file to be analysed must be specified on the command
+line like read1 $HOME/dat/goofy.dat, for example.

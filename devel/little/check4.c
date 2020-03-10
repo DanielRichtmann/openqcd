@@ -35,7 +35,7 @@
 static int bc,Ns;
 
 
-static void random_basis(int Ns)
+static void random_basis(void)
 {
    int i;
    spinor **ws;
@@ -136,6 +136,7 @@ int main(int argc,char *argv[])
    int bs[4],nb,nv,nvh;
    double phi[2],phi_prime[2],theta[3];
    double mu,d;
+   qflt rqsm;
    complex **wv,z;
    complex_dble **wvd,zd;
    void (*op)(complex *v,complex *w);
@@ -173,7 +174,8 @@ int main(int argc,char *argv[])
                     "Syntax: check4 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -208,7 +210,7 @@ int main(int argc,char *argv[])
 
    random_ud();
    set_ud_phase();
-   random_basis(Ns);
+   random_basis();
 
    ifail=set_Awhat(mu);
    error(ifail!=0,1,"main [check4.c]","Inversion of Aee or Aoo failed");
@@ -277,8 +279,8 @@ int main(int argc,char *argv[])
       op(wv[0],wv[1]);
 
       mulc_vadd_dble(nv,wvd[2],wvd[0],zd);
-      d=vnorm_square_dble(nv,0,wvd[2]);
-      error(d!=0.0,1,"main [check4.c]",
+      rqsm=vnorm_square_dble(nv,0,wvd[2]);
+      error(rqsm.q[0]!=0.0,1,"main [check4.c]",
             "%s modifies the input field",prd);
 
       mulc_vadd(nv,wv[2],wv[0],z);
@@ -289,8 +291,8 @@ int main(int argc,char *argv[])
       if ((iop<2)||(iop==4))
       {
          mulc_vadd_dble(nvh,wvd[3]+nvh,wvd[1]+nvh,zd);
-         d=vnorm_square_dble(nvh,0,wvd[3]+nvh);
-         error(d!=0.0,1,"main [check4.c]",
+         rqsm=vnorm_square_dble(nvh,0,wvd[3]+nvh);
+         error(rqsm.q[0]!=0.0,1,"main [check4.c]",
                "%s modifies the odd components of the output field",prd);
 
          mulc_vadd(nvh,wv[3]+nvh,wv[1]+nvh,z);
@@ -309,8 +311,8 @@ int main(int argc,char *argv[])
       if ((iop==2)||(iop==3))
       {
          mulc_vadd_dble(nvh,wvd[3],wvd[1],zd);
-         d=vnorm_square_dble(nvh,0,wvd[3]);
-         error(d!=0.0,1,"main [check4.c]",
+         rqsm=vnorm_square_dble(nvh,0,wvd[3]);
+         error(rqsm.q[0]!=0.0,1,"main [check4.c]",
                "%s modifies the even components of the output field",prd);
 
          mulc_vadd(nvh,wv[3],wv[1],z);
@@ -347,7 +349,10 @@ int main(int argc,char *argv[])
 
    Aweeinv_dble(wvd[1],wvd[2]);
    mulc_vadd_dble(nvh,wvd[2],wvd[0],zd);
-   d=vnorm_square_dble(nvh,1,wvd[2])/vnorm_square_dble(nvh,1,wvd[0]);
+   rqsm=vnorm_square_dble(nvh,1,wvd[2]);
+   d=rqsm.q[0];
+   rqsm=vnorm_square_dble(nvh,1,wvd[0]);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
    {
@@ -357,7 +362,10 @@ int main(int argc,char *argv[])
 
    Awoe_dble(wvd[0],wvd[2]);
    mulc_vadd_dble(nvh,wvd[2]+nvh,wvd[1]+nvh,zd);
-   d=vnorm_square_dble(nvh,1,wvd[2]+nvh)/vnorm_square_dble(nvh,1,wvd[1]+nvh);
+   rqsm=vnorm_square_dble(nvh,1,wvd[2]+nvh);
+   d=rqsm.q[0];
+   rqsm=vnorm_square_dble(nvh,1,wvd[1]+nvh);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
       printf("Comparison of Awoe_dble()    and Aw_dble(): %.1e\n",sqrt(d));
@@ -368,7 +376,10 @@ int main(int argc,char *argv[])
 
    Awooinv_dble(wvd[1],wvd[2]);
    mulc_vadd_dble(nvh,wvd[2]+nvh,wvd[0]+nvh,zd);
-   d=vnorm_square_dble(nvh,1,wvd[2]+nvh)/vnorm_square_dble(nvh,1,wvd[0]+nvh);
+   rqsm=vnorm_square_dble(nvh,1,wvd[2]+nvh);
+   d=rqsm.q[0];
+   rqsm=vnorm_square_dble(nvh,1,wvd[0]+nvh);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
       printf("Comparison of Awooinv_dble() and Aw_dble(): %.1e\n",sqrt(d));
@@ -378,7 +389,10 @@ int main(int argc,char *argv[])
    Aweo_dble(wvd[0],wvd[2]);
    mulc_vadd_dble(nvh,wvd[3],wvd[2],zd);
    mulc_vadd_dble(nvh,wvd[3],wvd[1],zd);
-   d=vnorm_square_dble(nvh,1,wvd[3])/vnorm_square_dble(nvh,1,wvd[1]);
+   rqsm=vnorm_square_dble(nvh,1,wvd[3]);
+   d=rqsm.q[0];
+   rqsm=vnorm_square_dble(nvh,1,wvd[1]);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
       printf("Comparison of Aweo_dble()    and Aw_dble(): %.1e\n",sqrt(d));
@@ -393,8 +407,10 @@ int main(int argc,char *argv[])
    Aweeinv_dble(wvd[2],wvd[3]);
 
    mulc_vadd_dble(nvh,wvd[3],wvd[1],zd);
-   d=vnorm_square_dble(nvh,1,wvd[3])/vnorm_square_dble(nvh,1,wvd[1]);
-
+   rqsm=vnorm_square_dble(nvh,1,wvd[3]);
+   d=rqsm.q[0];
+   rqsm=vnorm_square_dble(nvh,1,wvd[1]);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
    {

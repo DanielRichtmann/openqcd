@@ -3,7 +3,7 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -32,7 +32,7 @@
 
 #define N0 (NPROC0*L0)
 
-static int bc,nfc[8],ofs[8];
+static int bc,is,nfc[8],ofs[8];
 static const su3_dble ud0={{0.0}};
 static su3_dble *g,*gbuf;
 static su3_dble wd ALIGNED16;
@@ -278,6 +278,7 @@ int main(int argc,char *argv[])
    int my_rank,i;
    double phi[2],phi_prime[2],theta[3];
    double d;
+   qflt rqsm;
    spinor_dble **psd;
    pauli_dble *sw;
    sw_parms_t swp;
@@ -298,16 +299,24 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
       bc=find_opt(argc,argv,"-bc");
+      is=find_opt(argc,argv,"-sw");
 
       if (bc!=0)
          error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check2.c]",
-                    "Syntax: check2 [-bc <type>]");
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
+
+      if (is!=0)
+         error_root(sscanf(argv[is+1],"%d",&is)!=1,1,"main [check2.c]",
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&is,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,is,1.978);
    print_lat_parms();
 
-   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
@@ -354,7 +363,10 @@ int main(int argc,char *argv[])
    transform_sd(psd[1],psd[2]);
 
    mulr_spinor_add_dble(VOLUME,psd[3],psd[2],-1.0);
-   d=norm_square_dble(VOLUME,1,psd[3])/norm_square_dble(VOLUME,1,psd[0]);
+   rqsm=norm_square_dble(VOLUME,1,psd[3]);
+   d=rqsm.q[0];
+   rqsm=norm_square_dble(VOLUME,1,psd[0]);
+   d/=rqsm.q[0];
 
    if (my_rank==0)
    {

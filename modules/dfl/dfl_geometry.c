@@ -3,20 +3,16 @@
 *
 * File dfl_geometry.c
 *
-* Copyright (C) 2007, 2011, 2013 Martin Luescher
+* Copyright (C) 2007, 2011, 2013, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Geometry of the DFL_BLOCKS block grid.
 *
-* The externally accessible functions are
-*
 *   dfl_grid_t dfl_geometry(void)
 *     Returns a structure containing the index arrays that describe the
 *     geometry of the DFL_BLOCKS block grid (see the notes).
-*
-* Notes:
 *
 * The blocks in the DFL_BLOCKS grid form a hypercubic lattice whose geometry
 * is described by a structure of type dfl_grid_t. The elements of this
@@ -161,22 +157,22 @@ static void set_grid_sizes(void)
 
 static void alloc_arrays(void)
 {
-   int nb,nbb;
+   int mb,mbb;
    int (*inn)[8],*idx;
 
-   nb=dfl_grid.nb;
-   nbb=dfl_grid.nbb;
-   inn=malloc(nb*sizeof(*inn));
-   idx=malloc((nb+2*nbb)*sizeof(*idx));
+   mb=dfl_grid.nb;
+   mbb=dfl_grid.nbb;
+   inn=malloc(mb*sizeof(*inn));
+   idx=malloc((mb+2*mbb)*sizeof(*idx));
 
    error((inn==NULL)||(idx==NULL),1,"alloc_arrays [dfl_geometry.c]",
          "Unable to allocate index arrays");
 
    dfl_grid.inn=inn;
    dfl_grid.idx=idx;
-   idx+=nb;
+   idx+=mb;
    dfl_grid.ipp=idx;
-   idx+=nbb;
+   idx+=mbb;
    dfl_grid.map=idx;
 }
 
@@ -332,12 +328,12 @@ static void set_inn(void)
 static void set_ipp(void)
 {
    int nb,in,im,ip,iq,ifc;
-   int (*inn)[8],*ipp,*map;
+   int (*inn)[8],*ipp,*mp;
 
    nb=dfl_grid.nb;
    inn=dfl_grid.inn;
    ipp=dfl_grid.ipp;
-   map=dfl_grid.map;
+   mp=dfl_grid.map;
 
    for (in=0;in<nb;in++)
    {
@@ -358,7 +354,7 @@ static void set_ipp(void)
                ip=inn[ip][ifc^0x1];
             }
 
-            map[im-nb]=iq;
+            mp[im-nb]=iq;
          }
       }
    }

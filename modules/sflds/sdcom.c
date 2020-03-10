@@ -3,7 +3,7 @@
 *
 * File sdcom.c
 *
-* Copyright (C) 2005, 2008, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2008, 2011, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -25,8 +25,6 @@
 *     sd=theta[ifc^(is&0x1)]*sd, where ifc labels the faces of the local
 *     lattice on the sending process.
 *
-* Notes:
-*
 * The spinor fields passed to cpsd_int_bnd() and cpsd_ext_bnd() must have at
 * least NSPIN elements. They are interpreted as quark fields on the local
 * lattice as described in main/README.global and doc/dirac.pdf. The projector
@@ -35,7 +33,7 @@
 * If open, SF or open-SF boundary conditions are chosen, the programs do
 * not copy any spinors in the time direction across the boundaries of the
 * global lattice. The spinors on the even points at the boundaries are instead
-* set zero as required by the boundary conditions (see doc/dirac.pdf). More
+* set to zero as required by the boundary conditions (see doc/dirac.pdf). More
 * precisely, cpsd_int_bnd() sets them to zero *before* copying any spinors in
 * the space directions, while cpsd_ext_bnd() does the opposite.
 *
@@ -135,9 +133,9 @@ static void alloc_sdbufs(void)
          saddr=npr[ifc];
          raddr=npr[ifc^0x1];
 
-         MPI_Send_init((double*)(snd_buf[ifc]),12*nbf[ifc],MPI_DOUBLE,saddr,
+         MPI_Send_init(snd_buf[ifc],12*nbf[ifc],MPI_DOUBLE,saddr,
                        tag,MPI_COMM_WORLD,&snd_req[ifc]);
-         MPI_Recv_init((double*)(rcv_buf[ifc]),12*nbf[ifc],MPI_DOUBLE,raddr,
+         MPI_Recv_init(rcv_buf[ifc],12*nbf[ifc],MPI_DOUBLE,raddr,
                        tag,MPI_COMM_WORLD,&rcv_req[ifc]);
       }
 

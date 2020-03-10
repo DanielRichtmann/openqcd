@@ -3,28 +3,26 @@
 *
 * File fsolve.c
 *
-* Copyright (C) 2008, 2011 Martin Luescher
+* Copyright (C) 2008, 2011, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* General purpose equation solver and function minimizers
+* General purpose equation solver and function minimizers.
 *
-* The externally accessible functions are
-*
-*   double inverse_fct(double y,double x1,double x2,double (*f)(double x),
-*                      double omega1,double omega2)   
+*   double inverse_fct(double x1,double x2,double (*f)(double x),double y,
+*                      double omega1,double omega2)
 *     Finds a solution x of the equation f(x)=y in the interval [x1,x2]
 *     to an absolute precision omega1 or a relative precision omega2
 *     (whichever is reached first). The points x1,x2 must be such that
-*     f(x1) and f(x2) have different sign 
+*     y-f(x1) and y-f(x2) have opposite sign.
 *
 *   double minimize_fct(double x0,double x1,double x2,double (*f)(double x),
 *                       double omega1,double omega2)
 *     Finds a local minimum x of f(x) in the interval [x0,x2] to an
 *     absolute precision omega1 or a relative precision omega2 (whichever
 *     is reached first). The point x1 is taken as an initial guess of the
-*     position of the minimum (x0<x1<x2)
+*     position of the minimum (x0<x1<x2).
 *
 *   void powell(int n,double *x0,double *x1,double *x2,
 *               double (*f)(int n,double *x),int imx,
@@ -39,9 +37,7 @@
 *     iteration. On output status reports the total number of iterations
 *     that were required or a negative number if the program failed (-1
 *     if the algorithm did not converge, -2 if the minimum could not be
-*     bracketed)
-*
-* Notes:
+*     bracketed).
 *
 * The program inverse_fct() uses a slightly modified secant method, while
 * minimize_fct() proceeds according to a golden-ratio bisection method.
@@ -52,9 +48,9 @@
 * of the machine precision.
 *
 * Powell's method is described in Chapter 10 of
-* 
+*
 *   W.H. Press, S.A. Teukolsky, W.T. Vetterling and B.P. Flannery,
-*   Numerical Recipes in FORTRAN, 2nd Edition 
+*   Numerical Recipes in FORTRAN, 2nd Edition
 *   (Cambridge University Press, Cambridge, 1992)
 *
 * The variant recommended in this book is implemented here with some small
@@ -93,13 +89,13 @@ double inverse_fct(double x1,double x2,double (*f)(double x),double y,
 
    f1=f(x1)-y;
    f2=f(x2)-y;
-      
+
    error((x1>x2)||(relative_sign(f1,f2)==0),1,"inverse_fct [fsolve.c]",
          "Improper bracket [x1,x2]");
 
    eps=0.1;
    omega2*=0.5;
-   dx=x2-x1;   
+   dx=x2-x1;
 
    while ((dx>omega1)&&(dx>(omega2*(x1+x2))))
    {
@@ -154,11 +150,11 @@ static int find_bracket(double *x0,double *x1,double *x2,double (*f)(double x))
    d2=0.05*(y2-y1);
 
    (*x0)=y1+d0;
-   (*x2)=y1+d2;   
+   (*x2)=y1+d2;
 
    f0=f(*x0);
    f1=f(*x1);
-   f2=f(*x2);   
+   f2=f(*x2);
 
    if ((f0>f1)&&(f2>f1))
       return 0;
@@ -169,7 +165,7 @@ static int find_bracket(double *x0,double *x1,double *x2,double (*f)(double x))
       (*x2)=y2;
       return 0;
    }
-   
+
    for (ic=1;ic<20;ic++)
    {
       if (f1>f2)
@@ -185,21 +181,21 @@ static int find_bracket(double *x0,double *x1,double *x2,double (*f)(double x))
 
       if ((*x0)<y0)
          (*x0)=y0;
-      
+
       f0=f(*x0);
 
       if ((f0>f1)&&(f2>f1))
-         return 0;         
+         return 0;
    }
-   
+
    (*x0)=y1+d0;
    (*x1)=y1;
-   (*x2)=y1+d2;  
+   (*x2)=y1+d2;
 
    f0=f(*x0);
    f1=f(*x1);
-   f2=f(*x2);  
-   
+   f2=f(*x2);
+
    for (ic=1;ic<20;ic++)
    {
       if (f0<f1)
@@ -207,20 +203,20 @@ static int find_bracket(double *x0,double *x1,double *x2,double (*f)(double x))
          (*x0)=(*x1);
          f0=f1;
       }
-      
+
       (*x1)=(*x2);
       f1=f2;
-      
+
       (*x2)+=d2;
 
       if ((*x2)>y2)
          (*x2)=y2;
-      
+
       f2=f(*x2);
 
       if ((f0>f1)&&(f2>f1))
          return 0;
-   }   
+   }
 
    return 1;
 }
@@ -236,7 +232,7 @@ static double mini_fct(double x0,double x1,double x2,double (*f)(double x),
    x3=x2;
    dx=x3-x0;
    f1=f(x1);
-   
+
    if ((x1-x0)<(x3-x1))
    {
       x2=x1+s*(x3-x1);
@@ -286,7 +282,7 @@ double minimize_fct(double x0,double x1,double x2,double (*f)(double x),
          "Improper input values x0,x1,x2");
 
    error(find_bracket(&x0,&x1,&x2,f),1,"minimize_fct [fsolve.c]",
-         "Unable to bracket minimum");   
+         "Unable to bracket minimum");
 
    return mini_fct(x0,x1,x2,f,omega1,omega2);
 }
@@ -295,7 +291,7 @@ double minimize_fct(double x0,double x1,double x2,double (*f)(double x),
 static void alloc_arrays(int n)
 {
    int i,j;
-   
+
    if (nsv!=n)
    {
       if (nsv!=0)
@@ -329,7 +325,7 @@ static void alloc_arrays(int n)
          nsv=0;
       }
    }
-   
+
    for (i=0;i<n;i++)
    {
       for (j=0;j<n;j++)
@@ -353,7 +349,7 @@ static void find_bnds(double *x0,double *x2,double *r0,double *r2,
    for (j=1;j<nsv;j++)
    {
       va=fabs(v[j]);
-      
+
       if (vmax<va)
       {
          k=j;
@@ -363,15 +359,15 @@ static void find_bnds(double *x0,double *x2,double *r0,double *r2,
 
    (*rom1)=1.0/vmax;
    (*rom2)=fabs(psv[k])*(*rom1);
-   
+
    if (v[k]>0.0)
    {
       (*r0)=(x0[k]-psv[k])/v[k];
-      (*r2)=(x2[k]-psv[k])/v[k];   
+      (*r2)=(x2[k]-psv[k])/v[k];
    }
    else
    {
-      (*r0)=(x2[k]-psv[k])/v[k]; 
+      (*r0)=(x2[k]-psv[k])/v[k];
       (*r2)=(x0[k]-psv[k])/v[k];
    }
 
@@ -388,15 +384,15 @@ static void find_bnds(double *x0,double *x2,double *r0,double *r2,
          if ((psv[j]+(*r0)*v[j])<x0[j])
             (*r0)=(x0[j]-psv[j])/v[j];
          if ((psv[j]+(*r2)*v[j])>x2[j])
-            (*r2)=(x2[j]-psv[j])/v[j];         
+            (*r2)=(x2[j]-psv[j])/v[j];
       }
       else
       {
          if ((psv[j]+(*r0)*v[j])>x2[j])
             (*r0)=(x2[j]-psv[j])/v[j];
          if ((psv[j]+(*r2)*v[j])<x0[j])
-            (*r2)=(x0[j]-psv[j])/v[j];         
-      }         
+            (*r2)=(x0[j]-psv[j])/v[j];
+      }
    }
 }
 
@@ -432,8 +428,8 @@ void powell(int n,double *x0,double *x1,double *x2,
    error(ifn,1,"powell [fsolve.c]","Improper parameter arrays x0,x1,x2");
    error((imx<4)||((omega1<=0.0)&&(omega2<=0.0)),1,"powell [fsolve.c]",
          "Improper parameters imx,omega1 or omega2");
-   
-   fsv=f;   
+
+   fsv=f;
    alloc_arrays(n);
 
    for (j=0;j<n;j++)
@@ -452,7 +448,7 @@ void powell(int n,double *x0,double *x1,double *x2,
 
       for (isv=0;isv<n;isv++)
       {
-         r1=0.0;         
+         r1=0.0;
          find_bnds(x0,x2,&r0,&r2,&rom1,&rom2);
          ifn=find_bracket(&r0,&r1,&r2,fline);
 
@@ -485,7 +481,7 @@ void powell(int n,double *x0,double *x1,double *x2,
       }
 
       ifn=0;
-      
+
       for (j=0;j<n;j++)
       {
          xsv[j]=psv[j]+(psv[j]-osv[j]);
@@ -514,7 +510,7 @@ void powell(int n,double *x0,double *x1,double *x2,
 
       io1=1;
       io2=1;
-      
+
       for (j=0;j<n;j++)
       {
          r0=fabs(psv[j]-osv[j]);
@@ -533,7 +529,7 @@ void powell(int n,double *x0,double *x1,double *x2,
          break;
    }
 
-   for (j=0;j<n;j++)         
+   for (j=0;j<n;j++)
       xmin[j]=psv[j];
 
    if (i<imx)

@@ -1,0 +1,20 @@
+
+Discrete Fourier transform.
+
+check1       Check of the DFT and DFT4D parameter setting.
+
+check2       Check of the programs fft() and inv_fft().
+
+check3       Check of the programs dft_gather() and dft_scatter().
+
+check4       Check of the programs dft4d() and inv_dft4d().
+
+check5       Check of the programs dft4d() and inv_dft4d() (boundary values).
+
+check6       Check of the program dft4d() (random momenta).
+
+time1        Timing of the 4d parallel Fourier transform.
+
+Local modules:
+
+dpgen        Generation of random DFT4D parameter sets.

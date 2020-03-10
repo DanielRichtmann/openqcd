@@ -3,14 +3,12 @@
 *
 * File rw_parms.c
 *
-* Copyright (C) 2012-2014 Martin Luescher
+* Copyright (C) 2012-2014, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Reweighting factor parameter data base.
-*
-* The externally accessible functions are
 *
 *   rw_parms_t set_rw_parms(int irw,rwfact_t rwfact,int im0,int nsrc,
 *                           int irp,int nfct,double *mu,int *np,int *isp)
@@ -53,8 +51,6 @@
 *     Compares the defined reweighting factor parameter sets with those
 *     on the file fdat on MPI process 0, assuming the latter were written
 *     to the file by the program write_rw_parms().
-*
-* Notes:
 *
 * The elements of a structure of type rw_parms_t are:
 *
@@ -147,7 +143,6 @@
 #define IRWMAX 32
 
 static int init=0;
-static rwfact_t rwfact[]={RWTM1,RWTM1_EO,RWTM2,RWTM2_EO,RWRAT};
 static rw_parms_t rw[IRWMAX+1]={{RWFACTS,0,0,0,0,NULL,NULL,NULL}};
 
 
@@ -335,18 +330,18 @@ void read_rw_parms(int irw)
       read_line("rwfact","%s",line);
 
       if (strcmp(line,"RWTM1")==0)
-         idr=0;
+         idr=(int)(RWTM1);
       else if (strcmp(line,"RWTM1_EO")==0)
-         idr=1;
+         idr=(int)(RWTM1_EO);
       else if (strcmp(line,"RWTM2")==0)
-         idr=2;
+         idr=(int)(RWTM2);
       else if (strcmp(line,"RWTM2_EO")==0)
-         idr=3;
+         idr=(int)(RWTM2_EO);
       else if (strcmp(line,"RWRAT")==0)
-         idr=4;
+         idr=(int)(RWRAT);
       else
       {
-         idr=5;
+         idr=(int)(RWFACTS);
          error_root(1,1,"read_rw_parms [rw_parms.c]",
                     "Unknown reweighting factor %s",line);
       }
@@ -354,7 +349,7 @@ void read_rw_parms(int irw)
       read_line("im0","%d",&im0);
       read_line("nsrc","%d",&nsrc);
 
-      if (idr<4)
+      if (idr!=(int)(RWRAT))
       {
          irp=0;
          nfct=count_tokens("mu");
@@ -387,7 +382,7 @@ void read_rw_parms(int irw)
       MPI_Bcast(&nfct,1,MPI_INT,0,MPI_COMM_WORLD);
    }
 
-   if (idr<4)
+   if (idr!=(int)(RWRAT))
    {
       mu=malloc(nfct*sizeof(*mu));
       np=NULL;
@@ -406,14 +401,14 @@ void read_rw_parms(int irw)
 
    if (my_rank==0)
    {
-      if (idr<4)
+      if (idr!=(int)(RWRAT))
          read_dprms("mu",nfct,mu);
       else
          read_iprms("np",nfct,np);
 
       n=count_tokens("isp");
       error_root(n<1,1,"read_rw_parms [rw_parms.c]",
-            "No data on the line with tag isp");
+                 "No data on the line with tag isp");
 
       if (n>nfct)
          n=nfct;
@@ -425,7 +420,7 @@ void read_rw_parms(int irw)
 
    if (NPROC>1)
    {
-      if (idr<4)
+      if (idr!=(int)(RWRAT))
          MPI_Bcast(mu,nfct,MPI_DOUBLE,0,MPI_COMM_WORLD);
       else
          MPI_Bcast(np,nfct,MPI_INT,0,MPI_COMM_WORLD);
@@ -433,9 +428,9 @@ void read_rw_parms(int irw)
       MPI_Bcast(isp,nfct,MPI_INT,0,MPI_COMM_WORLD);
    }
 
-   set_rw_parms(irw,rwfact[idr],im0,nsrc,irp,nfct,mu,np,isp);
+   set_rw_parms(irw,(rwfact_t)(idr),im0,nsrc,irp,nfct,mu,np,isp);
 
-   if (idr<4)
+   if (idr!=(int)(RWRAT))
    {
       free(mu);
       free(isp);

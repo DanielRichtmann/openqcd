@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of prod2xv
+* Check of prod2xv.
 *
 *******************************************************************************/
 
@@ -33,11 +33,11 @@ typedef union
 
 static su3_dble u ALIGNED16;
 static su3_dble v ALIGNED16;
-static spinor_dble rx ALIGNED16;
-static spinor_dble ry ALIGNED16;
-static spinor_dble sx ALIGNED16;
-static spinor_dble sy ALIGNED16;
-static spinor_dble sw ALIGNED16;
+static spinor_dble rx ALIGNED32;
+static spinor_dble ry ALIGNED32;
+static spinor_dble sx ALIGNED32;
+static spinor_dble sy ALIGNED32;
+static spinor_dble sw ALIGNED32;
 
 
 static su3_vector_dble mul_cplx(complex_dble z,su3_vector_dble s)

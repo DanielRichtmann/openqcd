@@ -3,14 +3,12 @@
 *
 * File force0.c
 *
-* Copyright (C) 2005, 2009-2014, 2016 Martin Luescher, John Bulava
+* Copyright (C) 2005-2016, 2018 Martin Luescher, John Bulava
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Action of the double-precision gauge field and associated force.
-*
-* The externally accessible functions are
 *
 *   void plaq_frc(void)
 *     Computes the force deriving from the Wilson plaquette action,
@@ -26,14 +24,15 @@
 *     parameters of the gauge action are retrieved from the parameter
 *     data base.
 *
-*   double action0(int icom)
+*   qflt action0(int icom)
 *     Computes the local part of the gauge action including the prefactor
 *     1/g0^2. The coupling g0 and the other parameters of the action are
 *     retrieved from the parameter data base. The program returns the sum
 *     of the local parts of the action over all MPI processes if icom=1
 *     and otherwise just the local part.
 *
-* Notes:
+* The quadruple-precision types qflt is defined in su3.h. See doc/qsum.pdf
+* for further explanations.
 *
 * See the notes doc/gauge_action.pdf for the definition of the gauge action
 * and a description of the computation of the force deriving from it. The
@@ -66,7 +65,7 @@
 #define N0 (NPROC0*L0)
 
 static const int plns[6][2]={{0,1},{0,2},{0,3},{2,3},{3,1},{1,2}};
-static int nfc[8],ofs[8],hofs[8],ism,init=0;
+static int nfc[8],ofs[8],hofs[8],init=0;
 static su3_dble *udb,*hdb;
 static su3_dble wd[3] ALIGNED16;
 static su3_dble vd[4] ALIGNED16;
@@ -102,7 +101,7 @@ static void set_ofs(void)
    hofs[6]=hofs[5]+3*FACE2;
    hofs[7]=hofs[6]+3*FACE3;
 
-   init+=2;
+   init=1;
 }
 
 
@@ -316,7 +315,7 @@ void force0(double c)
       hdb=NULL;
    else
    {
-      if ((init&0x2)==0)
+      if (init==0)
          set_ofs();
 
       if (query_flags(BSTAP_UP2DATE)!=1)
@@ -600,11 +599,12 @@ static void wloops(int n,int ix,int t,double c0,double *trU)
 }
 
 
-double action0(int icom)
+qflt action0(int icom)
 {
    int bc,ix,t,n;
-   double c0,c1,*cG;
-   double r0,r1,trU[4],act;
+   double act1,c0,c1,*cG;
+   double r0,r1,trU[4],*qact[1];
+   qflt act0;
    lat_parms_t lat;
    bc_parms_t bcp;
 
@@ -624,7 +624,7 @@ double action0(int icom)
       hdb=NULL;
    else
    {
-      if ((init&0x2)==0)
+      if (init==0)
          set_ofs();
 
       if (query_flags(BSTAP_UP2DATE)!=1)
@@ -632,18 +632,13 @@ double action0(int icom)
       hdb=bstap();
    }
 
-   if ((init&0x1)==0)
-   {
-      ism=init_hsum(1);
-      init+=1;
-   }
-
-   reset_hsum(ism);
+   act0.q[0]=0.0;
+   act0.q[1]=0.0;
 
    for (ix=0;ix<VOLUME;ix++)
    {
       t=global_time(ix);
-      act=0.0;
+      act1=0.0;
 
       if ((t<(N0-1))||(bc!=0))
       {
@@ -657,7 +652,7 @@ double action0(int icom)
          for (n=0;n<3;n++)
          {
             wloops(n,ix,t,c0,trU);
-            act+=(r0*trU[0]+c1*(trU[1]+trU[2]+0.5*trU[3]));
+            act1+=(r0*trU[0]+c1*(trU[1]+trU[2]+0.5*trU[3]));
          }
       }
 
@@ -680,17 +675,20 @@ double action0(int icom)
          for (n=3;n<6;n++)
          {
             wloops(n,ix,t,c0,trU);
-            act+=(r0*trU[0]+r1*(trU[1]+trU[2]));
+            act1+=(r0*trU[0]+r1*(trU[1]+trU[2]));
          }
       }
 
-      add_to_hsum(ism,&act);
+      acc_qflt(act1,act0.q);
    }
 
-   if ((icom==1)&&(NPROC>1))
-      global_hsum(ism,&act);
-   else
-      local_hsum(ism,&act);
+   if ((NPROC>1)&&(icom==1))
+   {
+      qact[0]=act0.q;
+      global_qsum(1,qact,qact);
+   }
 
-   return (lat.beta/3.0)*act;
+   scl_qflt(lat.beta/3.0,act0.q);
+
+   return act0;
 }

@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2007, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -31,7 +31,7 @@ int main(int argc,char *argv[])
 {
    int my_rank,bc,bs[4],nbs,isw;
    int nb,nbb,*nbbe,*nbbo,*obbe,*obbo;
-   int (*inn)[8],*idx,*ipp,*map;
+   int (*inn)[8],*idx,*ipp,*mpp;
    int ix,iy,iz,ifc,ie;
    int *bo1,*bo2;
    int l[4],mu,is;
@@ -121,7 +121,7 @@ int main(int argc,char *argv[])
    inn=dfl_grid.inn;
    idx=dfl_grid.idx;
    ipp=dfl_grid.ipp;
-   map=dfl_grid.map;
+   mpp=dfl_grid.map;
    iz=0;
 
    for (ifc=0;ifc<8;ifc++)
@@ -250,7 +250,7 @@ int main(int argc,char *argv[])
                 (((ifc&0x1)==0)&&(bo1[mu]!=0)))
                ie=2;
 
-            iy=map[iy-nb];
+            iy=mpp[iy-nb];
             bo2=b[idx[iy]].bo;
 
             for (mu=0;mu<4;mu++)

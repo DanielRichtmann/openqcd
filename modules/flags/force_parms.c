@@ -3,14 +3,12 @@
 *
 * File force_parms.c
 *
-* Copyright (C) 2011, 2012 Martin Luescher
+* Copyright (C) 2011, 2012, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Force parameter data base
-*
-* The externally accessible functions are
+* Force parameter data base.
 *
 *   force_parms_t set_force_parms(int ifr,force_t force,int ipf,int im0,
 *                                 int *irat,int *imu,int *isp,int *ncr)
@@ -71,8 +69,6 @@
 *     on the file fdat on MPI process 0, assuming the latter were written
 *     to the file by the program write_force_parms().
 *
-* Notes:
-*
 * For a description of the supported forces and their parameters see
 * forces/README.forces.
 *
@@ -104,7 +100,7 @@
 *
 *   irat    Indices specifying a rational function (see ratfcts/ratfcts.c),
 *
-*   imu     Twisted mass indices (see flags/hmc_parms.c),
+*   imu     Twisted mass indices (see flags/{hmc,smd}_parms.c),
 *
 *   isp     Solver parameter set indices (see flags/solver_parms.c),
 *
@@ -145,8 +141,6 @@
 #define IFRMAX 32
 
 static int init=0,icr=0;
-static force_t force[]={FRG,FRF_TM1,FRF_TM1_EO,FRF_TM1_EO_SDET,
-                        FRF_TM2,FRF_TM2_EO,FRF_RAT,FRF_RAT_SDET};
 static force_parms_t fp[IFRMAX+1]={{FORCES,0,0,{0,0,0},{0,0,0,0},{0,0,0,0},
                                     {0,0,0,0},{0,0,0,0}}};
 
@@ -344,9 +338,11 @@ void read_force_parms(int ifr)
       find_section(line);
       read_line("force","%s",line);
 
-      if (strcmp(line,"FRF_TM1")==0)
+      if (strcmp(line,"FRG")==0)
+         idf=(int)(FRG);
+      else if (strcmp(line,"FRF_TM1")==0)
       {
-         idf=1;
+         idf=(int)(FRF_TM1);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -355,7 +351,7 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_TM1_EO")==0)
       {
-         idf=2;
+         idf=(int)(FRF_TM1_EO);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -364,7 +360,7 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_TM1_EO_SDET")==0)
       {
-         idf=3;
+         idf=(int)(FRF_TM1_EO_SDET);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -373,7 +369,7 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_TM2")==0)
       {
-         idf=4;
+         idf=(int)(FRF_TM2);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d %d",imu,imu+1);
@@ -382,7 +378,7 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_TM2_EO")==0)
       {
-         idf=5;
+         idf=(int)(FRF_TM2_EO);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d %d",imu,imu+1);
@@ -391,7 +387,7 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_RAT")==0)
       {
-         idf=6;
+         idf=(int)(FRF_RAT);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
@@ -399,15 +395,18 @@ void read_force_parms(int ifr)
       }
       else if (strcmp(line,"FRF_RAT_SDET")==0)
       {
-         idf=7;
+         idf=(int)(FRF_RAT_SDET);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
          read_line("isp","%d",isp);
       }
-      else if (strcmp(line,"FRG")!=0)
+      else
+      {
+         idf=(int)(FORCES);
          error_root(1,1,"read_force_parms [force_parms.c]",
                     "Unknown force %s",line);
+      }
    }
 
    if (NPROC>1)
@@ -421,7 +420,7 @@ void read_force_parms(int ifr)
       MPI_Bcast(ncr,4,MPI_INT,0,MPI_COMM_WORLD);
    }
 
-   set_force_parms(ifr,force[idf],ipf,im0,irat,imu,isp,ncr);
+   set_force_parms(ifr,(force_t)(idf),ipf,im0,irat,imu,isp,ncr);
 }
 
 
@@ -433,7 +432,6 @@ void read_force_parms2(int ifr)
    action_parms_t ap;
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-   ie=0;
    idf=0;
    ipf=0;
    im0=0;
@@ -459,11 +457,14 @@ void read_force_parms2(int ifr)
       read_line("force","%s",line);
 
       if (ap.action==ACG)
+      {
          ie=strcmp(line,"FRG");
+         idf=(int)(FRG);
+      }
       else if (ap.action==ACF_TM1)
       {
          ie=strcmp(line,"FRF_TM1");
-         idf=1;
+         idf=(int)(FRF_TM1);
          ipf=ap.ipf;
          im0=ap.im0;
          imu[0]=ap.imu[0];
@@ -473,7 +474,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_TM1_EO)
       {
          ie=strcmp(line,"FRF_TM1_EO");
-         idf=2;
+         idf=(int)(FRF_TM1_EO);
          ipf=ap.ipf;
          im0=ap.im0;
          imu[0]=ap.imu[0];
@@ -483,7 +484,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_TM1_EO_SDET)
       {
          ie=strcmp(line,"FRF_TM1_EO_SDET");
-         idf=3;
+         idf=(int)(FRF_TM1_EO_SDET);
          ipf=ap.ipf;
          im0=ap.im0;
          imu[0]=ap.imu[0];
@@ -493,7 +494,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_TM2)
       {
          ie=strcmp(line,"FRF_TM2");
-         idf=4;
+         idf=(int)(FRF_TM2);
          ipf=ap.ipf;
          im0=ap.im0;
          imu[0]=ap.imu[0];
@@ -504,7 +505,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_TM2_EO)
       {
          ie=strcmp(line,"FRF_TM2_EO");
-         idf=5;
+         idf=(int)(FRF_TM2_EO);
          ipf=ap.ipf;
          im0=ap.im0;
          imu[0]=ap.imu[0];
@@ -515,7 +516,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_RAT)
       {
          ie=strcmp(line,"FRF_RAT");
-         idf=6;
+         idf=(int)(FRF_RAT);
          ipf=ap.ipf;
          im0=ap.im0;
          irat[0]=ap.irat[0];
@@ -526,7 +527,7 @@ void read_force_parms2(int ifr)
       else if (ap.action==ACF_RAT_SDET)
       {
          ie=strcmp(line,"FRF_RAT_SDET");
-         idf=7;
+         idf=(int)(FRF_RAT_SDET);
          ipf=ap.ipf;
          im0=ap.im0;
          irat[0]=ap.irat[0];
@@ -535,8 +536,12 @@ void read_force_parms2(int ifr)
          read_line("isp","%d",isp);
       }
       else
+      {
+         ie=1;
+         idf=(int)(FORCES);
          error_root(1,1,"read_force_parms2 [force_parms.c]",
                     "Unknown action");
+      }
 
       error_root(ie!=0,1,"read_force_parms2 [force_parms.c]",
                     "Force and action types do not match");
@@ -553,7 +558,7 @@ void read_force_parms2(int ifr)
       MPI_Bcast(ncr,4,MPI_INT,0,MPI_COMM_WORLD);
    }
 
-   set_force_parms(ifr,force[idf],ipf,im0,irat,imu,isp,ncr);
+   set_force_parms(ifr,(force_t)(idf),ipf,im0,irat,imu,isp,ncr);
 }
 
 

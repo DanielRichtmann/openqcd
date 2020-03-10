@@ -50,7 +50,7 @@ static double wt_spinor_prod(int nflds,int icom)
       for (n=0;n<nmax;n++)
       {
          for (i=0;i<nflds;i+=2)
-            spinor_prod(VOLUME,icom,ps[i],ps[i+1]);
+            (void)(spinor_prod(VOLUME,icom,ps[i],ps[i+1]));
       }
 
       wt2=MPI_Wtime();

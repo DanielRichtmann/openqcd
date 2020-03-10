@@ -1,0 +1,16 @@
+
+********************************************************************************
+
+                   Input parameter files for the program ym1
+
+********************************************************************************
+
+8x768v1.in             HMC master-field simulation of the SU(3) YM theory with
+                       Wilson plaquette action, periodic boundary conditions
+                       and parallel configuration I/O. Parameters tuned for
+                       simulations of 8x768^3 lattices.
+
+256x256v1.in           HMC master-field simulation of the SU(3) YM theory with
+                       Wilson plaquette action, periodic boundary conditions
+                       and parallel configuration I/O. Parameters tuned for
+                       simulations of 256^4 lattices.

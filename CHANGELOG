@@ -1,5 +1,107 @@
 
-xx. yyyy 2016
+11. November 2019
+
+Version 2.0: 5th public release.
+
+- Implemented the SMD (Stochastic Molecular-Dynamics) simulation algorithm
+  and added main programs (qcd2.c, ym2.c) that run such simulations. See
+  README.qcd2 and README.ym2. A new module, update/smd.c, has been added
+  containing the basic functions implementing the algorithm. Functions for
+  the rotation of the momentum and pseudo-fermion fields are included in
+  the modules mdflds/mdflds.c and forces/force{1,..,5}.c.
+
+- Reworked the field I/O programs in modules/archive/ so as to allow for
+  blockwise parallel I/O in a universal format. See main/README.io for
+  further explanations. Added a main program (cvt1.c) that can be used
+  to convert gauge field configurations from one supported output format
+  to another (see README.cvt1).
+
+- Adapted the check programs in devel/archive so as to check all field I/O
+  programs.
+
+- Large sums of double-precision floating-point numbers are now performed
+  in quadruple precision (see doc/qsum.pdf). The basic quadruple-precision
+  arithmetic functions are contained in a new module utils/qsum.c.
+
+- All solvers (CGNE, MSCG, SAP_GCR, DFL_SAP_GCR) now admit two types of
+  user-selectable stopping criteria, the traditional one based on the
+  standard square norm of the spinor fields and a second one based on the
+  uniform norm of the fields (see doc/unorm.pdf and doc/parms.pdf). The
+  functions calculating the uniform norm of single- and double-precision
+  spinor fields are contained a new module sflds/unorm.c.
+
+- Added two new functions to the module linalg/liealg.c, one calculating
+  the uniform norm of fields with values in the SU(3) Lie algebra and
+  the other flipping the sign of such fields.
+
+- Added a check program (forces/check12.c) that allows the numerical
+  precision of the pseudo-fermion actions and forces calculated in QCD
+  simulations to be studied as a function of the solver tolerances.
+
+- The memory required for the fields and buffers allocated by the simulation
+  programs has been substantially reduced with respect to the previous release.
+  A memory-occupation report is printed to the log file at the start of the
+  simulations.
+
+- Streamlined the workspace administration (file utils/wspace.c) and added
+  support for a shared workspace for single- and double-precision spinor
+  fields [program "wsd_uses_ws()"].
+
+- Removed the double-precision basis elements of the deflation subspace
+  from the deflation block grid. These occupied a significant amount of
+  memory, but were effectively obsolete.
+
+- Reduced the memory space required for the pseudo-fermion fields by storing
+  only the field variables on the even lattice points in the case of the
+  actions ACF_TM1_EO_SDET, ACF_TM2_EO, ACF_RAT_SDET and ACF_RAT. Moreover,
+  the fields now no longer include communication buffers at their ends
+  and thus contain either VOLUME or VOLUME/2 spinors.
+
+- Reduced the memory space required for the chronological solver by storing
+  only the field variables on the even lattice points in the case of the
+  forces FRF_TM1_EO_SDET, FRF_TM2_EO, FRF_RAT_SDET and FRF_RAT.
+
+- The programs for the pseudo-fermion actions may now optionally make use
+  of the chronological solver. And the programs that rotate the pseudo-
+  fermion fields in the SMD algorithm optionally update the chronological
+  solution stacks used by the associated forces and actions.
+
+- Added two modules, swalg.c and swexp.c, in modules/sw_term/ containing
+  various functions required for the implementation of an alternative
+  "exponential" variant of the O(a)-improvement terms (see doc/dirac.pdf).
+  The variant is fully supported and can be chosen at runtime through a
+  parameter passed to the lattice parameters data base (flags/lat_parms.c).
+
+- Added a module utils/array.c that allows multi-dimensional arrays of
+  any type to be allocated and handled safely without pointer gymnastics.
+
+- Added a new module directory, modules/dft/, containing a set of modules
+  implementing the fast Fourier transform of lattice fields of any type in
+  four dimensions. These programs are needed when calculating statistical
+  errors in master-field simulations.
+
+- Added a new module directory, modules/msfcts/, containing a set of modules
+  providing basic support for computing statistical errors in master-field
+  simulations.
+
+- Added two measurement main programs, xms1.c and xms2.c, illustrating the
+  the computation of observables and statistical errors in master-field
+  simulations.
+
+- Corrected the program name_size() [utils/mutils.c] so as to make it safe
+  against buffer overflows when file names contain wide decimal numbers.
+
+- Corrected the known bugs of the previous version as well as various small
+  errors in the documentation.
+
+- Revised the documentation file doc/parms.pdf.
+
+- Added the documentation files doc/dft.pdf, doc/qsum.pdf and doc/unorm.pdf.
+
+- Revised the top README file.
+
+
+12. October 2016
 
 Version 1.6: 4th public release.
 
@@ -26,12 +128,12 @@ Version 1.6: 4th public release.
 
 - Corrected notes in utils/endian.c.
 
-- In main/ym1.c delete superfluous second call of alloc_data() in the
+- In main/ym1.c deleted superfluous second call of alloc_data() in the
   main program.
 
 - In main/ms4.c replaced "x0=(N0-1)" by "x0==(N0-1)" on line 185 and
   "if (sp.solver==SAP_GCR)" by "else if (sp.solver==SAP_GCR)" on line
-  491 (thanks to Abdou Abdel-Rehim for noting this bug).
+  491 (thanks to Abdou Abdel-Rehim for noting these bugs).
 
 - In random/ranlux.c inserted error message in check_machine() to
   make sure the number of actual MPI processes matches NPROC.

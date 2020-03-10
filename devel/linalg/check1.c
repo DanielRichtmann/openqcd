@@ -3,12 +3,12 @@
 *
 * File check1.c
 *
-* Copyright (C) 2005, 2009, 2010, 2011 Martin Luescher, Filippo Palombi
+* Copyright (C) 2005-2011, 2018 Martin Luescher, Filippo Palombi
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Checks of the programs in the module liealg
+* Checks of the programs in the module liealg.
 *
 *******************************************************************************/
 
@@ -29,155 +29,145 @@
 
 #define NMOM 100033
 
+static int my_rank;
 static double var[64],var_all[64];
+static su3_dble wud[2] ALIGNED16;
 
 
-int main(int argc,char *argv[])
+static void alg2mat(su3_alg_dble *X,su3_dble *u)
 {
-   int my_rank,n,i,j;
-   double dev,dmax,dmax_all;
-   double nsq1,nsq2,sprod1,sprod2;
-   double sm,r[8];
-   double rn,cij,eij;
-   su3_dble *M,*m,w;
-   su3_alg_dble *X,*Y,*x;
-   FILE *flog=NULL;
+   (*u).c11.re=0.0;
+   (*u).c11.im=(*X).c1+(*X).c2;
 
-   MPI_Init(&argc,&argv);
-   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+   (*u).c22.re=0.0;
+   (*u).c22.im=(*X).c2-2.0*(*X).c1;
 
-   if (my_rank==0)
-   {
-      flog=freopen("check1.log","w",stdout);
+   (*u).c33.re=0.0;
+   (*u).c33.im=(*X).c1-2.0*(*X).c2;
 
-      printf("\n");
-      printf("Checks of the programs in the module liealg\n");
-      printf("-------------------------------------------\n\n");
+   (*u).c12.re=(*X).c3;
+   (*u).c12.im=(*X).c4;
+   (*u).c21.re=-(*X).c3;
+   (*u).c21.im=(*X).c4;
 
-      printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
-      printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
-      printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+   (*u).c13.re=(*X).c5;
+   (*u).c13.im=(*X).c6;
+   (*u).c31.re=-(*X).c5;
+   (*u).c31.im=(*X).c6;
 
-      printf("Number of momenta: %d\n\n",NMOM);
-   }
+   (*u).c23.re=(*X).c7;
+   (*u).c23.im=(*X).c8;
+   (*u).c32.re=-(*X).c7;
+   (*u).c32.im=(*X).c8;
+}
 
-   start_ranlux(0,123456);
-   geometry();
 
-   X=amalloc(2*NMOM*sizeof(*X),4);
-   M=amalloc(NMOM*sizeof(*M),4);
-   error((X==NULL)||(M==NULL),1,
-         "main [check1.c]","Unable to allocate field arrays");
-   Y=X+NMOM;
+static double frob_norm_square(su3_alg_dble *X)
+{
+   alg2mat(X,wud);
+   su3xsu3(wud,wud,wud+1);
+
+   return -2.0*(wud[1].c11.re+wud[1].c22.re+wud[1].c33.re);
+}
+
+
+static void chk_norm_square(su3_alg_dble *X)
+{
+   int n,i,ie;
+   double d,dmax,*r;
+   qflt qr,qrsm;
 
    set_alg2zero(NMOM,X);
-   dmax=0.0;
+   ie=0;
 
    for (n=0;n<NMOM;n++)
    {
-      r[0]=X[n].c1;
-      r[1]=X[n].c2;
-      r[2]=X[n].c3;
-      r[3]=X[n].c4;
-      r[4]=X[n].c5;
-      r[5]=X[n].c6;
-      r[6]=X[n].c7;
-      r[7]=X[n].c8;
+      r=(double*)(X+n);
 
       for (i=0;i<8;i++)
-      {
-         dev=fabs(r[i]);
-         if (dev>dmax)
-            dmax=dev;
-      }
+         ie|=(r[i]!=0.0);
 
       X[n].c3=1.0;
    }
 
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   qrsm=norm_square_alg(NMOM,1,X);
 
-   if (my_rank==0)
-   {
-      printf("Check of set_alg2zero():\n\n");
-      printf("max|X| = %.1e (should be 0.0)\n\n",dmax_all);
-   }
+   error(ie!=0,1,"chk_norm_square [check1.c]",
+         "Field is incorrectly initialized");
+   error(qrsm.q[0]!=(4.0*(double)(NMOM)*(double)(NPROC)),1,
+         "chk_norm_square [check1.c]","Incorrect element count");
 
-   dmax=fabs(norm_square_alg(NMOM,1,X)-4.0*(double)(NMOM*NPROC));
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
-
-   if (my_rank==0)
-   {
-      printf("Check of norm_square_alg():\n\n");
-      printf("Element count = %.1e (should be 0.0)\n\n",dmax_all);
-   }
-
-   sm=0.0;
+   qrsm.q[0]=0.0;
+   qrsm.q[1]=0.0;
    dmax=0.0;
+   random_alg(NMOM,X);
 
    for (n=0;n<NMOM;n++)
    {
-      x=X+n;
-      m=M+n;
+      qr=norm_square_alg(1,0,X+n);
+      d=fabs(1.0-frob_norm_square(X+n)/qr.q[0]);
 
-      random_alg(1,x);
+      if (d>dmax)
+         dmax=d;
 
-      (*m).c11.re=0.0;
-      (*m).c11.im=(*x).c1+(*x).c2;
-      (*m).c22.re=0.0;
-      (*m).c22.im=(*x).c2-2.0*(*x).c1;
-      (*m).c33.re=0.0;
-      (*m).c33.im=(*x).c1-2.0*(*x).c2;
-
-      (*m).c12.re= (*x).c3;
-      (*m).c12.im= (*x).c4;
-      (*m).c21.re=-(*x).c3;
-      (*m).c21.im= (*x).c4;
-
-      (*m).c13.re= (*x).c5;
-      (*m).c13.im= (*x).c6;
-      (*m).c31.re=-(*x).c5;
-      (*m).c31.im= (*x).c6;
-
-      (*m).c23.re= (*x).c7;
-      (*m).c23.im= (*x).c8;
-      (*m).c32.re=-(*x).c7;
-      (*m).c32.im= (*x).c8;
-
-      su3xsu3(m,m,&w);
-      nsq1=norm_square_alg(1,0,x);
-      nsq2=-2.0*(w.c11.re+w.c22.re+w.c33.re);
-
-      dev=fabs(1.0-nsq2/nsq1);
-      if (dev>dmax)
-         dmax=dev;
-
-      sm+=nsq2;
+      add_qflt(qr.q,qrsm.q,qrsm.q);
    }
 
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   if (NPROC>1)
+   {
+      d=dmax;
+      MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   }
 
    if (my_rank==0)
    {
-      printf("|1.0+2*tr{X^2}/||X||^2| = %.1e (single elements)\n",dmax_all);
-      printf("(should be less than %.1e or so)\n\n",DBL_EPSILON*sqrt(8.0));
+      printf("Program norm_square_alg():\n");
+      printf("Relative deviation = %.1e (single elements)\n",dmax);
    }
 
-   dmax=fabs(1.0-sm/norm_square_alg(NMOM,0,X));
-   MPI_Reduce(&dmax,&dmax_all,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   qr=norm_square_alg(NMOM,0,X);
+   qr.q[0]=-qr.q[0];
+   qr.q[1]=-qr.q[1];
+   add_qflt(qr.q,qrsm.q,qrsm.q);
+   dmax=fabs(qrsm.q[0]/qr.q[0]);
+
+   if (NPROC>1)
+   {
+      d=dmax;
+      MPI_Reduce(&d,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   }
 
    if (my_rank==0)
+      printf("Relative deviation = %.1e (local sum)\n",dmax);
+
+   qr=norm_square_alg(NMOM,0,X);
+   qrsm=norm_square_alg(NMOM,1,X);
+
+   if (NPROC>1)
    {
-      printf("|1.0+2*tr{X^2}/||X||^2| = %.1e (whole vector)\n",dmax_all);
-      printf("(should be less than %.1e or so)\n\n",
-             DBL_EPSILON*sqrt(8.0*(double)(NMOM)));
+      d=qr.q[0];
+      MPI_Reduce(&d,qr.q,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
    }
+
+   dmax=fabs(1.0-qr.q[0]/qrsm.q[0]);
+
+   if (my_rank==0)
+      printf("Relative deviation = %.1e (global sum)\n\n",dmax);
+}
+
+
+static void chk_scalar_prod(su3_alg_dble *X,su3_alg_dble *Y)
+{
+   int n;
+   double dmax;
+   qflt qrx,qry,qrxy,qrxpy;
 
    random_alg(NMOM,X);
    random_alg(NMOM,Y);
 
-   nsq1=norm_square_alg(NMOM,1,X);
-   nsq2=norm_square_alg(NMOM,1,Y);
-   sprod1=scalar_prod_alg(NMOM,1,X,Y);
+   qrx=norm_square_alg(NMOM,1,X);
+   qry=norm_square_alg(NMOM,1,Y);
+   qrxy=scalar_prod_alg(NMOM,1,X,Y);
 
    for (n=0;n<NMOM;n++)
    {
@@ -191,15 +181,29 @@ int main(int argc,char *argv[])
       X[n].c8+=Y[n].c8;
    }
 
-   sprod2=0.5*(norm_square_alg(NMOM,1,X)-nsq1-nsq2);
+   qrxpy=norm_square_alg(NMOM,1,X);
+   qrx.q[0]=-qrx.q[0];
+   qrx.q[1]=-qrx.q[1];
+   qry.q[0]=-qry.q[0];
+   qry.q[1]=-qry.q[1];
+   add_qflt(qrx.q,qrxpy.q,qrxpy.q);
+   add_qflt(qry.q,qrxpy.q,qrxpy.q);
+   dmax=fabs(0.5*qrxpy.q[0]-qrxy.q[0]);
+   dmax/=sqrt(qrx.q[0]*qry.q[0]);
 
    if (my_rank==0)
    {
-      printf("Check of scalar_prod_alg(): %.1e\n",
-             fabs(sprod1-sprod2)/sqrt(nsq1*nsq2));
-      printf("(should be less than %.1e or so)\n\n",
-             DBL_EPSILON*sqrt(8.0*(double)(NMOM)*(double)(NPROC)));
+      printf("Program scalar_prod_alg():\n");
+      printf("Relative deviation = %.1e\n\n",dmax);
    }
+}
+
+
+static void chk_random_alg(su3_alg_dble *X)
+{
+   int n,i,j;
+   double d,dmax,*r;
+   double rn,cij,eij;
 
    random_alg(NMOM,X);
 
@@ -211,14 +215,7 @@ int main(int argc,char *argv[])
 
    for (n=0;n<NMOM;n++)
    {
-      r[0]=X[n].c1;
-      r[1]=X[n].c2;
-      r[2]=X[n].c3;
-      r[3]=X[n].c4;
-      r[4]=X[n].c5;
-      r[5]=X[n].c6;
-      r[6]=X[n].c7;
-      r[7]=X[n].c8;
+      r=(double*)(X+n);
 
       for (i=0;i<8;i++)
       {
@@ -227,11 +224,17 @@ int main(int argc,char *argv[])
       }
    }
 
-   MPI_Reduce(var,var_all,64,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+   if (NPROC>1)
+      MPI_Reduce(var,var_all,64,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+   else
+   {
+      for (i=0;i<64;i++)
+         var_all[i]=var[i];
+   }
 
    if (my_rank==0)
    {
-      printf("Check of random_alg():\n\n");
+      printf("Program random_alg():\n");
       dmax=0.0;
       rn=1.0/((double)(NMOM)*(double)(NPROC));
 
@@ -274,10 +277,10 @@ int main(int argc,char *argv[])
             }
             else
             {
-               dev=fabs(var_all[8*i+j])/eij;
+               d=fabs(var_all[8*i+j])/eij;
 
-               if (dev>dmax)
-                  dmax=dev;
+               if (d>dmax)
+                  dmax=d;
             }
          }
       }
@@ -288,25 +291,129 @@ int main(int argc,char *argv[])
       printf("max|<b[i]*b[j]>| = %.1e (should be %.1e or so)\n\n",
              dmax*eij,2.0*eij);
    }
+}
+
+
+static void chk_mul_add_assign(su3_alg_dble *X,su3_alg_dble *Y)
+{
+   double rn,dmax;
+   qflt qrx,qry,qrxy,qrsm;
 
    rn=-1.2345;
    random_alg(NMOM,X);
    random_alg(NMOM,Y);
 
-   nsq1=norm_square_alg(NMOM,1,X);
-   nsq2=norm_square_alg(NMOM,1,Y);
-   sprod1=scalar_prod_alg(NMOM,1,X,Y);
+   qrx=norm_square_alg(NMOM,1,X);
+   qry=norm_square_alg(NMOM,1,Y);
+   qrxy=scalar_prod_alg(NMOM,1,X,Y);
 
    muladd_assign_alg(NMOM,rn,X,Y);
-   sm=norm_square_alg(NMOM,1,Y)-nsq2-rn*rn*nsq1-2.0*rn*sprod1;
-   sm=fabs(sm)/nsq1;
+   qrsm=norm_square_alg(NMOM,1,Y);
+
+   dmax=qrsm.q[0]-qry.q[0]-rn*rn*qrx.q[0]-2.0*rn*qrxy.q[0];
+   dmax=fabs(dmax)/qrsm.q[0];
 
    if (my_rank==0)
    {
-      printf("Check of muladd_assign_alg(): %.1e\n",sm);
-      printf("(should be less than 1.0e-15 or so)\n\n");
-      fclose(flog);
+      printf("Program muladd_assign_alg():\n");
+      printf("Relative deviation = %.1e\n\n",dmax);
    }
+}
+
+
+static void chk_unorm_alg(su3_alg_dble *X)
+{
+   int n;
+   double nrm,ns,dist,dmax,tol;
+
+   random_alg(NMOM,X);
+   nrm=unorm_alg(NMOM,1,X);
+   dist=nrm;
+   dmax=0.0;
+
+   for (n=0;n<NMOM;n++)
+   {
+      ns=sqrt(frob_norm_square(X+n));
+
+      if (ns<=nrm)
+      {
+         ns=nrm-ns;
+         if (ns<dist)
+            dist=ns;
+      }
+      else
+      {
+         ns=ns-nrm;
+         if (ns<dist)
+            dist=ns;
+         if (ns>dmax)
+            dmax=ns;
+      }
+   }
+
+   tol=16.0*nrm*DBL_EPSILON;
+
+   if (NPROC>1)
+   {
+      ns=dist;
+      MPI_Reduce(&ns,&dist,1,MPI_DOUBLE,MPI_MIN,0,MPI_COMM_WORLD);
+      ns=dmax;
+      MPI_Reduce(&ns,&dmax,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+   }
+
+   if (my_rank==0)
+   {
+      printf("Program unorm_alg():\n");
+      if ((dist<=tol)&&(dmax<=tol))
+         printf("No deviation discovered\n\n");
+      else
+      {
+         error(dist>tol,1,"chk_unorm_alg [check1.c]",
+               "Uniform norm is not correctly calculated");
+      }
+   }
+}
+
+
+int main(int argc,char *argv[])
+{
+   su3_alg_dble *X,*Y;
+   FILE *flog=NULL;
+
+   MPI_Init(&argc,&argv);
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+
+   if (my_rank==0)
+   {
+      flog=freopen("check1.log","w",stdout);
+
+      printf("\n");
+      printf("Checks of the programs in the module liealg\n");
+      printf("-------------------------------------------\n\n");
+
+      printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
+      printf("%dx%dx%dx%d process grid, ",NPROC0,NPROC1,NPROC2,NPROC3);
+      printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
+
+      printf("Number of momenta: %d\n\n",NMOM);
+   }
+
+   check_machine();
+   start_ranlux(0,123456);
+   geometry();
+
+   X=amalloc(2*NMOM*sizeof(*X),4);
+   error(X==NULL,1,"main [check1.c]","Unable to allocate field array");
+   Y=X+NMOM;
+
+   chk_norm_square(X);
+   chk_scalar_prod(X,Y);
+   chk_random_alg(X);
+   chk_mul_add_assign(X,Y);
+   chk_unorm_alg(X);
+
+   if (my_rank==0)
+      fclose(flog);
 
    MPI_Finalize();
    exit(0);

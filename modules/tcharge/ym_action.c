@@ -3,14 +3,12 @@
 *
 * File ym_action.c
 *
-* Copyright (C) 2010-2013, 2016 Martin Luescher
+* Copyright (C) 2010-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Computation of the Yang-Mills action using the symmetric field tensor.
-*
-* The externally accessible functions are
 *
 *   double ym_action(void)
 *     Returns the Yang-Mills action S (w/o prefactor 1/g0^2) of the
@@ -23,7 +21,9 @@
 *     t=0,1,...,N0-1 (where N0=NPROC0*L0). The program returns the
 *     total action.
 *
-* Notes:
+*   void ym_action_fld(double *f)
+*     Assigns the density field s to the observable field f such that
+*     f[ix]=s(x), where 0<=ix<VOLUME is the index of the point x.
 *
 * The Yang-Mills action density s(x) is defined by
 *
@@ -57,18 +57,15 @@
 #include "mpi.h"
 #include "su3.h"
 #include "flags.h"
-#include "su3fcts.h"
 #include "utils.h"
 #include "lattice.h"
-#include "uflds.h"
-#include "linalg.h"
 #include "tcharge.h"
 #include "global.h"
 
 #define N0 (NPROC0*L0)
 
-static int isx[L0],init=0;
-static double asl0[N0];
+static double *qasl[N0];
+static qflt rqasl[N0];
 static u3_alg_dble **ft;
 
 
@@ -101,21 +98,15 @@ double ym_action(void)
    int bc,ix,t,tmx;
    double S;
 
-   if (init==0)
-   {
-      for (t=0;t<L0;t++)
-         isx[t]=init_hsum(1);
-
-      init=1;
-   }
-
    ft=ftensor();
    bc=bc_type();
    if (bc==0)
       tmx=N0-1;
    else
       tmx=N0;
-   reset_hsum(isx[0]);
+   qasl[0]=rqasl[0].q;
+   qasl[0][0]=0.0;
+   qasl[0][1]=0.0;
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -124,31 +115,21 @@ double ym_action(void)
       if (((t>0)&&(t<tmx))||(bc==3))
       {
          S=density(ix);
-         add_to_hsum(isx[0],&S);
+         acc_qflt(S,qasl[0]);
       }
    }
 
    if (NPROC>1)
-      global_hsum(isx[0],&S);
-   else
-      local_hsum(isx[0],&S);
+      global_qsum(1,qasl,qasl);
 
-   return 0.5*S;
+   return 0.5*qasl[0][0];
 }
 
 
 double ym_action_slices(double *asl)
 {
-   int bc,ix,t,t0,tmx;
+   int bc,ix,t,tmx;
    double S;
-
-   if (init==0)
-   {
-      for (t=0;t<L0;t++)
-         isx[t]=init_hsum(1);
-
-      init=1;
-   }
 
    ft=ftensor();
    bc=bc_type();
@@ -156,10 +137,13 @@ double ym_action_slices(double *asl)
       tmx=N0-1;
    else
       tmx=N0;
-   t0=cpr[0]*L0;
 
-   for (t=0;t<L0;t++)
-      reset_hsum(isx[t]);
+   for (t=0;t<N0;t++)
+   {
+      qasl[t]=rqasl[t].q;
+      qasl[t][0]=0.0;
+      qasl[t][1]=0.0;
+   }
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -167,36 +151,44 @@ double ym_action_slices(double *asl)
 
       if (((t>0)&&(t<tmx))||(bc==3))
       {
-         t-=t0;
          S=density(ix);
-         add_to_hsum(isx[t],&S);
+         acc_qflt(S,qasl[t]);
       }
    }
 
-   for (t=0;t<N0;t++)
-      asl0[t]=0.0;
-
-   for (t=0;t<L0;t++)
-   {
-      local_hsum(isx[t],&S);
-      asl0[t+t0]=0.5*S;
-   }
-
    if (NPROC>1)
-   {
-      MPI_Reduce(asl0,asl,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(asl,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
-   else
-   {
-      for (t=0;t<N0;t++)
-         asl[t]=asl0[t];
-   }
-
-   S=0.0;
+      global_qsum(N0,qasl,qasl);
 
    for (t=0;t<N0;t++)
-      S+=asl[t];
+   {
+      asl[t]=0.5*qasl[t][0];
 
-   return S;
+      if (t>0)
+         add_qflt(qasl[t],qasl[0],qasl[0]);
+   }
+
+   return 0.5*qasl[0][0];
+}
+
+
+void ym_action_fld(double *f)
+{
+   int bc,ix,t,tmx;
+
+   ft=ftensor();
+   bc=bc_type();
+   if (bc==0)
+      tmx=N0-1;
+   else
+      tmx=N0;
+
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      t=global_time(ix);
+
+      if (((t>0)&&(t<tmx))||(bc==3))
+         f[ix]=0.5*density(ix);
+      else
+         f[ix]=0.0;
+   }
 }

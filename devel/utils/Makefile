@@ -19,7 +19,7 @@ all: rmxeq mkdep mkxeq
 
 # main programs and modules to be compiled
 
-MAIN = check1
+MAIN = check1 check2
 
 FLAGS = flags lat_parms
 
@@ -27,7 +27,7 @@ LATTICE = geometry
 
 RANDOM = ranlux ranlxs ranlxd
 
-UTILS = endian error mutils utils
+UTILS = endian error mutils qsum utils
 
 MODULES = $(FLAGS) $(LATTICE) $(RANDOM) $(UTILS)
 
@@ -51,16 +51,16 @@ INCPATH = $(MPI_INCLUDE) ../../include
 
 # additional libraries
 
-LIBS = m
+LIBS = m gmp
 
 LIBPATH = $(MPI_HOME)/lib
 
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

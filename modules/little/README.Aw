@@ -16,7 +16,7 @@ Here the data structures used to represent the operator are described.
 Definition
 ----------
 
-The deflation subspace is spanned by the fields (*b).sd[1],..,(*b).sd[Ns] on
+The deflation subspace is spanned by the fields (*b).s[1],..,(*b).s[Ns] on
 the blocks b of the DFL_BLOCKS grid. When the subspace is created, the basis
 fields are orthonormalized on each block. The restriction of the Wilson-Dirac
 operator Dw+i*mu*gamma_5 to the deflation subspace is referred to as the
@@ -100,7 +100,7 @@ the even blocks. It is related to the little operator A through
 The preconditioned operator may be represented by Aw_t and Aw_dble_t
 structures containing the matrix arrays
 
-  Aee^(-1), Aoo^(-1), Aee^(-1)*Aeo and Aoo^(-1)*Aoe
+  Aee^(-1), Aoo^(-1), Aoo^(-1)*Aoe and Aee^(-1)*Aeo
 
 instead of Aee, Aoo, Aoe and Aeo.
 

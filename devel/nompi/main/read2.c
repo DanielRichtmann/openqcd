@@ -2,18 +2,17 @@
 *
 * File read2.c
 *
-* Copyright (C) 2012-2014 Martin Luescher
+* Copyright (C) 2012-2014, 2018, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Reads and evaluates data from the data files created by the program ms1.
-* The file to be read has to be specified on the command line.
+* Reads and evaluates the data on the data files <name>.ms1.dat created by
+* the program ms1.
 *
-* This program writes the history of the measured normalized reweighting
-* factors to the file <run name>.run2.dat in the plots directory. The
-* associated integrated  autocorrelation times are estimated and printed
-* to stdout.
+* The program writes the history of the measured normalized reweighting
+* factors to the file <name>.rw1.dat in the plots directory and prints
+* the associated integrated autocorrelation times to stdout.
 *
 *******************************************************************************/
 
@@ -23,8 +22,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include "su3.h"
 #include "utils.h"
-#include "extras.h"
+#include "analysis.h"
 
 static struct
 {
@@ -34,123 +34,75 @@ static struct
 
 static struct
 {
+   array_t *rw,*rwall;
+   array_t **sqn,**lnr,**lnrw;
+} arrays;
+
+static struct
+{
    int nc;
-   double ***sqn,***lnr;
+   qflt ***sqn,***lnr;
 } data;
 
 static int endian;
 static int first,last,step,nms;
-static double ***avrw,***lnrw,*avtot,*lntot;
+static double *rwall,**rw;
+static qflt ****lnrw;
 
 
 static void read_file_head(FILE *fdat)
 {
-   int nrw,*nfct,*nsrc;
-   int ir,ie,irw;
-   stdint_t istd[1];
+   int nrw,ndmy,iw,*nfct;
+   double *rdmy;
 
-   ir=fread(istd,sizeof(stdint_t),1,fdat);
-   error(ir!=1,1,"read_file_head [read2.c]",
-         "Incorrect read count");
+   iw=read_parms(fdat,&nrw,&nfct,&ndmy,&rdmy);
 
-   if (endian==BIG_ENDIAN)
-      bswap_int(1,istd);
+   error((nrw<2)||((nrw%2)!=0)||(iw!=2+nrw)||(ndmy!=0)||(rdmy!=NULL),1,
+         "read_file_head [read2.c]","Unexpected parameter data");
 
-   nrw=(int)(istd[0]);
-   error(nrw<1,1,"read_file_head [read2.c]",
-         "nrw is out of range");
-
-   nfct=malloc(2*nrw*sizeof(*nfct));
-   error(nfct==NULL,1,"read_file_head [read2.c]",
-         "Unable to allocate data arrays");
-   nsrc=nfct+nrw;
-   ie=0;
-
-   for (irw=0;irw<nrw;irw++)
-   {
-      ir+=fread(istd,sizeof(stdint_t),1,fdat);
-
-      if (endian==BIG_ENDIAN)
-         bswap_int(1,istd);
-
-      nfct[irw]=(int)(istd[0]);
-      ie|=(nfct[irw]<1);
-   }
-
-   for (irw=0;irw<nrw;irw++)
-   {
-      ir+=fread(istd,sizeof(stdint_t),1,fdat);
-
-      if (endian==BIG_ENDIAN)
-         bswap_int(1,istd);
-
-      nsrc[irw]=(int)(istd[0]);
-      ie|=(nsrc[irw]<1);
-   }
-
-   error(ir!=(1+2*nrw),1,"read_file_head [read2.c]",
-         "Incorrect read count");
-   error(ie!=0,1,"read_file_head [read2.c]",
-         "Unexpected values of nfct or nsrc");
-
+   nrw/=2;
    file_head.nrw=nrw;
    file_head.nfct=nfct;
-   file_head.nsrc=nsrc;
+   file_head.nsrc=nfct+nrw;
 }
 
 
 static void alloc_data(void)
 {
-   int nrw,*nfct,*nsrc;
-   int i,irw,ifct,n1,n2,n3;
-   double ***ppp,**pp,*p;
+   int nrw,irw,*nfct,*nsrc;
+   size_t n[2];
+   qflt ***qp;
+   array_t **ap;
 
    nrw=file_head.nrw;
    nfct=file_head.nfct;
    nsrc=file_head.nsrc;
-   n1=nrw;
-   n2=0;
-   n3=0;
+
+   qp=malloc(2*nrw*sizeof(*qp));
+   ap=malloc(2*nrw*sizeof(*ap));
+   error((qp==NULL)||(ap==NULL),1,"alloc_data [read2.c]",
+         "Unable to allocate data arrays");
+   data.sqn=qp;
+   data.lnr=qp+nrw;
+   arrays.sqn=ap;
+   arrays.lnr=ap+nrw;
 
    for (irw=0;irw<nrw;irw++)
    {
-      n2+=nfct[irw];
-      n3+=(nfct[irw]*nsrc[irw]);
-   }
-
-   ppp=malloc(2*n1*sizeof(*ppp));
-   pp=malloc(2*n2*sizeof(*pp));
-   p=malloc(2*n3*sizeof(*p));
-   error((ppp==NULL)||(pp==NULL)||(p==NULL),1,"alloc_data [read2.c]",
-         "Unable to allocate data arrays");
-
-   data.sqn=ppp;
-   data.lnr=ppp+nrw;
-
-   for (i=0;i<2;i++)
-   {
-      for (irw=0;irw<nrw;irw++)
-      {
-         (*ppp)=pp;
-         ppp+=1;
-
-         for (ifct=0;ifct<nfct[irw];ifct++)
-         {
-            (*pp)=p;
-            pp+=1;
-            p+=nsrc[irw];
-         }
-      }
+      n[0]=nfct[irw];
+      n[1]=2*nsrc[irw];
+      arrays.sqn[irw]=alloc_array(2,n,sizeof(double),0);
+      arrays.lnr[irw]=alloc_array(2,n,sizeof(double),0);
+      data.sqn[irw]=(qflt**)(arrays.sqn[irw][0].a);
+      data.lnr[irw]=(qflt**)(arrays.lnr[irw][0].a);
    }
 }
 
 
 static int read_data(FILE *fdat)
 {
-   int ir,n;
-   int nrw,*nfct,*nsrc,irw,ifct,isrc;
+   int nrw,irw,ir;
    stdint_t istd[1];
-   double dstd[1];
 
    ir=fread(istd,sizeof(stdint_t),1,fdat);
 
@@ -161,42 +113,13 @@ static int read_data(FILE *fdat)
       bswap_int(1,istd);
 
    data.nc=(int)(istd[0]);
-
    nrw=file_head.nrw;
-   nfct=file_head.nfct;
-   nsrc=file_head.nsrc;
-   n=0;
 
    for (irw=0;irw<nrw;irw++)
    {
-      for (ifct=0;ifct<nfct[irw];ifct++)
-      {
-         for (isrc=0;isrc<nsrc[irw];isrc++)
-         {
-            ir+=fread(dstd,sizeof(double),1,fdat);
-
-            if (endian==BIG_ENDIAN)
-               bswap_double(1,dstd);
-
-            data.sqn[irw][ifct][isrc]=dstd[0];
-         }
-
-         for (isrc=0;isrc<nsrc[irw];isrc++)
-         {
-            ir+=fread(dstd,sizeof(double),1,fdat);
-
-            if (endian==BIG_ENDIAN)
-               bswap_double(1,dstd);
-
-            data.lnr[irw][ifct][isrc]=dstd[0];
-         }
-
-         n+=nsrc[irw];
-      }
+      read_array(fdat,arrays.sqn[irw]);
+      read_array(fdat,arrays.lnr[irw]);
    }
-
-   error(ir!=(1+2*n),1,"read_data [read2.c]",
-         "Read error or incomplete data record");
 
    return 1;
 }
@@ -247,8 +170,8 @@ static void select_cnfg_range(FILE *fdat)
    scanf("%d",&step);
    printf("\n");
 
-   error((step%stp)!=0,1,"select_cnfg_range [read2.c]",
-         "Step must be a multiple of the configuration separation");
+   error((step<=0)||((step%stp)!=0),1,"select_cnfg_range [read2.c]",
+         "Step must be positive and divisible by the configuration separation");
 
    if (first<fst)
    {
@@ -257,187 +180,241 @@ static void select_cnfg_range(FILE *fdat)
          first+=step;
    }
 
-   if (last>lst)
-   {
-      last=last-((last-lst)/step)*step;
-      if (last>lst)
-         last-=step;
-   }
-
-   error((last<first)||(((last-first)%step)!=0)||(((first-fst)%stp)!=0),1,
+   error((first>lst)||(((first-fst)%stp)!=0)||(last<first),1,
          "select_cnfg_range [read2.c]","Improper configuration range");
 
-   printf("Selected configuration range: %d - %d by %d\n\n",
-          first,last,step);
+   if (last>lst)
+      last=lst;
+   last=last-(last-first)%step;
 
+   printf("Selected configuration range: %d - %d by %d.\n",
+          first,last,step);
    nms=(last-first)/step+1;
 }
 
 
-static void alloc_avrw(void)
-{
-   int nrw,*nfct,n1,n2,n3;
-   int i,irw,ifct;
-   double ***ppp,**pp,*p;
-
-   nrw=file_head.nrw;
-   nfct=file_head.nfct;
-   n1=nrw;
-   n2=0;
-
-   for (irw=0;irw<nrw;irw++)
-      n2+=nfct[irw];
-
-   n3=n2*nms+nms;
-
-   ppp=malloc(2*n1*sizeof(*ppp));
-   pp=malloc(2*n2*sizeof(*pp));
-   p=malloc(2*n3*sizeof(*p));
-   error((ppp==NULL)||(pp==NULL)||(p==NULL),1,"alloc_avrw [read2.c]",
-         "Unable to allocate data arrays");
-   avrw=ppp;
-   lnrw=ppp+n1;
-
-   for (i=0;i<2;i++)
-   {
-      for (irw=0;irw<nrw;irw++)
-      {
-         (*ppp)=pp;
-         ppp+=1;
-
-         for (ifct=0;ifct<nfct[irw];ifct++)
-         {
-            (*pp)=p;
-            pp+=1;
-            p+=nms;
-         }
-      }
-   }
-
-   avtot=p;
-   lntot=p+nms;
-}
-
-
-static void data2avrw(int ims)
+static void read_lnrw(FILE *fdat)
 {
    int nrw,*nfct,*nsrc;
-   int irw,ifct,isrc;
-   double lnm,rw,*lnr;
+   int irw,ifct,isrc,ims,nc;
+   size_t n[3];
+   qflt ****qp;
+   array_t **ap;
 
    nrw=file_head.nrw;
    nfct=file_head.nfct;
    nsrc=file_head.nsrc;
 
-   avtot[ims]=1.0;
-   lntot[ims]=0.0;
+   qp=malloc(nrw*sizeof(*qp));
+   ap=malloc(nrw*sizeof(*ap));
+   error((qp==NULL)||(ap==NULL),1,"read_lnrw [read2.c]",
+         "Unable to allocate data arrays");
+   lnrw=qp;
+   arrays.lnrw=ap;
+
+   for (irw=0;irw<nrw;irw++)
+   {
+      n[0]=nfct[irw];
+      n[1]=nsrc[irw];
+      n[2]=2*nms;
+      arrays.lnrw[irw]=alloc_array(3,n,sizeof(double),0);
+      lnrw[irw]=(qflt***)(arrays.lnrw[irw][0].a);
+   }
+
+   ims=0;
+
+   while (read_data(fdat))
+   {
+      nc=data.nc;
+
+      if ((nc>=first)&&(nc<=last)&&(((nc-first)%step)==0))
+      {
+         for (irw=0;irw<nrw;irw++)
+         {
+            for (ifct=0;ifct<nfct[irw];ifct++)
+            {
+               for (isrc=0;isrc<nsrc[irw];isrc++)
+               {
+                  lnrw[irw][ifct][isrc][ims].q[0]=
+                     -data.lnr[irw][ifct][isrc].q[0];
+                  lnrw[irw][ifct][isrc][ims].q[1]=
+                     -data.lnr[irw][ifct][isrc].q[1];
+               }
+            }
+         }
+
+         ims+=1;
+      }
+   }
+
+   error(ims!=nms,1,"read_lnrw [read2.c]","Incomplete data or read error");
+}
+
+
+static void shift_lnrw(void)
+{
+   int nrw,*nfct,*nsrc;
+   int irw,ifct,isrc,ims;
+   double lnav,*q;
+
+   nrw=file_head.nrw;
+   nfct=file_head.nfct;
+   nsrc=file_head.nsrc;
 
    for (irw=0;irw<nrw;irw++)
    {
       for (ifct=0;ifct<nfct[irw];ifct++)
       {
-         lnr=data.lnr[irw][ifct];
-         lnm=lnr[0];
+         lnav=0.0;
 
-         for (isrc=1;isrc<nsrc[irw];isrc++)
+         for (isrc=0;isrc<nsrc[irw];isrc++)
          {
-            if (lnr[isrc]<lnm)
-               lnm=lnr[isrc];
+            for (ims=0;ims<nms;ims++)
+            {
+               q=lnrw[irw][ifct][isrc][ims].q;
+               lnav+=q[0];
+            }
          }
 
-         lnrw[irw][ifct][ims]=lnm;
-         lntot[ims]+=lnm;
+         lnav/=(double)(nms*nsrc[irw]);
+         lnav=-lnav;
 
-         rw=0.0;
-
-         for (isrc=0;isrc<nsrc[ifct];isrc++)
-            rw+=exp(lnm-lnr[isrc]);
-
-         rw/=(double)(nsrc[ifct]);
-
-         avrw[irw][ifct][ims]=rw;
-         avtot[ims]*=rw;
+         for (isrc=0;isrc<nsrc[irw];isrc++)
+         {
+            for (ims=0;ims<nms;ims++)
+            {
+               q=lnrw[irw][ifct][isrc][ims].q;
+               acc_qflt(lnav,q);
+            }
+         }
       }
    }
 }
 
 
-static void normalize_avrw(void)
+static void normalize_array(int n,double *r)
 {
-   int nrw,*nfct;
-   int irw,ifct,ims;
-   double lnma,rwa,*lnm,*rw;
+   int i;
+   double s;
+   qflt sm;
+
+   sm.q[0]=0.0;
+   sm.q[1]=0.0;
+
+   for (i=0;i<n;i++)
+      acc_qflt(r[i],sm.q);
+
+   s=(double)(n)/sm.q[0];
+
+   for (i=0;i<n;i++)
+      r[i]*=s;
+}
+
+
+static void set_rw(void)
+{
+   int nrw,*nfct,*nsrc;
+   int irw,ifct,isrc,ims;
+   size_t n[2];
+   double ra,r;
 
    nrw=file_head.nrw;
    nfct=file_head.nfct;
+   nsrc=file_head.nsrc;
+
+   n[0]=nrw;
+   n[1]=nms;
+   arrays.rw=alloc_array(2,n,sizeof(double),0);
+   rw=(double**)(arrays.rw[0].a);
 
    for (irw=0;irw<nrw;irw++)
    {
-      for (ifct=1;ifct<nfct[irw];ifct++)
+      for (ims=0;ims<nms;ims++)
       {
-         for (ims=0;ims<nms;ims++)
+         ra=1.0;
+
+         for (ifct=0;ifct<nfct[irw];ifct++)
          {
-            lnrw[irw][0][ims]+=lnrw[irw][ifct][ims];
-            avrw[irw][0][ims]*=avrw[irw][ifct][ims];
+            r=0.0;
+
+            for (isrc=0;isrc<nsrc[irw];isrc++)
+               r+=exp(lnrw[irw][ifct][isrc][ims].q[0]);
+
+            r/=(double)(nsrc[irw]);
+            ra*=r;
          }
+
+         rw[irw][ims]=ra;
       }
 
-      lnm=lnrw[irw][0];
-      lnma=lnm[0];
-
-      for (ims=1;ims<nms;ims++)
-      {
-         if (lnm[ims]<lnma)
-            lnma=lnm[ims];
-      }
-
-      rw=avrw[irw][0];
-
-      for (ims=0;ims<nms;ims++)
-         rw[ims]*=exp(lnma-lnm[ims]);
-
-      rwa=0.0;
-
-      for (ims=0;ims<nms;ims++)
-         rwa+=rw[ims];
-
-      rwa/=(double)(nms);
-
-      for (ims=0;ims<nms;ims++)
-         rw[ims]/=rwa;
+      normalize_array(nms,rw[irw]);
    }
-
-   lnma=lntot[0];
-
-   for (ims=1;ims<nms;ims++)
-   {
-      if (lntot[ims]<lnma)
-         lnma=lntot[ims];
-   }
-
-   for (ims=0;ims<nms;ims++)
-      avtot[ims]*=exp(lnma-lntot[ims]);
-
-   rwa=0.0;
-
-   for (ims=0;ims<nms;ims++)
-      rwa+=avtot[ims];
-
-   rwa/=(double)(nms);
-
-   for (ims=0;ims<nms;ims++)
-      avtot[ims]/=rwa;
 }
 
 
-static void read_file(char *fin)
+static void set_rwall(void)
 {
-   int nc,ims;
+   int nrw,irw,ims;
+   size_t n[1];
+
+   n[0]=nms;
+   arrays.rwall=alloc_array(1,n,sizeof(double),0);
+   rwall=(double*)(arrays.rwall[0].a);
+   nrw=file_head.nrw;
+
+   for (ims=0;ims<nms;ims++)
+   {
+      rwall[ims]=1.0;
+
+      for (irw=0;irw<nrw;irw++)
+         rwall[ims]*=rw[irw][ims];
+   }
+
+   normalize_array(nms,rwall);
+}
+
+
+static void set_rwstat(int irw,double *rws)
+{
+   int nrw,ims;
+   double rmn,rmx,sig,*r;
+
+   nrw=file_head.nrw;
+
+   if (irw<nrw)
+      r=rw[irw];
+   else
+      r=rwall;
+
+   rmn=r[0];
+   rmx=r[0];
+   sig=0.0;
+
+   for (ims=0;ims<nms;ims++)
+   {
+      if (r[ims]<rmn)
+         rmn=r[ims];
+      if (r[ims]>rmx)
+         rmx=r[ims];
+
+      sig+=(r[ims]-1.0)*(r[ims]-1.0);
+   }
+
+   sig=sqrt(sig/(double)(nms));
+
+   rws[0]=rmn;
+   rws[1]=rmx;
+   rws[2]=sig;
+}
+
+
+static void read_data_file(char *fin)
+{
    long ipos;
    FILE *fdat;
 
    fdat=fopen(fin,"rb");
-   error(fdat==NULL,1,"read_file [read2.c]","Unable to open data file");
+   error(fdat==NULL,1,"read_data_file [read2.c]","Unable to open file");
    printf("Read data from file %s\n\n",fin);
 
    endian=endianness();
@@ -446,32 +423,10 @@ static void read_file(char *fin)
 
    ipos=ftell(fdat);
    select_cnfg_range(fdat);
+
    fseek(fdat,ipos,SEEK_SET);
-   alloc_avrw();
-   ims=0;
-
-   while ((ims<nms)&&(read_data(fdat)))
-   {
-      nc=data.nc;
-
-      if ((nc>=first)&&(nc<=last)&&(((nc-first)%step)==0))
-      {
-         data2avrw(ims);
-         ims+=1;
-      }
-   }
-
+   read_lnrw(fdat);
    fclose(fdat);
-   error((ims!=nms)||(data.nc!=last),1,"read_file [read2.c]",
-         "Incorrect read count");
-
-   normalize_avrw();
-}
-
-
-static double f(int nx,double x[])
-{
-   return x[0];
 }
 
 
@@ -479,6 +434,7 @@ static void print_plot(char *fin)
 {
    int n,nrw,irw,ims;
    char base[NAME_SIZE],plt_file[NAME_SIZE],*p;
+   double rwstat[3];
    FILE *fout;
 
    p=strstr(fin,".ms1.dat");
@@ -496,9 +452,9 @@ static void print_plot(char *fin)
    strncpy(base,p,n);
    base[n]='\0';
 
-   error(name_size("plots/%s.run2.dat",base)>=NAME_SIZE,1,
+   error(name_size("plots/%s.rw1.dat",base)>=NAME_SIZE,1,
          "print_plot [read2.c]","File name is too long");
-   sprintf(plt_file,"plots/%s.run2.dat",base);
+   sprintf(plt_file,"plots/%s.rw1.dat",base);
    fout=fopen(plt_file,"w");
    error(fout==NULL,1,"print_plot [read2.c]",
          "Unable to open output file");
@@ -513,6 +469,24 @@ static void print_plot(char *fin)
    fprintf(fout,"#\n");
    fprintf(fout,"# nc:   Configuration number\n");
    fprintf(fout,"# W:    Normalized reweighting factors\n");
+   fprintf(fout,"#\n");
+   fprintf(fout,"# Minimal value, maximal value, standard deviation:\n");
+
+   for (irw=0;irw<nrw;irw++)
+   {
+      set_rwstat(irw,rwstat);
+
+      fprintf(fout,"# W[%d]:   %.2e, %.2e, %.2e\n",
+              irw,rwstat[0],rwstat[1],rwstat[2]);
+   }
+
+   if (nrw>1)
+   {
+      set_rwstat(nrw,rwstat);
+      fprintf(fout,"# W[all]: %.2e, %.2e, %.2e\n",
+              rwstat[0],rwstat[1],rwstat[2]);
+   }
+
    fprintf(fout,"#\n");
    fprintf(fout,"#  nc");
 
@@ -531,17 +505,23 @@ static void print_plot(char *fin)
       fprintf(fout," %5d  ",first+ims*step);
 
       for (irw=0;irw<nrw;irw++)
-         fprintf(fout,"  %.4e",avrw[irw][0][ims]);
+         fprintf(fout,"  %.4e",rw[irw][ims]);
 
       if (nrw==1)
          fprintf(fout,"\n");
       else
-         fprintf(fout,"  %.4e\n",avtot[ims]);
+         fprintf(fout,"  %.4e\n",rwall[ims]);
    }
 
    fclose(fout);
 
    printf("Data printed to file %s\n\n",plt_file);
+}
+
+
+static double f(int nx,double *x)
+{
+   return x[0];
 }
 
 
@@ -555,10 +535,7 @@ int main(int argc,char *argv[])
    printf("History of reweighting factors\n");
    printf("------------------------------\n\n");
 
-   read_file(argv[1]);
-   nrw=file_head.nrw;
-   nfct=file_head.nfct;
-   nsrc=file_head.nsrc;
+   read_data_file(argv[1]);
 
    printf("The total number of measurements is %d.\n",nms);
    printf("Integrated autocorrelation times and associated errors are ");
@@ -571,6 +548,12 @@ int main(int argc,char *argv[])
 
    printf("Autocorrelation times are given in numbers of measurements.\n\n");
 
+   nrw=file_head.nrw;
+   nfct=file_head.nfct;
+   nsrc=file_head.nsrc;
+   shift_lnrw();
+   set_rw();
+
    for (irw=0;irw<nrw;irw++)
    {
       printf("Reweighting factor no %d:\n",irw);
@@ -582,21 +565,22 @@ int main(int argc,char *argv[])
          printf("Using 1 random source field.\n\n");
 
       if (nms>=100)
-         print_auto(nms,avrw[irw][0]);
+         print_auto(nms,rw[irw]);
       else
-         print_jack(1,nms,avrw[irw],f);
+         print_jack(1,nms,rw+irw,f);
 
       printf("\n");
    }
 
-   if (nrw!=1)
+   if (nrw>1)
    {
       printf("Product of all reweighting factors:\n\n");
+      set_rwall();
 
       if (nms>=100)
-         print_auto(nms,avtot);
+         print_auto(nms,rwall);
       else
-         print_jack(1,nms,&avtot,f);
+         print_jack(1,nms,&rwall,f);
 
       printf("\n");
    }

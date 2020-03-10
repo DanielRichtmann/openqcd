@@ -3,20 +3,19 @@
 *
 * File plaq_sum.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Calculation of plaquette sums.
 *
-* The externally accessible functions are
-*
 *   double plaq_sum_dble(int icom)
 *     Returns the sum of Re[tr{U(p)}] over all unoriented plaquettes p,
 *     where U(p) is the product of the double-precision link variables
 *     around p. If icom=1 the global sum of the local sums is returned
-*     and otherwise just the local sum.
+*     and otherwise just the local sum. The program assumes that the
+*     boundary values of the gauge field are correctly set.
 *
 *   double plaq_wsum_dble(int icom)
 *     Same as plaq_sum_dble(), but giving weight 1/2 to the contribution
@@ -28,8 +27,6 @@
 *     plaquette action density of the double-precision gauge field. The
 *     factor 1/g0^2 is omitted and the time x0 runs from 0 to NPROC0*L0-1.
 *     The program returns the total action.
-*
-* Notes:
 *
 * The Wilson plaquette action density is defined so that it converges to the
 * Yang-Mills action in the classical continuum limit with a rate proportional
@@ -52,7 +49,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "mpi.h"
-#include "su3.h"
 #include "utils.h"
 #include "flags.h"
 #include "su3fcts.h"
@@ -62,8 +58,8 @@
 
 #define N0 (NPROC0*L0)
 
-static int isA,isE[L0],isB[L0],init=0;
-static double aslE[N0],aslB[N0];
+static double *qsm[2*N0];
+static qflt rqsmE[N0],rqsmB[N0];
 static su3_dble *udb;
 static su3_dble wd1 ALIGNED16;
 static su3_dble wd2 ALIGNED16;
@@ -84,16 +80,11 @@ static double plaq_dble(int n,int ix)
 }
 
 
-static void local_plaq_sum_dble(int iw)
+static qflt local_plaq_sum_dble(int iw)
 {
    int bc,ix,t,n;
    double wp,pa;
-
-   if (init<1)
-   {
-      isA=init_hsum(1);
-      init=1;
-   }
+   qflt rqsm;
 
    bc=bc_type();
 
@@ -102,8 +93,9 @@ static void local_plaq_sum_dble(int iw)
    else
       wp=0.5;
 
+   rqsm.q[0]=0.0;
+   rqsm.q[1]=0.0;
    udb=udfld();
-   reset_hsum(isA);
 
    for (ix=0;ix<VOLUME;ix++)
    {
@@ -116,92 +108,94 @@ static void local_plaq_sum_dble(int iw)
             pa+=plaq_dble(n,ix);
       }
 
-      if (((t>0)||(bc==3))&&((t<(N0-1))||(bc!=0)))
+      if (((t>0)&&(t<(N0-1)))||(bc==3))
       {
          for (n=3;n<6;n++)
             pa+=plaq_dble(n,ix);
       }
+      else if ((t==0)||(bc==0))
+      {
+         if (bc==1)
+            pa+=wp*9.0;
+         else
+         {
+            for (n=3;n<6;n++)
+               pa+=wp*plaq_dble(n,ix);
+         }
+      }
       else
       {
          for (n=3;n<6;n++)
-            pa+=wp*plaq_dble(n,ix);
+            pa+=plaq_dble(n,ix);
+
+         pa+=wp*9.0;
       }
 
-      if ((t==(N0-1))&&((bc==1)||(bc==2)))
-         pa+=9.0*wp;
-
-      if (pa!=0.0)
-         add_to_hsum(isA,&pa);
+      acc_qflt(pa,rqsm.q);
    }
+
+   return rqsm;
 }
 
 
 double plaq_sum_dble(int icom)
 {
-   double p;
+   qflt rqsm;
 
    if (query_flags(UDBUF_UP2DATE)!=1)
       copy_bnd_ud();
 
-   local_plaq_sum_dble(0);
+   rqsm=local_plaq_sum_dble(0);
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isA,&p);
-   else
-      local_hsum(isA,&p);
+   {
+      qsm[0]=rqsm.q;
+      global_qsum(1,qsm,qsm);
+   }
 
-   return p;
+   return rqsm.q[0];
 }
 
 
 double plaq_wsum_dble(int icom)
 {
-   double p;
+   qflt rqsm;
 
    if (query_flags(UDBUF_UP2DATE)!=1)
       copy_bnd_ud();
 
-   local_plaq_sum_dble(1);
+   rqsm=local_plaq_sum_dble(1);
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isA,&p);
-   else
-      local_hsum(isA,&p);
+   {
+      qsm[0]=rqsm.q;
+      global_qsum(1,qsm,qsm);
+   }
 
-   return p;
+   return rqsm.q[0];
 }
 
 
 double plaq_action_slices(double *asl)
 {
-   int bc,ix,t,t0,n;
-   double A,smE,smB;
-
-   if (init<2)
-   {
-      if (init<1)
-         isA=init_hsum(1);
-
-      for (t=0;t<L0;t++)
-      {
-         isE[t]=init_hsum(1);
-         isB[t]=init_hsum(1);
-      }
-
-      init=2;
-   }
+   int bc,ix,t,n;
+   double smE,smB;
 
    if (query_flags(UDBUF_UP2DATE)!=1)
       copy_bnd_ud();
 
    bc=bc_type();
-   t0=cpr[0]*L0;
    udb=udfld();
 
-   for (t=0;t<L0;t++)
+   for (t=0;t<N0;t++)
    {
-      reset_hsum(isE[t]);
-      reset_hsum(isB[t]);
+      qsm[t]=rqsmE[t].q;
+      rqsmE[t].q[0]=0.0;
+      rqsmE[t].q[1]=0.0;
+
+      qsm[t+N0]=rqsmB[t].q;
+      rqsmB[t].q[0]=0.0;
+      rqsmB[t].q[1]=0.0;
    }
 
    for (ix=0;ix<VOLUME;ix++)
@@ -222,81 +216,55 @@ double plaq_action_slices(double *asl)
             smB+=(3.0-plaq_dble(n,ix));
       }
 
-      t-=t0;
-
-      if (smE!=0.0)
-         add_to_hsum(isE[t],&smE);
-      if (smB!=0.0)
-         add_to_hsum(isB[t],&smB);
+      acc_qflt(smE,rqsmE[t].q);
+      acc_qflt(smB,rqsmB[t].q);
    }
 
-   for (t=0;t<N0;t++)
-      asl[t]=0.0;
-
-   for (t=0;t<L0;t++)
-   {
-      local_hsum(isE[t],&smE);
-      asl[t+t0]=smE;
-   }
-
-   if (NPROC>1)
-   {
-      MPI_Reduce(asl,aslE,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(aslE,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
-   else
-   {
-      for (t=0;t<N0;t++)
-         aslE[t]=asl[t];
-   }
-
-   for (t=0;t<N0;t++)
-      asl[t]=0.0;
-
-   for (t=0;t<L0;t++)
-   {
-      local_hsum(isB[t],&smB);
-      asl[t+t0]=smB;
-   }
-
-   if (NPROC>1)
-   {
-      MPI_Reduce(asl,aslB,N0,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      MPI_Bcast(aslB,N0,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   }
-   else
-   {
-      for (t=0;t<N0;t++)
-         aslB[t]=asl[t];
-   }
+   global_qsum(2*N0,qsm,qsm);
 
    if (bc!=3)
-      asl[0]=aslE[0]+aslB[0];
+      add_qflt(rqsmE[0].q,rqsmB[0].q,rqsmB[0].q);
    else
-      asl[0]=aslE[0]+aslE[N0-1]+2.0*aslB[0];
+   {
+      rqsmB[0].q[0]*=2.0;
+      rqsmB[0].q[1]*=2.0;
+      add_qflt(rqsmE[0].q,rqsmB[0].q,rqsmB[0].q);
+      add_qflt(rqsmE[N0-1].q,rqsmB[0].q,rqsmB[0].q);
+   }
 
    if (bc==0)
    {
       for (t=1;t<(N0-1);t++)
-         asl[t]=aslE[t-1]+aslE[t]+2.0*aslB[t];
+      {
+         rqsmB[t].q[0]*=2.0;
+         rqsmB[t].q[1]*=2.0;
+         add_qflt(rqsmE[t].q,rqsmB[t].q,rqsmB[t].q);
+         add_qflt(rqsmE[t-1].q,rqsmB[t].q,rqsmB[t].q);
+      }
 
-      asl[N0-1]=aslE[N0-2]+aslB[N0-1];
+      add_qflt(rqsmE[N0-2].q,rqsmB[N0-1].q,rqsmB[N0-1].q);
    }
    else
    {
       for (t=1;t<N0;t++)
-         asl[t]=aslE[t-1]+aslE[t]+2.0*aslB[t];
+      {
+         rqsmB[t].q[0]*=2.0;
+         rqsmB[t].q[1]*=2.0;
+         add_qflt(rqsmE[t].q,rqsmB[t].q,rqsmB[t].q);
+         add_qflt(rqsmE[t-1].q,rqsmB[t].q,rqsmB[t].q);
+      }
    }
 
-   reset_hsum(isA);
+   for (t=0;t<N0;t++)
+   {
+      asl[t]=rqsmB[t].q[0];
+
+      if (t>0)
+         add_qflt(rqsmB[t].q,rqsmB[0].q,rqsmB[0].q);
+   }
 
    if ((bc==1)||(bc==2))
-      add_to_hsum(isA,aslE+N0-1);
+      add_qflt(rqsmE[N0-1].q,rqsmB[0].q,rqsmB[0].q);
 
-   for (t=0;t<N0;t++)
-      add_to_hsum(isA,asl+t);
-
-   local_hsum(isA,&A);
-
-   return A;
+   return rqsmB[0].q[0];
 }

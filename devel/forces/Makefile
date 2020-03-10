@@ -20,9 +20,9 @@ all: rmxeq mkdep mkxeq
 # main programs and modules to be compiled
 
 MAIN = check1 check2 check3 check4 check5 check6 check7 \
-       check8 check9 check10 check11 time1
+       check8 check9 check10 check11 check12 time1
 
-ARCHIVE = archive
+ARCHIVE = archive sarchive
 
 BLOCK = block blk_grid map_u2blk map_sw2blk map_s2blk
 
@@ -30,8 +30,8 @@ DFL = dfl_geometry dfl_subspace ltl_gcr dfl_sap_gcr dfl_modes
 
 DIRAC = Dw_dble Dw Dw_bnd
 
-FLAGS = flags action_parms dfl_parms force_parms hmc_parms lat_parms \
-        sap_parms solver_parms mdint_parms rat_parms
+FLAGS = action_parms dfl_parms flags force_parms hmc_parms lat_parms \
+        sap_parms smd_parms solver_parms mdint_parms rat_parms
 
 FORCES = force0 force1 force2 force3 force4 force5 \
          frcfcts genfrc tmcg tmcgm xtensor
@@ -44,6 +44,8 @@ LINSOLV = cgne fgcr fgcr4vd mscg
 
 LITTLE = Aw_gen Aw_com Aw_ops Aw_dble Aw ltl_modes
 
+LOCAL = auxfcts
+
 MDFLDS = mdflds fcom
 
 RANDOM = ranlux ranlxs ranlxd gauss
@@ -52,26 +54,26 @@ RATFCTS = elliptic zolotarev ratfcts
 
 SAP = sap_com sap_gcr sap blk_solv
 
-SFLDS = sflds scom sdcom Pbnd Pbnd_dble
+SFLDS = sflds scom sdcom Pbnd Pbnd_dble unorm
 
 SU3FCTS = chexp su3prod su3ren cm3x3 random_su3
 
-SW_TERM = pauli pauli_dble swflds sw_term
+SW_TERM = pauli pauli_dble swalg swexp swflds sw_term
 
 TCHARGE = ftcom ftensor
 
 UFLDS = plaq_sum shift uflds udcom bstap
 
-UPDATE = chrono
+UPDATE = chrono wsize
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = array endian error mutils qsum utils wspace
 
 VFLDS = vflds vinit vcom vdcom
 
 MODULES = $(ARCHIVE) $(BLOCK) $(DFL) $(DIRAC) $(FLAGS) $(FORCES) \
-          $(LATTICE) $(LINALG) $(LINSOLV) $(LITTLE) $(MDFLDS) $(RANDOM) \
-          $(RATFCTS) $(SAP) $(SFLDS) $(SU3FCTS) $(SW_TERM) $(TCHARGE) \
-          $(UFLDS) $(UPDATE) $(UTILS) $(VFLDS)
+          $(LATTICE) $(LINALG) $(LINSOLV) $(LITTLE) $(LOCAL) $(MDFLDS) \
+          $(RANDOM) $(RATFCTS) $(SAP) $(SFLDS) $(SU3FCTS) $(SW_TERM) \
+          $(TCHARGE) $(UFLDS) $(UPDATE) $(UTILS) $(VFLDS)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -105,14 +107,14 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 
 # -DCGNE_DBG -DFGCR_DBG -DMSCG_DBG
-# -DDFL_MODES_DBG
+# -DDFL_MODES_DBG -DFORCE_DBG
 
 
 ############################## do not change ###################################

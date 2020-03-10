@@ -3,14 +3,12 @@
 *
 * File pauli_dble.c
 *
-* Copyright (C) 2005, 2009, 2011, 2013 Martin Luescher
+* Copyright (C) 2005-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Basic functions for double-precision Hermitian 6x6 matrices.
-*
-* The externally accessible functions are
 *
 *   void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
 *     Multiplies the Weyl spinor s by the matrix m+i*mu and assigns the
@@ -41,8 +39,6 @@
 *     arrays may not overlap in this case). On exit the program returns 0
 *     or 1 depending on whether the matrix inversions were safe or not (in
 *     the latter case, the output field is unusable).
-*
-* Notes:
 *
 * The storage format for Hermitian 6x6 matrices is described in the notes
 * "Implementation of the lattice Dirac operator" (file doc/dirac.pdf). As
@@ -83,9 +79,9 @@ typedef union
 } spin_t;
 
 static double rr[5] ALIGNED8;
-static complex_dble aa[36] ALIGNED16;
-static complex_dble cc[6] ALIGNED16;
-static complex_dble dd[6] ALIGNED16;
+static complex_dble aa[36] ALIGNED32;
+static complex_dble cc[6] ALIGNED32;
+static complex_dble dd[6] ALIGNED32;
 
 #if (defined x64)
 #include "sse2.h"

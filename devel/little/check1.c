@@ -3,7 +3,7 @@
 *
 * File check1.c
 *
-* Copyright (C) 2007, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -33,6 +33,7 @@
 static int imb[NPTS];
 static su3_dble ud[NPTS] ALIGNED16;
 static su3_dble vd[NPTS] ALIGNED16;
+static spinor sf[1][NPTS] ALIGNED16;
 static spinor_dble sd[3][NPTS] ALIGNED16;
 
 
@@ -83,7 +84,13 @@ static void random_sfld(int vol)
    for (i=0;i<3;i++)
    {
       random_sd(vol,sd[i],1.0);
-      normalize_dble(vol,0,sd[i]);
+      (void)(normalize_dble(vol,0,sd[i]));
+
+      if (i==0)
+      {
+         assign_sd2s(vol,sd[i],sf[i]);
+         assign_s2sd(vol,sf[i],sd[i]);
+      }
    }
 }
 
@@ -184,7 +191,9 @@ int main(int argc,char *argv[])
 {
    int my_rank,ix,mu,vol,iv;
    double rv,dev0[2],dev1[2];
+   qflt rqsm;
    complex_dble sp0[2],sp1[2];
+   complex_qflt cqsm;
    FILE *flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -204,6 +213,7 @@ int main(int argc,char *argv[])
       fflush(flog);
    }
 
+   check_machine();
    start_ranlux(0,123456);
 
    for (iv=0;iv<3;iv++)
@@ -226,10 +236,11 @@ int main(int argc,char *argv[])
       random_ufld(vol);
 
       random_sfld(vol);
-      gather_sd(vol,imb,sd[0],sd[1]);
+      gather_s(vol,imb,sf[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
       mulr_spinor_add_dble(vol,sd[1],sd[2],-1.0);
-      dev0[0]=norm_square_dble(vol,1,sd[1]);
+      rqsm=norm_square_dble(vol,1,sd[1]);
+      dev0[0]=rqsm.q[0];
 
       random_sfld(vol);
       permute_sd(vol,sd[0],sd[1]);
@@ -238,7 +249,8 @@ int main(int argc,char *argv[])
       apply_ud(vol,ud,sd[0],sd[1]);
       permute_sd(vol,sd[1],sd[0]);
       mulr_spinor_add_dble(vol,sd[0],sd[2],-1.0);
-      dev0[1]=norm_square_dble(vol,1,sd[0]);
+      rqsm=norm_square_dble(vol,1,sd[0]);
+      dev0[1]=rqsm.q[0];
 
       if (my_rank==0)
       {
@@ -247,18 +259,20 @@ int main(int argc,char *argv[])
       }
 
       random_sfld(vol);
-      apply_u2sd(vol,imb,ud,sd[0],sd[1]);
+      apply_u2s(vol,imb,ud,sf[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
       apply_ud(vol,ud,sd[2],sd[0]);
       mulr_spinor_add_dble(vol,sd[1],sd[0],-1.0);
-      dev0[0]=norm_square_dble(vol,1,sd[1]);
+      rqsm=norm_square_dble(vol,1,sd[1]);
+      dev0[0]=rqsm.q[0];
 
       random_sfld(vol);
-      apply_udag2sd(vol,imb,ud,sd[0],sd[1]);
+      apply_udag2s(vol,imb,ud,sf[0],sd[1]);
       permute_sd(vol,sd[0],sd[2]);
       apply_ud(vol,ud,sd[1],sd[0]);
       mulr_spinor_add_dble(vol,sd[0],sd[2],-1.0);
-      dev0[1]=norm_square_dble(vol,1,sd[0]);
+      rqsm=norm_square_dble(vol,1,sd[0]);
+      dev0[1]=rqsm.q[0];
 
       if (my_rank==0)
       {
@@ -270,16 +284,20 @@ int main(int argc,char *argv[])
       {
          random_sd(vol,sd[0],1.0);
          random_sd(vol,sd[1],1.0);
-         normalize_dble(vol,0,sd[0]);
-         normalize_dble(vol,0,sd[1]);
+         (void)(normalize_dble(vol,0,sd[0]));
+         (void)(normalize_dble(vol,0,sd[1]));
 
          spinor_prod_gamma[mu](vol,sd[0],sd[1],sp0);
-         sp1[0]=spinor_prod_dble(vol,0,sd[0],sd[1]);
+         cqsm=spinor_prod_dble(vol,0,sd[0],sd[1]);
+         sp1[0].re=cqsm.re.q[0];
+         sp1[0].im=cqsm.im.q[0];
 
          for (ix=0;ix<vol;ix++)
             sd[2][ix]=mul_gamma(mu,sd[1][ix]);
 
-         sp1[1]=spinor_prod_dble(vol,0,sd[0],sd[2]);
+         cqsm=spinor_prod_dble(vol,0,sd[0],sd[2]);
+         sp1[1].re=cqsm.re.q[0];
+         sp1[1].im=cqsm.im.q[0];
 
          dev0[0]=fabs(sp0[0].re-sp1[0].re)+fabs(sp0[0].im-sp1[0].im);
          dev0[1]=fabs(sp0[1].re-sp1[1].re)+fabs(sp0[1].im-sp1[1].im);

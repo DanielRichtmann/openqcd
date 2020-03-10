@@ -1,0 +1,84 @@
+
+[Run name]
+name         96x32v2
+
+[Log and data directories]
+log_dir      ../../data/ms1/log
+dat_dir      ../../data/ms1/dat
+
+[Configurations]
+type         b
+cnfg_dir     ../../data/qcd2/blk
+nio_nodes    8
+nio_streams  8
+first        16
+last         23
+step         1
+nrw          2
+
+[Random number generator]
+level        0
+seed         1279
+
+[Lattice parameters]
+kappa        0.1392888 0.1383160
+isw          1
+csw          1.955242
+
+[Boundary conditions]
+type         3
+theta        0.0 0.0 0.0
+
+[Rational 0]
+degree       9
+range        0.018  8.0
+
+[Reweighting factor 0]
+rwfact       RWTM2_EO
+im0          0
+mu           0.0005 0.001
+isp          1
+nsrc         24
+
+[Reweighting factor 1]
+rwfact       RWRAT
+im0          1
+irp          0
+np           3 3 3
+isp          0 1 1
+nsrc         24
+
+[Solver 0]
+solver       MSCG
+nmx          2048
+istop        0
+res          1.0e-12
+
+[Solver 1]
+solver       DFL_SAP_GCR
+nkv          24
+isolv        1
+nmr          4
+ncy          5
+nmx          512
+istop        0
+res          1.0e-12
+
+[SAP]
+bs           4 4 4 4
+
+[Deflation subspace]
+bs           4 4 4 4
+Ns           28
+
+[Deflation subspace generation]
+kappa        0.1392888
+mu           0.0003
+ninv         10
+nmr          4
+ncy          4
+
+[Deflation projection]
+nkv          32
+nmx          512
+res          1.0e-2

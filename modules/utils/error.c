@@ -3,7 +3,7 @@
 *
 * File error.c
 *
-* Copyright (C) 2015 Martin Luescher
+* Copyright (C) 2015, 2019 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -46,8 +46,8 @@
 * other purposes as well, as long as the file is not open for reading when
 * an error occurs (it may, however, be open in "w" or "a" mode).
 *
-* If an error is detected, the programs in this module abort the MPI program
-* by calling MPI_Abort().
+* If an error is detected and the macro IGNORE_ERRORS is not defined, the
+* programs in this module abort the MPI program by calling MPI_Abort().
 *
 *******************************************************************************/
 
@@ -140,7 +140,11 @@ void error(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vfprintf(ferr,format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          fprintf(ferr,"\nProgram aborted\n");
+#else
+         fprintf(ferr,"\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
          fclose(ferr);
       }
       else
@@ -150,15 +154,21 @@ void error(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vprintf(format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          printf("\nProgram aborted\n");
+#else
+         printf("\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
       }
 
       fflush(NULL);
       wait(1);
+#ifndef IGNORE_ERRORS
       MPI_Abort(MPI_COMM_WORLD,no);
+#endif
    }
-   else
-      wait(60);
+
+   MPI_Barrier(MPI_COMM_WORLD);
 }
 
 
@@ -180,7 +190,11 @@ void error_root(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vfprintf(ferr,format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          fprintf(ferr,"\nProgram aborted\n");
+#else
+         fprintf(ferr,"\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
          fclose(ferr);
       }
       else
@@ -190,12 +204,18 @@ void error_root(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vprintf(format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          printf("\nProgram aborted\n");
+#else
+         printf("\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
       }
 
       fflush(NULL);
       wait(1);
+#ifndef IGNORE_ERRORS
       MPI_Abort(MPI_COMM_WORLD,no);
+#endif
    }
 }
 
@@ -228,7 +248,11 @@ void error_loc(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vfprintf(ferr,format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          fprintf(ferr,"\nProgram aborted\n");
+#else
+         fprintf(ferr,"\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
          fclose(ferr);
       }
       else
@@ -239,11 +263,17 @@ void error_loc(int test,int no,char *name,char *format,...)
          va_start(args,format);
          vprintf(format,args);
          va_end(args);
+#ifndef IGNORE_ERRORS
          printf("\nProgram aborted\n");
+#else
+         printf("\nProgram execution continues (IGNORE_ERRORS is set)\n");
+#endif
       }
 
       fflush(NULL);
-      wait(5);
+      wait(1);
+#ifndef IGNORE_ERRORS
       MPI_Abort(MPI_COMM_WORLD,no);
+#endif
    }
 }

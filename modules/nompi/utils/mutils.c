@@ -3,14 +3,16 @@
 *
 * File mutils.c
 *
-* Copyright (C) 2005, 2007, 2008, 2011, 2012, 2013 Martin Luescher
+* Copyright (C) 2005-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Utility functions used in main programs
+* Utility functions used in main programs.
 *
-* The externally accessible functions are
+*   void check_machine(void)
+*     Checks the endianess of the machine, the basic data sizes and the
+*     IEEE 754 compliance of the floating-point representation.
 *
 *   int find_opt(int argc,char *argv[],char *opt)
 *     On process 0, this program compares the string opt with the arguments
@@ -33,12 +35,13 @@
 *     few times the machine precision DBL_EPSILON.
 *
 *   int name_size(char *format,...)
-*     On process 0, this program returns the length of the string that
-*     would be printed by calling sprintf(*,format,...). The format
-*     string can be any combination of literal text and the conversion
-*     specifiers %s, %d and %.nf (where n is a positive integer). When
-*     called on other processes, the program does nothing and returns
-*     the value of NAME_SIZE.
+*     Returns the length of the string that would be printed by calling
+*     sprintf(*,format,...). The format string can be any combination of
+*     literal text and the conversion specifiers %s, %d and %.nf (where
+*     1<=n<=32). These must correspond to the string, integer and double
+*     arguments after the format string. The lengths of the strings must
+*     be less than NAME_SIZE. An error occurs if any of these conditions
+*     is violated or if the calculated length is larger than INT_MAX.
 *
 *   long find_section(FILE *stream,char *title)
 *     This program scans stream for a line starting with the string "[title]"
@@ -79,9 +82,13 @@
 *     space (blanks, tabs or newline characters). On exit, the file pointer
 *     is positioned at the next line.
 *
-* Notes:
+* The program check_machine() aborts the main program with the error message
+* "Floating-point arithmetic is not IEEE 754 compliant" if the machine makes
+* use of extended precision registers. Machines with x86 instruction set in
+* the 32 bit mode do this by default. Some special compiler options may be
+* required in these cases to enforce strict IEEE 754 compliance.
 *
-* The programs find_section() and read_line() serve to read structured 
+* The programs find_section() and read_line() serve to read structured
 * input parameter files (such as the *.in in the directory main; see
 * main/README.infiles).
 *
@@ -118,10 +125,70 @@
 #include <stdarg.h>
 #include <string.h>
 #include <math.h>
+#include "su3.h"
 #include "utils.h"
 
+static int nsmx=0;
 static char line[NAME_SIZE+1];
-static char inum[3*sizeof(int)+4];
+static char *numstr;
+
+
+void check_machine(void)
+{
+   int ie;
+   double x,y1,y2,y3;
+   double q1[2],q2[2],q3[2];
+
+   error(endianness()==UNKNOWN_ENDIAN,1,"check_machine [mutils.c]",
+         "Unknown endianness");
+   error((FLT_RADIX!=2)||(FLT_MANT_DIG!=24)||(FLT_MIN_EXP!=-125)||
+         (FLT_MAX_EXP!=128)||((double)(FLT_EPSILON)!=ldexp(1.0,-23)),
+         1,"check_machine [mutils.c]",
+         "'float' data format is not IEEE 754 compliant");
+   error((DBL_MANT_DIG!=53)||(DBL_MIN_EXP!=-1021)||
+         (DBL_MAX_EXP!=1024)||((double)(DBL_EPSILON)!=ldexp(1.0,-52)),
+         1,"check_machine [mutils.c]",
+         "'double' data format is not IEEE 754 compliant");
+   error((sizeof(stdint_t)!=4)||(sizeof(float)!=4)||
+         (sizeof(double)!=8),1,"check_machine [mutils.c]",
+         "Unexpected basic data sizes");
+
+   x=1.0;
+   y1=0.5*DBL_EPSILON;
+   y2=y1*(1.0+DBL_EPSILON);
+   y3=y1*(1.0-0.5*DBL_EPSILON);
+   y1=(x+y1)-x;
+   y2=(x+y2)-x;
+   y3=(x+y3)-x;
+
+   ie=(y1!=0.0);
+   ie|=(y2!=DBL_EPSILON);
+   ie|=(y3!=0.0);
+
+   q1[0]=123456789012345.0;
+   q1[1]=0.0012345;
+   q2[0]=ldexp(1.0,-8)*q1[0];
+   q2[1]=0.0;
+
+   add_qflt(q1,q2,q3);
+   acc_qflt(q2[0],q1);
+   q2[0]=-q2[0];
+   add_qflt(q2,q3,q3);
+   acc_qflt(q2[0],q1);
+
+   ie|=(q1[0]!=q3[0]);
+   ie|=(q1[1]!=q3[1]);
+
+   q3[0]-=123456789012345.0;
+   q3[1]-=0.0012345;
+
+   ie|=(q3[0]!=0.0);
+   ie|=(q3[1]!=-ldexp(1.0,-61));
+
+   error(ie,1,"check_machine [mutils.c]",
+         "Floating-point arithmetic is not IEEE 754 compliant\n"
+         "or a non-default rounding is used");
+}
 
 
 int find_opt(int argc,char *argv[],char *opt)
@@ -133,7 +200,7 @@ int find_opt(int argc,char *argv[],char *opt)
       if (strcmp(argv[k],opt)==0)
          return k;
    }
-   
+
    return 0;
 }
 
@@ -141,7 +208,7 @@ int find_opt(int argc,char *argv[],char *opt)
 int digits(double x,double dx,char *fmt)
 {
    error(dx<0.0,1,"digits [mutils.c]","Improper input data (negative error)");
-   
+
    if (strcmp(fmt,"e")==0)
    {
       if (dx==0.0)
@@ -172,7 +239,7 @@ int fdigits(double x)
 
    if (x==0.0)
       return 0;
-   
+
    y=fabs(x);
    z=DBL_EPSILON*y;
    m=floor(log10(y+z));
@@ -193,70 +260,130 @@ int fdigits(double x)
 
    return n;
 }
-   
+
+
+static void alloc_numstr(int ns)
+{
+   if (ns>nsmx)
+   {
+      if (nsmx>0)
+         free(numstr);
+
+      numstr=malloc(ns*sizeof(char));
+      error_loc(numstr==NULL,1,"alloc_numstr [mutils.c]",
+                "Unable to allocate auxiliary string");
+      nsmx=ns;
+   }
+}
+
+
+static size_t num_size(int n,double r)
+{
+   int ns;
+   double a;
+
+   ns=n+5;
+   a=fabs(r);
+
+   if (a>=10.0)
+      ns+=(int)(log10(a));
+
+   alloc_numstr(ns);
+   sprintf(numstr,"%.*f",n,r);
+
+   return strlen(numstr);
+}
+
 
 int name_size(char *format,...)
 {
-   int nlen,ie,n;
-   double dmy;
-   char *pp,*pc;
+   int n,ie;
+   size_t nf,nl,ns,nmx;
+   char *pc;
    va_list args;
 
-   va_start(args,format);      
+   alloc_numstr(3*sizeof(int)+4);
+
+   va_start(args,format);
    pc=format;
-   nlen=strlen(format);
+   nmx=(size_t)(INT_MAX);
+   nf=strlen(format);
+   nl=0;
    ie=0;
-   n=0;
-      
-   for (;;)
+
+   while ((strchr(pc,'%')!=NULL)&&(ie==0))
    {
-      pp=strchr(pc,'%');
+      pc=strchr(pc,'%')+1;
 
-      if (pp==NULL)
-         break;
-
-      pc=pp+1;
-         
       if (pc[0]=='s')
-         nlen+=(strlen(va_arg(args,char*))-2);
+      {
+         strncpy(line,va_arg(args,char*),NAME_SIZE);
+         line[NAME_SIZE]='\0';
+         ns=strlen(line);
+
+         if (ns<NAME_SIZE)
+         {
+            nf-=2;
+
+            if ((nmx-ns)>=nl)
+               nl+=ns;
+            else
+               ie=1;
+         }
+         else
+            ie=1;
+      }
       else if (pc[0]=='d')
       {
-         sprintf(inum,"%d",va_arg(args,int));
-         nlen+=(strlen(inum)-2);
+         sprintf(numstr,"%d",va_arg(args,int));
+         ns=strlen(numstr);
+         nf-=2;
+
+         if ((nmx-ns)>=nl)
+            nl+=ns;
+         else
+            ie=1;
       }
       else if (pc[0]=='.')
       {
-         if (sscanf(pc,".%d",&n)!=1)
+         if (sscanf(pc,".%d",&n)==1)
          {
-            ie=1;
-            break;
-         }
-            
-         sprintf(inum,".%df",n);
-         pp=strstr(pc,inum);
-            
-         if (pp!=pc)
-         {
-            ie=2;
-            break;
-         }
+            sprintf(numstr,".%df",n);
 
-         nlen+=(n+1-strlen(inum));
-         dmy=va_arg(args,double);
-         if (dmy<0.0)
-            nlen+=1;
+            if ((n>=1)&&(n<=32)&&(pc==strstr(pc,numstr)))
+            {
+               ns=num_size(n,va_arg(args,double));
+
+               if (n<10)
+                  nf-=4;
+               else
+                  nf-=5;
+
+               if ((nmx-ns)>=nl)
+                  nl+=ns;
+               else
+                  ie=1;
+            }
+            else
+               ie=1;
+         }
+         else
+            ie=1;
       }
       else
-      {
-         ie=3;
-         break;
-      }
+         ie=1;
    }
 
    va_end(args);
-   error(ie!=0,1,"name_size [mutils.c]",
-              "Incorrect format string %s (ie=%d)",format,ie);
-   return nlen;
+
+   if ((ie==0)&&((nmx-nf)>=nl))
+      return (int)(nl+nf);
+   else
+   {
+      error_loc(1,1,"name_size [mutils.c]",
+                "Improper format string or string data");
+      return INT_MAX;
+   }
 }
 
 
@@ -264,10 +391,10 @@ static int cmp_text(char *text1,char *text2)
 {
    size_t n1,n2;
    char *p1,*p2;
-   
+
    p1=text1;
    p2=text2;
-   
+
    while (1)
    {
       p1+=strspn(p1," \t\n");
@@ -297,13 +424,13 @@ static char *get_line(FILE *stream)
    if (s!=NULL)
    {
       error(strlen(line)==NAME_SIZE,1,"get_line [mutils.c]",
-                 "Input line is longer than NAME_SIZE-1");   
+                 "Input line is longer than NAME_SIZE-1");
 
       c=strchr(line,'#');
       if (c!=NULL)
          c[0]='\0';
    }
-   
+
    return s;
 }
 
@@ -319,17 +446,17 @@ long find_section(FILE *stream,char *title)
    sofs=-1L;
    ofs=ftell(stream);
    s=get_line(stream);
-      
+
    while (s!=NULL)
    {
       pl=strchr(line,'[');
       pr=strchr(line,']');
-         
+
       if ((pl==(line+strspn(line," \t")))&&(pr>pl))
       {
          pl+=1;
          pr[0]='\0';
-            
+
          if (cmp_text(pl,title)==1)
          {
             error(sofs>=0L,1,"find_section [mutils.c]",
@@ -337,7 +464,7 @@ long find_section(FILE *stream,char *title)
             sofs=ofs;
          }
       }
-         
+
       ofs=ftell(stream);
       s=get_line(stream);
    }
@@ -348,7 +475,7 @@ long find_section(FILE *stream,char *title)
    error(ie!=0,1,"find_section [mutils.c]",
               "Unable to go to section [%s]",title);
    get_line(stream);
-      
+
    return sofs;
 }
 
@@ -371,17 +498,17 @@ static long find_tag(FILE *stream,char *tag)
    char *s,*pl,*pr;
 
    ie=0;
-   tofs=-1L;   
+   tofs=-1L;
    lofs=ftell(stream);
    rewind(stream);
    ofs=ftell(stream);
    s=get_line(stream);
-   
+
    while (s!=NULL)
    {
       pl=strchr(line,'[');
       pr=strchr(line,']');
-         
+
       if ((pl==(line+strspn(line," \t")))&&(pr>pl))
       {
          if (ofs<lofs)
@@ -397,7 +524,7 @@ static long find_tag(FILE *stream,char *tag)
          pl=line+strspn(line," \t");
          pr=pl+strcspn(pl," \t\n");
          pr[0]='\0';
-         
+
          if (strcmp(pl,tag)==0)
          {
             if (tofs!=-1L)
@@ -410,9 +537,9 @@ static long find_tag(FILE *stream,char *tag)
       s=get_line(stream);
    }
 
-   error(tofs==-1L,1,"find_tag [mutils.c]","Tag %s not found",tag);   
+   error(tofs==-1L,1,"find_tag [mutils.c]","Tag %s not found",tag);
    error(ie!=0,1,"find_tag [mutils.c]",
-              "Tag %s occurs more than once in the current section",tag);   
+              "Tag %s occurs more than once in the current section",tag);
 
    ie=fseek(stream,tofs,SEEK_SET);
    error(ie!=0,1,"find_tag [mutils.c]",
@@ -430,11 +557,11 @@ long read_line(FILE *stream,char *tag,char *format,...)
    va_list args;
 
    check_tag(tag);
-      
+
    if (tag[0]!='\0')
    {
       tofs=find_tag(stream,tag);
-      get_line(stream);   
+      get_line(stream);
       pl=line+strspn(line," \t");
       pl+=strcspn(pl," \t\n");
    }
@@ -447,8 +574,8 @@ long read_line(FILE *stream,char *tag,char *format,...)
       tofs=ftell(stream);
       pl=get_line(stream);
    }
-      
-   va_start(args,format);      
+
+   va_start(args,format);
 
    for (p=format;;)
    {
@@ -473,7 +600,7 @@ long read_line(FILE *stream,char *tag,char *format,...)
          error(1,1,"read_line [mutils.c]",
                     "Incorrect format string %s on line with tag %s",
                     format,tag);
-         
+
       error(ic!=1,1,"read_line [mutils.c]",
                  "Missing data item(s) on line with tag %s",tag);
 
@@ -508,14 +635,14 @@ int count_tokens(FILE *stream,char *tag)
 
    s+=strspn(s," \t\n");
    n=0;
-      
+
    while (s[0]!='\0')
    {
-      n+=1;      
-      s+=strcspn(s," \t\n");      
+      n+=1;
+      s+=strcspn(s," \t\n");
       s+=strspn(s," \t\n");
    }
-   
+
    return n;
 }
 
@@ -535,11 +662,11 @@ void read_iprms(FILE *stream,char *tag,int n,int *iprms)
       s+=strcspn(s," \t\n");
    }
    else
-      s=get_line(stream);   
+      s=get_line(stream);
 
    s+=strspn(s," \t\n");
    nc=0;
-      
+
    while ((s[0]!='\0')&&(nc<n))
    {
       ic=sscanf(s,"%d",&i);
@@ -547,8 +674,8 @@ void read_iprms(FILE *stream,char *tag,int n,int *iprms)
       if (ic==1)
       {
          iprms[nc]=i;
-         nc+=1;      
-         s+=strcspn(s," \t\n");      
+         nc+=1;
+         s+=strcspn(s," \t\n");
          s+=strspn(s," \t\n");
       }
       else
@@ -575,11 +702,11 @@ void read_dprms(FILE *stream,char *tag,int n,double *dprms)
       s+=strcspn(s," \t\n");
    }
    else
-      s=get_line(stream);   
+      s=get_line(stream);
 
    s+=strspn(s," \t\n");
    nc=0;
-      
+
    while ((s[0]!='\0')&&(nc<n))
    {
       ic=sscanf(s,"%lf",&d);
@@ -587,8 +714,8 @@ void read_dprms(FILE *stream,char *tag,int n,double *dprms)
       if (ic==1)
       {
          dprms[nc]=d;
-         nc+=1;      
-         s+=strcspn(s," \t\n");      
+         nc+=1;
+         s+=strcspn(s," \t\n");
          s+=strspn(s," \t\n");
       }
       else
@@ -597,5 +724,3 @@ void read_dprms(FILE *stream,char *tag,int n,double *dprms)
 
    error(nc!=n,1,"read_dprms [mutils.c]","Incorrect read count");
 }
-
-

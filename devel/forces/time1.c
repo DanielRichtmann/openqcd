@@ -33,7 +33,7 @@
 
 int main(int argc,char *argv[])
 {
-   int my_rank,bc,n,count;
+   int my_rank,iact,bc,is,n,count;
    double phi[2],phi_prime[2],theta[3];
    double wt1,wt2,wdt;
    FILE *flog=NULL;
@@ -55,13 +55,21 @@ int main(int argc,char *argv[])
       printf("%dx%dx%dx%d local lattice\n\n",L0,L1,L2,L3);
 
       bc=find_opt(argc,argv,"-bc");
+      is=find_opt(argc,argv,"-sw");
 
       if (bc!=0)
          error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [time1.c]",
-                    "Syntax: time1 [-bc <type>]");
+                    "Syntax: time1 [-bc <type>] [-sw <type>]");
+
+      if (is!=0)
+         error_root(sscanf(argv[is+1],"%d",&is)!=1,1,"main [time1.c]",
+                    "Syntax: time1 [-bc <type>] [-sw <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&is,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   set_lat_parms(5.5,1.0,0,NULL,is,1.978);
    print_lat_parms();
 
    MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
@@ -72,6 +80,9 @@ int main(int argc,char *argv[])
    theta[0]=0.38;
    theta[1]=-1.25;
    theta[2]=0.54;
+
+   iact=0;
+   set_hmc_parms(1,&iact,0,0,NULL,1,1.0);
    set_bc_parms(bc,0.55,0.78,0.9012,1.2034,phi,phi_prime,theta);
    print_bc_parms(3);
 

@@ -3,30 +3,28 @@
 *
 * File Aw_gen.c
 *
-* Copyright (C) 2007, 2008, 2011 Martin Luescher
+* Copyright (C) 2007-2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic programs needed for the computation of the little Dirac operator
-*
-* The externally accessible functions are
+* Generic programs needed for the computation of the little Dirac operator.
 *
 *   void gather_ud(int vol,int *imb,su3_dble *ud,su3_dble *vd)
 *     Assigns the 3x3 matrices ud[imb[i]] to vd[i] (i=0,..,vol-1).
 *
-*   void gather_sd(int vol,int *imb,spinor_dble *sd,spinor_dble *rd)
-*     Assigns the spinors sd[imb[i]] to rd[i] (i=0,..,vol-1).
-*  
-*   void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-*                   spinor_dble *rd)
-*     Multiplies the spinors sd[imb[i]] by the 3x3 matrices ud[i] and 
-*     assigns the result to rd[i] (i=0,..,vol-1). 
+*   void gather_s(int vol,int *imb,spinor *s,spinor_dble *rd)
+*     Converts the spinors s[imb[i]] to double-precision spinors and
+*     assigns them to rd[i] (i=0,..,vol-1).
 *
-*   void apply_udag2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-*                      spinor_dble *rd)
-*     Multiplies the spinors sd[imb[i]] by the adjoint of the 3x3 matrices
-*     ud[i] and assigns the result to rd[i] (i=0,..,vol-1).
+*   void apply_u2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
+*     Converts the spinors s[imb[i]] to double-precision spinors, multiplies
+*     them by the 3x3 matrices ud[i] and assigns them to rd[i] (i=0,..,vol-1).
+*
+*   void apply_udag2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
+*     Converts the spinors s[imb[i]] to double-precision spinors, multiplies
+*     them by the adjoint of the 3x3 matrices ud[i] and assigns them to rd[i]
+*     (i=0,..,vol-1).
 *
 * The following is an array of functions indexed by the direction mu=0,..,3:
 *
@@ -37,16 +35,13 @@
 *      fields are assumed to have vol elements. On exit the calculated
 *      products are assigned to sp[0] and sp[1], respectively.
 *
-* Notes:
+* In the assignment programs it is taken for granted that the input and
+* output fields do not overlap. The representation of the Dirac matrices is
+* specified in the notes doc/dirac.pdf.
 *
-* The representation of the Dirac matrices is specified in the notes
-* "Implementation of the lattice Dirac operator" (file doc/dirac.pdf).
-* The input and output fields may not overlap in the case of the programs
-* gather_ud(), gather_sd(), apply_u2sd() and apply_udag2sd().
-*
-* All these programs can be called locally. If SSE inline-assembly is used
-* (i.e. if x64 is set), it is taken for granted  that the field arrays are
-* aligned to 16 byte boundaries.
+* All these programs can be locally called. If SSE inline-assembly is used
+* (i.e. if the macro x64 is set), the field arrays must be aligned to 16
+* byte boundaries.
 *
 *******************************************************************************/
 
@@ -58,67 +53,13 @@
 #include "mpi.h"
 #include "su3.h"
 #include "utils.h"
+#include "sflds.h"
+#include "su3fcts.h"
 #include "little.h"
 
-#define MAX_LEVELS 8
-#define BLK_LENGTH 8
-
-static int cnt[MAX_LEVELS];
-static complex_dble sm0[MAX_LEVELS] ALIGNED16;
-static complex_dble sm1[MAX_LEVELS] ALIGNED16;
-
-
-static void init_sm(void)
-{
-   int n;
-
-   for (n=0;n<MAX_LEVELS;n++)
-   {
-      cnt[n]=0;
-      sm0[n].re=0.0;
-      sm0[n].im=0.0;
-      sm1[n].re=0.0;
-      sm1[n].im=0.0;
-   }   
-}
-
-
-static void acc_sm(void) 
-{
-   int n;
-
-   cnt[0]+=1;
-   
-   for (n=1;(cnt[n-1]>=BLK_LENGTH)&&(n<MAX_LEVELS);n++)
-   {
-      cnt[n]+=1;
-      sm0[n].re+=sm0[n-1].re;
-      sm0[n].im+=sm0[n-1].im;
-      sm1[n].re+=sm1[n-1].re;
-      sm1[n].im+=sm1[n-1].im;      
-
-      cnt[n-1]=0;
-      sm0[n-1].re=0.0;
-      sm0[n-1].im=0.0;
-      sm1[n-1].re=0.0;
-      sm1[n-1].im=0.0;
-   }
-}
-
-
-static void sum_sm(void)
-{
-   int n;
-
-   for (n=1;n<MAX_LEVELS;n++)
-   {
-      sm0[0].re+=sm0[n].re;
-      sm0[0].im+=sm0[n].im;      
-      sm1[0].re+=sm1[n].re;
-      sm1[0].im+=sm1[n].im;      
-   }
-}
-
+#if (defined x64)
+static complex_dble sm[2] ALIGNED16;
+#endif
 
 void gather_ud(int vol,int *imb,su3_dble *ud,su3_dble *vd)
 {
@@ -128,13 +69,13 @@ void gather_ud(int vol,int *imb,su3_dble *ud,su3_dble *vd)
 
    for (;imb<imm;imb++)
    {
-      (*vd)=ud[*imb];
+      cm3x3_assign(1,ud+(*imb),vd);
       vd+=1;
    }
 }
 
 
-void gather_sd(int vol,int *imb,spinor_dble *sd,spinor_dble *rd)
+void gather_s(int vol,int *imb,spinor *s,spinor_dble *rd)
 {
    int *imm;
 
@@ -142,13 +83,24 @@ void gather_sd(int vol,int *imb,spinor_dble *sd,spinor_dble *rd)
 
    for (;imb<imm;imb++)
    {
-      (*rd)=sd[*imb];
+      assign_s2sd(1,s+(*imb),rd);
       rd+=1;
    }
 }
 
 #if (defined x64)
 #include "sse2.h"
+
+#define _sse_load_cvt(v) \
+__asm__ __volatile__ ("cvtps2pd %0, %%xmm0 \n\t" \
+                      "cvtps2pd %1, %%xmm1 \n\t" \
+                      "cvtps2pd %2, %%xmm2" \
+                      : \
+                      : "m" ((v).c1), \
+                        "m" ((v).c2), \
+                        "m" ((v).c3)  \
+                      : \
+                      "xmm0", "xmm1", "xmm2")
 
 #define _start_sm() \
 __asm__ __volatile__ ("xorpd %%xmm12, %%xmm12 \n\t" \
@@ -167,16 +119,12 @@ __asm__ __volatile__ ("shufpd $0x1, %%xmm12, %%xmm12 \n\t" \
                       "addsubpd %%xmm14, %%xmm15 \n\t" \
                       "shufpd $0x1, %%xmm13, %%xmm13 \n\t" \
                       "shufpd $0x1, %%xmm15, %%xmm15 \n\t" \
-                      "addpd %2, %%xmm13 \n\t" \
-                      "addpd %3, %%xmm15 \n\t" \
                       "movapd %%xmm13, %0 \n\t" \
                       "movapd %%xmm15, %1 \n\t" \
                       : \
-                      "=m" (sm0[0]), \
-                      "=m" (sm1[0]) \
+                      "=m" (sm[0]), \
+                      "=m" (sm[1]) \
                       : \
-                      "m" (sm0[0]), \
-                      "m" (sm1[0]) \
                       : \
                       "xmm12", "xmm13", "xmm14", "xmm15")
 
@@ -280,37 +228,36 @@ __asm__ __volatile__ ("mulpd %0, %%xmm0 \n\t" \
                       "xmm14", "xmm15")
 
 
-void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                spinor_dble *rd)
+void apply_u2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
 {
    int *imm;
-   spinor_dble *si;
+   spinor *si;
 
    imm=imb+vol;
 
    while (imb<imm)
    {
-      si=sd+(*imb);
+      si=s+(*imb);
       imb+=1;
 
       if (imb<imm)
-         _prefetch_spinor_dble(sd+(*imb));
+         _prefetch_spinor(s+(*imb));
 
-      _sse_load_dble((*si).c1);
+      _sse_load_cvt((*si).c1);
       _sse_su3_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c1);
 
-      _sse_load_dble((*si).c2);
+      _sse_load_cvt((*si).c2);
       _sse_su3_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c2);
 
-      _sse_load_dble((*si).c3);
+      _sse_load_cvt((*si).c3);
       _sse_su3_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c3);
 
-      _sse_load_dble((*si).c4);
+      _sse_load_cvt((*si).c4);
       _sse_su3_multiply_dble(*ud);
-      _sse_store_up_dble((*rd).c4);      
+      _sse_store_up_dble((*rd).c4);
 
       ud+=1;
       rd+=1;
@@ -318,37 +265,36 @@ void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
 }
 
 
-void apply_udag2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                   spinor_dble *rd)
+void apply_udag2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
 {
    int *imm;
-   spinor_dble *si;
+   spinor *si;
 
    imm=imb+vol;
 
    while (imb<imm)
    {
-      si=sd+(*imb);
+      si=s+(*imb);
       imb+=1;
 
       if (imb<imm)
-         _prefetch_spinor_dble(sd+(*imb));
+         _prefetch_spinor(s+(*imb));
 
-      _sse_load_dble((*si).c1);
+      _sse_load_cvt((*si).c1);
       _sse_su3_inverse_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c1);
 
-      _sse_load_dble((*si).c2);
+      _sse_load_cvt((*si).c2);
       _sse_su3_inverse_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c2);
 
-      _sse_load_dble((*si).c3);
+      _sse_load_cvt((*si).c3);
       _sse_su3_inverse_multiply_dble(*ud);
       _sse_store_up_dble((*rd).c3);
 
-      _sse_load_dble((*si).c4);
+      _sse_load_cvt((*si).c4);
       _sse_su3_inverse_multiply_dble(*ud);
-      _sse_store_up_dble((*rd).c4);      
+      _sse_store_up_dble((*rd).c4);
 
       ud+=1;
       rd+=1;
@@ -359,19 +305,29 @@ void apply_udag2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
 static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
-      _start_sm();      
+      _start_sm();
 
       for (;rd<rm;rd++)
       {
@@ -381,7 +337,7 @@ static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c2);
          _load_psi0((*sd).c2);
-         _load_psi1_add((*sd).c4);         
+         _load_psi1_add((*sd).c4);
 
          _load_chi((*rd).c3);
          _load_psi0((*sd).c3);
@@ -389,39 +345,54 @@ static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c4);
          _load_psi0((*sd).c4);
-         _load_psi1_add((*sd).c2);         
-         
+         _load_psi1_add((*sd).c2);
+
          sd+=1;
       }
 
       _store_sm();
-      acc_sm();
+
+      acc_qflt(sm[0].re,qsm0.re.q);
+      acc_qflt(sm[0].im,qsm0.im.q);
+
+      acc_qflt(sm[1].re,qsm1.re.q);
+      acc_qflt(sm[1].im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=-sm1[0].re;
-   sp[1].im=-sm1[0].im;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=-qsm1.re.q[0];
+   sp[1].im=-qsm1.im.q[0];
 }
 
 
 static void spinor_prod_gamma1(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
-      _start_sm();      
+      _start_sm();
 
       for (;rd<rm;rd++)
       {
@@ -431,7 +402,7 @@ static void spinor_prod_gamma1(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c2);
          _load_psi0((*sd).c2);
-         _load_psi1_sub((*sd).c3);         
+         _load_psi1_sub((*sd).c3);
 
          _load_chi((*rd).c3);
          _load_psi0((*sd).c3);
@@ -439,39 +410,54 @@ static void spinor_prod_gamma1(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c4);
          _load_psi0((*sd).c4);
-         _load_psi1_add((*sd).c1);         
-         
+         _load_psi1_add((*sd).c1);
+
          sd+=1;
       }
 
       _store_sm();
-      acc_sm();
+
+      acc_qflt(sm[0].re,qsm0.re.q);
+      acc_qflt(sm[0].im,qsm0.im.q);
+
+      acc_qflt(sm[1].re,qsm1.re.q);
+      acc_qflt(sm[1].im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=sm1[0].im;
-   sp[1].im=-sm1[0].re;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=qsm1.im.q[0];
+   sp[1].im=-qsm1.re.q[0];
 }
 
 
 static void spinor_prod_gamma2(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
-      _start_sm();      
+      _start_sm();
 
       for (;rd<rm;rd++)
       {
@@ -481,7 +467,7 @@ static void spinor_prod_gamma2(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c2);
          _load_psi0((*sd).c2);
-         _load_psi1_sub((*sd).c3);         
+         _load_psi1_sub((*sd).c3);
 
          _load_chi((*rd).c3);
          _load_psi0((*sd).c3);
@@ -489,39 +475,54 @@ static void spinor_prod_gamma2(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c4);
          _load_psi0((*sd).c4);
-         _load_psi1_add((*sd).c1);         
-         
+         _load_psi1_add((*sd).c1);
+
          sd+=1;
       }
 
       _store_sm();
-      acc_sm();
+
+      acc_qflt(sm[0].re,qsm0.re.q);
+      acc_qflt(sm[0].im,qsm0.im.q);
+
+      acc_qflt(sm[1].re,qsm1.re.q);
+      acc_qflt(sm[1].im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=-sm1[0].re;
-   sp[1].im=-sm1[0].im;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=-qsm1.re.q[0];
+   sp[1].im=-qsm1.im.q[0];
 }
 
 
 static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
-      _start_sm();      
+      _start_sm();
 
       for (;rd<rm;rd++)
       {
@@ -531,7 +532,7 @@ static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c2);
          _load_psi0((*sd).c2);
-         _load_psi1_add((*sd).c4);         
+         _load_psi1_add((*sd).c4);
 
          _load_chi((*rd).c3);
          _load_psi0((*sd).c3);
@@ -539,40 +540,44 @@ static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
 
          _load_chi((*rd).c4);
          _load_psi0((*sd).c4);
-         _load_psi1_sub((*sd).c2);         
-         
+         _load_psi1_sub((*sd).c2);
+
          sd+=1;
       }
 
       _store_sm();
-      acc_sm();
+
+      acc_qflt(sm[0].re,qsm0.re.q);
+      acc_qflt(sm[0].im,qsm0.im.q);
+
+      acc_qflt(sm[1].re,qsm1.re.q);
+      acc_qflt(sm[1].im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=sm1[0].im;
-   sp[1].im=-sm1[0].re;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=qsm1.im.q[0];
+   sp[1].im=-qsm1.re.q[0];
 }
 
 #else
 
-void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                spinor_dble *rd)
+void apply_u2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
 {
    int *imm;
-   spinor_dble *si;
+   spinor *si;
 
    imm=imb+vol;
 
    for (;imb<imm;imb++)
    {
-      si=sd+(*imb);
+      si=s+(*imb);
 
       _su3_multiply((*rd).c1,(*ud),(*si).c1);
       _su3_multiply((*rd).c2,(*ud),(*si).c2);
       _su3_multiply((*rd).c3,(*ud),(*si).c3);
-      _su3_multiply((*rd).c4,(*ud),(*si).c4);      
+      _su3_multiply((*rd).c4,(*ud),(*si).c4);
 
       ud+=1;
       rd+=1;
@@ -580,42 +585,51 @@ void apply_u2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
 }
 
 
-void apply_udag2sd(int vol,int *imb,su3_dble *ud,spinor_dble *sd,
-                   spinor_dble *rd)
+void apply_udag2s(int vol,int *imb,su3_dble *ud,spinor *s,spinor_dble *rd)
 {
    int *imm;
-   spinor_dble *si;
+   spinor *si;
 
    imm=imb+vol;
 
    for (;imb<imm;imb++)
    {
-      si=sd+(*imb);
+      si=s+(*imb);
 
       _su3_inverse_multiply((*rd).c1,(*ud),(*si).c1);
       _su3_inverse_multiply((*rd).c2,(*ud),(*si).c2);
       _su3_inverse_multiply((*rd).c3,(*ud),(*si).c3);
-      _su3_inverse_multiply((*rd).c4,(*ud),(*si).c4);      
+      _su3_inverse_multiply((*rd).c4,(*ud),(*si).c4);
 
       ud+=1;
       rd+=1;
    }
-}  
+}
 
 
 static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
    complex_dble z0,z1;
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
@@ -623,7 +637,7 @@ static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
       z0.im=0.0;
       z1.re=0.0;
       z1.im=0.0;
-      
+
       for (;rd<rm;rd++)
       {
          z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
@@ -634,33 +648,33 @@ static void spinor_prod_gamma0(int vol,spinor_dble *sd,spinor_dble *rd,
          z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
                  _vector_prod_im((*sd).c2,(*rd).c2)+
                  _vector_prod_im((*sd).c3,(*rd).c3)+
-                 _vector_prod_im((*sd).c4,(*rd).c4));      
+                 _vector_prod_im((*sd).c4,(*rd).c4));
 
          z1.re+=(_vector_prod_re((*sd).c1,(*rd).c3)+
                  _vector_prod_re((*sd).c2,(*rd).c4)+
                  _vector_prod_re((*sd).c3,(*rd).c1)+
-                 _vector_prod_re((*sd).c4,(*rd).c2));               
+                 _vector_prod_re((*sd).c4,(*rd).c2));
 
          z1.im+=(_vector_prod_im((*sd).c1,(*rd).c3)+
                  _vector_prod_im((*sd).c2,(*rd).c4)+
                  _vector_prod_im((*sd).c3,(*rd).c1)+
-                 _vector_prod_im((*sd).c4,(*rd).c2));               
+                 _vector_prod_im((*sd).c4,(*rd).c2));
 
          sd+=1;
       }
 
-      sm0[0].re+=z0.re;
-      sm0[0].im+=z0.im;
-      sm1[0].re+=z1.re;
-      sm1[0].im+=z1.im;      
-      acc_sm();
+      acc_qflt(z0.re,qsm0.re.q);
+      acc_qflt(z0.im,qsm0.im.q);
+
+      acc_qflt(z1.re,qsm1.re.q);
+      acc_qflt(z1.im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=-sm1[0].re;
-   sp[1].im=-sm1[0].im;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=-qsm1.re.q[0];
+   sp[1].im=-qsm1.im.q[0];
 }
 
 
@@ -668,141 +682,25 @@ static void spinor_prod_gamma1(int vol,spinor_dble *sd,spinor_dble *rd,
                                complex_dble *sp)
 {
    complex_dble z0,z1;
+   complex_qflt qsm0,qsm1;
    spinor_dble *rt,*rm;
 
-   init_sm();
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
    rt=rd+vol;
    rm=rd;
 
    while (rm<rt)
    {
-      rm+=BLK_LENGTH;
-      if (rm>rt)
-         rm=rt;
-
-      z0.re=0.0;
-      z0.im=0.0;
-      z1.re=0.0;
-      z1.im=0.0;      
-      
-      for (;rd<rm;rd++)
-      {
-         z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
-                 _vector_prod_re((*sd).c2,(*rd).c2)+
-                 _vector_prod_re((*sd).c3,(*rd).c3)+
-                 _vector_prod_re((*sd).c4,(*rd).c4));
-
-         z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
-                 _vector_prod_im((*sd).c2,(*rd).c2)+
-                 _vector_prod_im((*sd).c3,(*rd).c3)+
-                 _vector_prod_im((*sd).c4,(*rd).c4));      
-
-         z1.re+=(_vector_prod_re((*sd).c1,(*rd).c4)+
-                 _vector_prod_re((*sd).c2,(*rd).c3));
-
-         z1.re-=(_vector_prod_re((*sd).c3,(*rd).c2)+
-                 _vector_prod_re((*sd).c4,(*rd).c1));               
-
-         z1.im+=(_vector_prod_im((*sd).c1,(*rd).c4)+
-                 _vector_prod_im((*sd).c2,(*rd).c3));
-
-         z1.im-=(_vector_prod_im((*sd).c3,(*rd).c2)+
-                 _vector_prod_im((*sd).c4,(*rd).c1));               
-
-         sd+=1;
-      }
-
-      sm0[0].re+=z0.re;
-      sm0[0].im+=z0.im;
-      sm1[0].re+=z1.re;
-      sm1[0].im+=z1.im;      
-      acc_sm();
-   }
-
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=sm1[0].im;
-   sp[1].im=-sm1[0].re;
-}
-
-
-static void spinor_prod_gamma2(int vol,spinor_dble *sd,spinor_dble *rd,
-                               complex_dble *sp)
-{
-   complex_dble z0,z1;
-   spinor_dble *rt,*rm;
-
-   init_sm();
-   rt=rd+vol;
-   rm=rd;
-
-   while (rm<rt)
-   {
-      rm+=BLK_LENGTH;
-      if (rm>rt)
-         rm=rt;
-
-      z0.re=0.0;
-      z0.im=0.0;
-      z1.re=0.0;
-      z1.im=0.0;      
-      
-      for (;rd<rm;rd++)
-      {
-         z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
-                 _vector_prod_re((*sd).c2,(*rd).c2)+
-                 _vector_prod_re((*sd).c3,(*rd).c3)+
-                 _vector_prod_re((*sd).c4,(*rd).c4));
-
-         z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
-                 _vector_prod_im((*sd).c2,(*rd).c2)+
-                 _vector_prod_im((*sd).c3,(*rd).c3)+
-                 _vector_prod_im((*sd).c4,(*rd).c4));      
-
-         z1.re+=(_vector_prod_re((*sd).c1,(*rd).c4)+
-                 _vector_prod_re((*sd).c4,(*rd).c1));
-
-         z1.re-=(_vector_prod_re((*sd).c2,(*rd).c3)+
-                 _vector_prod_re((*sd).c3,(*rd).c2));               
-
-         z1.im+=(_vector_prod_im((*sd).c1,(*rd).c4)+
-                 _vector_prod_im((*sd).c4,(*rd).c1));
-
-         z1.im-=(_vector_prod_im((*sd).c2,(*rd).c3)+
-                 _vector_prod_im((*sd).c3,(*rd).c2));               
-
-         sd+=1;
-      }
-
-      sm0[0].re+=z0.re;
-      sm0[0].im+=z0.im;
-      sm1[0].re+=z1.re;
-      sm1[0].im+=z1.im;
-      acc_sm();
-   }
-
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=-sm1[0].re;
-   sp[1].im=-sm1[0].im;
-}
-
-
-static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
-                               complex_dble *sp)
-{
-   complex_dble z0,z1;
-   spinor_dble *rt,*rm;
-
-   init_sm();
-   rt=rd+vol;
-   rm=rd;
-
-   while (rm<rt)
-   {
-      rm+=BLK_LENGTH;
+      rm+=8;
       if (rm>rt)
          rm=rt;
 
@@ -810,7 +708,7 @@ static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
       z0.im=0.0;
       z1.re=0.0;
       z1.im=0.0;
-      
+
       for (;rd<rm;rd++)
       {
          z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
@@ -821,35 +719,181 @@ static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
          z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
                  _vector_prod_im((*sd).c2,(*rd).c2)+
                  _vector_prod_im((*sd).c3,(*rd).c3)+
-                 _vector_prod_im((*sd).c4,(*rd).c4));      
+                 _vector_prod_im((*sd).c4,(*rd).c4));
+
+         z1.re+=(_vector_prod_re((*sd).c1,(*rd).c4)+
+                 _vector_prod_re((*sd).c2,(*rd).c3));
+
+         z1.re-=(_vector_prod_re((*sd).c3,(*rd).c2)+
+                 _vector_prod_re((*sd).c4,(*rd).c1));
+
+         z1.im+=(_vector_prod_im((*sd).c1,(*rd).c4)+
+                 _vector_prod_im((*sd).c2,(*rd).c3));
+
+         z1.im-=(_vector_prod_im((*sd).c3,(*rd).c2)+
+                 _vector_prod_im((*sd).c4,(*rd).c1));
+
+         sd+=1;
+      }
+
+      acc_qflt(z0.re,qsm0.re.q);
+      acc_qflt(z0.im,qsm0.im.q);
+
+      acc_qflt(z1.re,qsm1.re.q);
+      acc_qflt(z1.im,qsm1.im.q);
+   }
+
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=qsm1.im.q[0];
+   sp[1].im=-qsm1.re.q[0];
+}
+
+
+static void spinor_prod_gamma2(int vol,spinor_dble *sd,spinor_dble *rd,
+                               complex_dble *sp)
+{
+   complex_dble z0,z1;
+   complex_qflt qsm0,qsm1;
+   spinor_dble *rt,*rm;
+
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
+   rt=rd+vol;
+   rm=rd;
+
+   while (rm<rt)
+   {
+      rm+=8;
+      if (rm>rt)
+         rm=rt;
+
+      z0.re=0.0;
+      z0.im=0.0;
+      z1.re=0.0;
+      z1.im=0.0;
+
+      for (;rd<rm;rd++)
+      {
+         z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
+                 _vector_prod_re((*sd).c2,(*rd).c2)+
+                 _vector_prod_re((*sd).c3,(*rd).c3)+
+                 _vector_prod_re((*sd).c4,(*rd).c4));
+
+         z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
+                 _vector_prod_im((*sd).c2,(*rd).c2)+
+                 _vector_prod_im((*sd).c3,(*rd).c3)+
+                 _vector_prod_im((*sd).c4,(*rd).c4));
+
+         z1.re+=(_vector_prod_re((*sd).c1,(*rd).c4)+
+                 _vector_prod_re((*sd).c4,(*rd).c1));
+
+         z1.re-=(_vector_prod_re((*sd).c2,(*rd).c3)+
+                 _vector_prod_re((*sd).c3,(*rd).c2));
+
+         z1.im+=(_vector_prod_im((*sd).c1,(*rd).c4)+
+                 _vector_prod_im((*sd).c4,(*rd).c1));
+
+         z1.im-=(_vector_prod_im((*sd).c2,(*rd).c3)+
+                 _vector_prod_im((*sd).c3,(*rd).c2));
+
+         sd+=1;
+      }
+
+      acc_qflt(z0.re,qsm0.re.q);
+      acc_qflt(z0.im,qsm0.im.q);
+
+      acc_qflt(z1.re,qsm1.re.q);
+      acc_qflt(z1.im,qsm1.im.q);
+   }
+
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=-qsm1.re.q[0];
+   sp[1].im=-qsm1.im.q[0];
+}
+
+
+static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
+                               complex_dble *sp)
+{
+   complex_dble z0,z1;
+   complex_qflt qsm0,qsm1;
+   spinor_dble *rt,*rm;
+
+   qsm0.re.q[0]=0.0;
+   qsm0.re.q[1]=0.0;
+   qsm0.im.q[0]=0.0;
+   qsm0.im.q[1]=0.0;
+
+   qsm1.re.q[0]=0.0;
+   qsm1.re.q[1]=0.0;
+   qsm1.im.q[0]=0.0;
+   qsm1.im.q[1]=0.0;
+
+   rt=rd+vol;
+   rm=rd;
+
+   while (rm<rt)
+   {
+      rm+=8;
+      if (rm>rt)
+         rm=rt;
+
+      z0.re=0.0;
+      z0.im=0.0;
+      z1.re=0.0;
+      z1.im=0.0;
+
+      for (;rd<rm;rd++)
+      {
+         z0.re+=(_vector_prod_re((*sd).c1,(*rd).c1)+
+                 _vector_prod_re((*sd).c2,(*rd).c2)+
+                 _vector_prod_re((*sd).c3,(*rd).c3)+
+                 _vector_prod_re((*sd).c4,(*rd).c4));
+
+         z0.im+=(_vector_prod_im((*sd).c1,(*rd).c1)+
+                 _vector_prod_im((*sd).c2,(*rd).c2)+
+                 _vector_prod_im((*sd).c3,(*rd).c3)+
+                 _vector_prod_im((*sd).c4,(*rd).c4));
 
          z1.re+=(_vector_prod_re((*sd).c1,(*rd).c3)+
                  _vector_prod_re((*sd).c4,(*rd).c2));
 
          z1.re-=(_vector_prod_re((*sd).c2,(*rd).c4)+
-                 _vector_prod_re((*sd).c3,(*rd).c1));               
+                 _vector_prod_re((*sd).c3,(*rd).c1));
 
          z1.im+=(_vector_prod_im((*sd).c1,(*rd).c3)+
                  _vector_prod_im((*sd).c4,(*rd).c2));
 
          z1.im-=(_vector_prod_im((*sd).c2,(*rd).c4)+
-                 _vector_prod_im((*sd).c3,(*rd).c1));               
+                 _vector_prod_im((*sd).c3,(*rd).c1));
 
          sd+=1;
       }
 
-      sm0[0].re+=z0.re;
-      sm0[0].im+=z0.im;
-      sm1[0].re+=z1.re;
-      sm1[0].im+=z1.im;      
-      acc_sm();
+      acc_qflt(z0.re,qsm0.re.q);
+      acc_qflt(z0.im,qsm0.im.q);
+
+      acc_qflt(z1.re,qsm1.re.q);
+      acc_qflt(z1.im,qsm1.im.q);
    }
 
-   sum_sm();
-   sp[0].re=sm0[0].re;
-   sp[0].im=sm0[0].im;
-   sp[1].re=sm1[0].im;
-   sp[1].im=-sm1[0].re;
+   sp[0].re=qsm0.re.q[0];
+   sp[0].im=qsm0.im.q[0];
+
+   sp[1].re=qsm1.im.q[0];
+   sp[1].im=-qsm1.re.q[0];
 }
 
 #endif
@@ -857,4 +901,3 @@ static void spinor_prod_gamma3(int vol,spinor_dble *sd,spinor_dble *rd,
 void (*spinor_prod_gamma[4])
 (int vol,spinor_dble *sd,spinor_dble *rd,complex_dble *sp)=
 {spinor_prod_gamma0,spinor_prod_gamma1,spinor_prod_gamma2,spinor_prod_gamma3};
-

@@ -19,18 +19,18 @@ all: rmxeq mkdep mkxeq
 
 # main programs and required modules
 
-MAIN = check1 check2 check3 check4 check5 check6 check7 \
-       time1 time2 time3
-
-UTILS = utils
-
-RANDOM = ranlxs ranlxd gauss
+MAIN = check1 check2 check3 check4 check5 check6 check7 check8 \
+       time1 time2 time3 time4
 
 LINALG = cmatrix cmatrix_dble
 
-SW_TERM = pauli pauli_dble
+RANDOM = ranlxs ranlxd gauss
 
-MODULES = $(UTILS) $(RANDOM) $(LINALG) $(SW_TERM)
+SW_TERM = pauli pauli_dble swalg swexp
+
+UTILS = utils
+
+MODULES = $(LINALG) $(RANDOM) $(SW_TERM) $(UTILS)
 
 
 # search path for modules
@@ -55,9 +55,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing -fno-inline \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

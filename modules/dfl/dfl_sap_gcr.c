@@ -3,22 +3,19 @@
 *
 * File dfl_sap_gcr.c
 *
-* Copyright (C) 2007, 2011-2013 Martin Luescher
+* Copyright (C) 2007-2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * SAP+GCR solver for the Wilson-Dirac equation with local deflation.
 *
-* The externally accessible functions are
-*
-*   double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
+*   double dfl_sap_gcr(int nkv,int nmx,int istop,double res,double mu,
 *                      spinor_dble *eta,spinor_dble *psi,int *status)
 *     Obtains an approximate solution psi of the Wilson-Dirac equation for
 *     given source eta using the deflated SAP-preconditioned GCR algorithm.
-*     See the notes for the explanation of the parameters of the program.
 *
-*   double dfl_sap_gcr2(int nkv,int nmx,double res,double mu,
+*   double dfl_sap_gcr2(int nkv,int nmx,int istop,double res,double mu,
 *                       spinor_dble *eta,spinor_dble *psi,int *status)
 *     This program calls dfl_sap_gcr() with the parameters nkv,..,status.
 *     If the solver fails and status[0]=-3 or status[1]<0, the deflation
@@ -26,14 +23,15 @@
 *     dfl_sap_gcr() is then called again and the results are passed to
 *     the calling program.
 *
-* Depending on whether the twisted-mass flag is set or not, the programs
-* solve the equation
+* Depending on whether the twisted-mass flag is set or not, the program
+* solves the equation
 *
-*   (Dw+i*mu*gamma_5*1e)*psi=eta  or  (Dw+i*mu*gamma_5)*psi=eta
+*   (Dw+i*mu*gamma_5*1e)*psi=eta  or  (Dw+i*mu*gamma_5)*psi=eta,
 *
-* respectively. The twisted-mass flag is retrieved from the parameter data
-* base (see flags/lat_parms.c).
-
+* respectively, where 1e is 1 on the even and 0 on the odd lattice sites.
+* The twisted-mass flag is retrieved from the parameter data base (see
+* flags/lat_parms.c).
+*
 * The program dfl_sap_gcr() is based on the flexible GCR algorithm (see
 * linsolv/fgcr.c). Before the solver is launched, the following parameter-
 * setting programs must have been called:
@@ -62,18 +60,16 @@
 *
 *  nmx       Maximal total number of Krylov vectors that may be generated.
 *
-*  res       Desired maximal relative residue |eta-D*psi|/|eta| of the
-*            calculated solution.
+*  istop     Stopping criterion (0: L_2 norm based, 1: uniform norm based).
+*
+*  res       Desired maximal relative residue of the calculated solution.
 *
 *  mu        Value of the twisted mass in the Dirac equation.
 *
-*  eta       Source field. Note that source fields must vanish at global
-*            time 0 and NPR0C0*L0-1, as has to be the case for physical
-*            quark fields. eta is unchanged on exit unless psi=eta (which
+*  eta       Source field. eta is unchanged on exit unless psi=eta (which
 *            is permissible).
 *
-*  psi       Calculated approximate solution of the Dirac equation. psi
-*            vanishes at global time 0 and NPROC0*L0-1.
+*  psi       Calculated approximate solution of the Dirac equation.
 *
 * The argument status must point to an array of at least 2 and 3 integers
 * in the case of the programs dfl_sap_gcr() and dfl_sap_gcr2(). On exit,
@@ -89,18 +85,26 @@
 *
 *  status[1] Average number of GCR iterations needed for the solution of
 *            the little Dirac equation in the course of the deflation
-*            projection.
+*            projection. A value of -1 indicates that the solver for the
+*            little Dirac equation failed to converge in some cases.
 *
-*  The program dfl_sap_gcr2() in addition returns
+* The program dfl_sap_gcr2() in addition returns
 *
 *  status[2] Average solver iteration numbers that were required for the
 *            solution of the little Dirac equation when the deflation sub-
 *            space had to be regenerated (if the regeneration fails, the
 *            dfl_sap_gcr2() program terminates with an error message).
 *
-* If status[0]>=-1 and status[1]>=0, the programs return the norm of the
-* residue of the calculated approximate solution. Otherwise the field psi
-* is set to zero and the program returns the norm of the source eta.
+* The fields eta and psi must be such that the Dirac operator can act on
+* them (see main/README.global). Moreover, the source eta is assumed to
+* respect the chosen boundary conditions (see doc/dirac.pdf).
+*
+* If status[0]>=-1 and status[1]>=0 the programs return the norm of the
+* residue of the calculated approximate solution. Otherwise the programs
+* return the norm of eta and psi is set to zero if psi!=eta. The source
+* field eta is exactly preserved if status[0]<-1 or psi!=eta. In the
+* remaining case, status[0]>=-1, status[1]<0 and psi=eta, the source is
+* preserved up to relative errors <=2*DBL_EPSILON in each component.
 *
 * The SAP_BLOCKS blocks grid is automatically allocated or reallocated if
 * it is not already allocated with the correct block size. The SW term is
@@ -112,11 +116,11 @@
 * some protection against the rare cases, where the little Dirac operator
 * turns out to be accidentally ill-conditioned, is desired.
 *
-* Evidently the SAP+GCR solver is a global program that must be called on
+* The deflated SAP+GCR solver is a global program that must be called on
 * all processes simultaneously. The required workspaces are
 *
 *  spinor              2*nkv+2
-*  spinor_dble         3              [2 in the case of dfl_sap_gcr()]
+*  spinor_dble         2
 *  complex             2*nkv_pro+2
 *  complex_dble        4
 *
@@ -131,7 +135,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "mpi.h"
 #include "utils.h"
 #include "flags.h"
 #include "block.h"
@@ -204,14 +207,15 @@ static void Mop(int k,spinor *rho,spinor *phi,spinor *chi)
 }
 
 
-double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
+double dfl_sap_gcr(int nkv,int nmx,int istop,double res,double mu,
                    spinor_dble *eta,spinor_dble *psi,int *status)
 {
-   int *bs,nb,isw,ifail;
+   int nb,isw,ifail,*bs;
    int swde,swdo,swu,swe,swo;
-   double rho,rho0,fact;
+   double rho0,rho;
+   qflt qnrm;
    spinor **ws;
-   spinor_dble **wsd,**rsd;
+   spinor_dble **wsd,*rsd;
    dfl_parms_t dfl;
 
    dfl=dfl_parms();
@@ -283,10 +287,9 @@ double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
        (query_flags(SW_E_INVERTED)==1)||(query_flags(SW_O_INVERTED)==1))
       assign_swd2sw();
 
-   rho0=sqrt(norm_square_dble(VOLUME,1,eta));
-   rho=rho0;
    status[0]=0;
    status[1]=0;
+   rho=0.0;
 
    if (ifail)
       status[0]=-2;
@@ -298,69 +301,83 @@ double dfl_sap_gcr(int nkv,int nmx,double res,double mu,
          status[0]=-3;
       else
       {
-         ws=reserve_ws(2*nkv+1);
-         wsd=reserve_wsd(1);
-         rsd=reserve_wsd(1);
+         rho0=unorm_dble(VOLUME,1,eta);
 
-         nit=0;
-         stat=0;
-         mus=(float)(mu);
-         mud=mu;
-
-         fact=rho0/sqrt((double)(VOLUME)*(double)(24*NPROC));
-
-         if (fact!=0.0)
+         if (rho0!=0.0)
          {
-            assign_sd2sd(VOLUME,eta,rsd[0]);
-            scale_dble(VOLUME,1.0/fact,rsd[0]);
+            ws=reserve_ws(2*nkv+1);
+            wsd=reserve_wsd(2);
+            rsd=wsd[1];
 
-            rho=fgcr(VOLUME,1,Dop,Mop,ws,wsd,nkv,nmx,res,rsd[0],psi,status);
+            nit=0;
+            stat=0;
+            mus=(float)(mu);
+            mud=mu;
+            assign_sd2sd(VOLUME,eta,rsd);
+            scale_dble(VOLUME,1.0/rho0,rsd);
 
-            scale_dble(VOLUME,fact,psi);
-            rho*=fact;
+            rho=fgcr(VOLUME,1,Dop,Mop,ws,wsd,nkv,nmx,istop,res,rsd,
+                     psi,status);
+
+            scale_dble(VOLUME,rho0,psi);
+            rho*=rho0;
 
             if ((nit>0)&&(stat>=0))
                status[1]=(stat+nit/2)/nit;
-            else if (stat<0)
+            else
                status[1]=stat;
-         }
-         else
-         {
-            rho=0.0;
-            set_sd2zero(VOLUME,psi);
-         }
 
-         release_wsd();
-         release_wsd();
-         release_ws();
+            if (status[1]<0)
+            {
+               if (psi!=eta)
+                  set_sd2zero(VOLUME,psi);
+               else
+               {
+                  scale_dble(VOLUME,rho0,rsd);
+                  assign_sd2sd(VOLUME,rsd,eta);
+               }
+
+               if (istop)
+                  rho=rho0;
+               else
+               {
+                  qnrm=norm_square_dble(VOLUME,1,eta);
+                  rho=sqrt(qnrm.q[0]);
+               }
+            }
+
+            release_wsd();
+            release_ws();
+         }
+         else if (psi!=eta)
+            set_sd2zero(VOLUME,psi);
       }
    }
 
-   if ((status[0]<-1)||(status[1]<0))
+   if (status[0]<-1)
    {
-      rho=rho0;
-      set_sd2zero(VOLUME,psi);
+      if (psi!=eta)
+         set_sd2zero(VOLUME,psi);
+
+      if (istop)
+         rho=unorm_dble(VOLUME,1,eta);
+      else
+      {
+         qnrm=norm_square_dble(VOLUME,1,eta);
+         rho=sqrt(qnrm.q[0]);
+      }
    }
 
    return rho;
 }
 
 
-double dfl_sap_gcr2(int nkv,int nmx,double res,double mu,
+double dfl_sap_gcr2(int nkv,int nmx,int istop,double res,double mu,
                     spinor_dble *eta,spinor_dble *psi,int *status)
 {
    double rho;
-   spinor_dble **wsd;
 
-   wsd=reserve_wsd(1);
-
-   if (eta==psi)
-   {
-      assign_sd2sd(VOLUME,eta,wsd[0]);
-      eta=wsd[0];
-   }
-
-   rho=dfl_sap_gcr(nkv,nmx,res,mu,eta,psi,status);
+   rho=dfl_sap_gcr(nkv,nmx,istop,res,mu,eta,psi,status);
 
    if ((status[0]==-3)||(status[1]<0))
    {
@@ -370,12 +387,10 @@ double dfl_sap_gcr2(int nkv,int nmx,double res,double mu,
                  "Deflation subspace regeneration failed (status = %d)",
                  status[2]);
 
-      rho=dfl_sap_gcr(nkv,nmx,res,mu,eta,psi,status);
+      rho=dfl_sap_gcr(nkv,nmx,istop,res,mu,eta,psi,status);
    }
    else
       status[2]=0;
-
-   release_wsd();
 
    return rho;
 }

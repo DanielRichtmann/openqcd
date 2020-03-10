@@ -23,11 +23,11 @@ MAIN = check1 check2 check3 table1
 
 RANDOM = ranlxd
 
-UTILS = utils
-
 RATFCTS = elliptic zolotarev
 
-MODULES = $(RANDOM) $(UTILS) $(RATFCTS)
+UTILS = utils
+
+MODULES = $(RANDOM) $(RATFCTS) $(UTILS)
 
 
 # search path for modules
@@ -52,9 +52,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

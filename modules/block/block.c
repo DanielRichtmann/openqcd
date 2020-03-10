@@ -3,14 +3,12 @@
 *
 * File block.c
 *
-* Copyright (C) 2005, 2011, 2013 Martin Luescher
+* Copyright (C) 2005, 2011, 2013, 2017 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Basic allocation programs for blocks of lattice points.
-*
-* The externally accessible functions are
 *
 *   void alloc_blk(block_t *b,int *bo,int *bs,
 *                  int iu,int iud,int ns,int nsd)
@@ -60,8 +58,6 @@
 *   int ipt_blk(block_t *b,int *x)
 *     Returns the index of the lattice point in the block b with Cartesian
 *     coordinates x[4] relative to the base point of b.
-*
-* Notes:
 *
 * The entries of the block and boundary structures are explained in the file
 * README.block in this directory.
@@ -553,7 +549,7 @@ void alloc_blk(block_t *b,int *bo,int *bs,
 static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
 {
    int vol,ifc,n;
-   int *bs,*ipp,*map,*imb;
+   int *bs,*ipp,*imb;
    su3 *u;
    su3_dble *ud;
    weyl **w,*wb;
@@ -595,14 +591,17 @@ static void new_bnd(block_t *b,int iu,int iud,int nw,int nwd,int shf)
       ipp=malloc(2*(vol+8)*sizeof(*ipp));
       error(ipp==NULL,1,"new_bnd [block.c]",
             "Unable to allocate the geometry arrays");
-      map=ipp+vol+8;
 
       for (ifc=0;ifc<8;ifc++)
       {
          bb[ifc].ipp=ipp;
          ipp+=(bb[ifc].vol+1);
-         bb[ifc].map=map;
-         map+=(bb[ifc].vol+1);
+      }
+
+      for (ifc=0;ifc<8;ifc++)
+      {
+         bb[ifc].map=ipp;
+         ipp+=(bb[ifc].vol+1);
       }
    }
 

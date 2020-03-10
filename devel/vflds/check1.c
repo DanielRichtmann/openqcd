@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Allocation and initialization of the global vector fields
+* Allocation and initialization of the global vector fields.
 *
 *******************************************************************************/
 
@@ -24,7 +24,7 @@
 #include "lattice.h"
 #include "vflds.h"
 #include "global.h"
-   
+
 #define NFIELDS 7
 
 
@@ -36,7 +36,7 @@ int main(int argc,char *argv[])
    complex **wv;
    complex_dble **wvd;
    dfl_parms_t dfl;
-   FILE *fin=NULL,*flog=NULL;   
+   FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -45,7 +45,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check1.log","w",stdout);
       fin=freopen("check1.in","r",stdin);
-      
+
       printf("\n");
       printf("Allocation and initialization of the global vector fields\n");
       printf("---------------------------------------------------------\n\n");
@@ -64,9 +64,9 @@ int main(int argc,char *argv[])
    }
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);   
-   
-   start_ranlux(0,123456);   
+   MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   start_ranlux(0,123456);
    geometry();
    dfl=set_dfl_parms(bs,Ns);
 
@@ -77,11 +77,11 @@ int main(int argc,char *argv[])
    alloc_wv(NFIELDS);
    alloc_wvd(NFIELDS);
    wv=reserve_wv(NFIELDS);
-   wvd=reserve_wvd(NFIELDS);   
+   wvd=reserve_wvd(NFIELDS);
 
    nb=VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
    nbb=(FACE0/(bs[1]*bs[2]*bs[3])+FACE1/(bs[0]*bs[2]*bs[3])+
-        FACE2/(bs[0]*bs[1]*bs[3])+FACE3/(bs[0]*bs[1]*bs[2]));      
+        FACE2/(bs[0]*bs[1]*bs[3])+FACE3/(bs[0]*bs[1]*bs[2]));
    nv=Ns*nb;
    nvec=Ns*(nb+nbb);
    ie=0;
@@ -91,7 +91,7 @@ int main(int argc,char *argv[])
       if ((wv[k]-wv[0])!=(k*nvec))
          ie=1;
       if ((wvd[k]-wvd[0])!=(k*nvec))
-         ie=2;      
+         ie=2;
    }
 
    error(ie==1,1,"main [check1.c]",
@@ -107,7 +107,7 @@ int main(int argc,char *argv[])
             ie=1;
 
          if ((wvd[k][ix].re!=0.0)||(wvd[k][ix].im!=0.0))
-            ie=2;         
+            ie=2;
       }
    }
 
@@ -128,8 +128,8 @@ int main(int argc,char *argv[])
 
    for (k=1;k<Ns;k++)
       if ((wvd[k]-wvd[0])!=(k*nv))
-         ie=2;      
-   
+         ie=2;
+
    error(ie==1,1,"main [check1.c]",
          "Field addresses returned by vflds() are incorrect");
    error(ie==2,1,"main [check1.c]",
@@ -146,20 +146,20 @@ int main(int argc,char *argv[])
    {
       for (ix=0;ix<nv;ix++)
          if ((wvd[k][ix].re!=0.0)||(wvd[k][ix].im!=0.0))
-            ie=2;         
-   }   
+            ie=2;
+   }
 
    error(ie==1,1,"main [check1.c]",
          "Fields allocated by vflds() are not correctly initialized");
    error(ie==2,1,"main [check1.c]",
          "Fields allocated by vdflds() are not correctly initialized");
-   
+
    if (my_rank==0)
    {
       printf("No errors detected\n\n");
       fclose(flog);
    }
-   
-   MPI_Finalize();   
+
+   MPI_Finalize();
    exit(0);
 }

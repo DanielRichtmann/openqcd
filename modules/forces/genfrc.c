@@ -9,8 +9,6 @@
 *
 * Calculation of quark forces.
 *
-* The externally accessible functions are
-*
 *   void sw_frc(double c)
 *     Computes the SW part of the quark force, using the current value
 *     of the X tensor field (see the notes). The calculated force is then
@@ -20,8 +18,6 @@
 *     Computes the hopping part of the quark force, using the current
 *     value of the X vector field (see the notes). The calculated force
 *     is then multiplied by c and added to the MD force field.
-*
-* Notes:
 *
 * The computation of the quark forces is described in the notes
 *

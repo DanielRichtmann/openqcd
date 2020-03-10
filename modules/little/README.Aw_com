@@ -22,7 +22,7 @@ with indices n0 and n1, respectively, where b1 is displaced from b0 in the
 positive direction mu, the geometrical situation is as follows:
 
            -----> x_mu
-       
+
          -----   -----
             e | | o
             e | | o
@@ -52,10 +52,10 @@ figure above). The computation then proceeds by first extracting
 
 Once this is done, the scalar products
 
-  (psi_{k,e},chi_{l,o}),       (psi_{k,e},gamma_mu*chi_{l,o}), 
+  (psi_{k,e},chi_{l,o}),       (psi_{k,e},gamma_mu*chi_{l,o}),
 
   (psi_{k,o},chi_{l,e}),       (psi_{k,o},gamma_mu*chi_{l,e}),
-    
+
 may be calculated, from which the matrices sp[0] and sp[1] are obtained by
 taking simple linear combinations.
 
@@ -66,21 +66,21 @@ Communication of spinor fields
 When the block b0 touches the boundary of the local lattice in direction mu,
 the neighbouring block b1 is on the neighbouring MPI process. At the same time
 the local lattice contains another block b1', with index n1', on the opposite
-face of the local lattice, which is the neighbour in direction mu of the n0'th
-block on the process in direction -mu:
+face of the local lattice, which is the neighbour in direction mu of the block
+with index n0' on the process in direction -mu:
 
 
 	  --------   ----------------------   --------
-		  | |                      | |          
-		  | |                      | |          
-		  | |                      | |          
-		  | |                      | |          
-	     *****| |*****           ***** | | *****    
-	     *   *| |*   *           *   * | | *   *    
-	     *****| |*****           ***** | | *****    
-	      b0' | | b1'              b0  | |  b1      
-		  | |                      | |          
-		  | |                      | |          
+		  | |                      | |
+		  | |                      | |
+		  | |                      | |
+		  | |                      | |
+	     *****| |*****           ***** | | *****
+	     *   *| |*   *           *   * | | *   *
+	     *****| |*****           ***** | | *****
+	      b0' | | b1'              b0  | |  b1
+		  | |                      | |
+		  | |                      | |
 	  --------   ----------------------   --------
 
 
@@ -99,10 +99,10 @@ boundary are performed as in the case of the b0,b1 pair of blocks.
 Elements of the b2b_flds_t structure
 ------------------------------------
 
-The b2b_flds_t structure returned by the program b2b_flds() contain the 
-following data: 
+The b2b_flds_t structure returned by the program b2b_flds() contain the
+following data:
 
-   n[2]                       n[0]=n0. n[1]=n1 or n1' depending on whether 
+   n[2]                       n[0]=n0. n[1]=n1 or n1' depending on whether
                               b1 is on the local lattice or not.
 
    vol                        Number of points on the interface.
@@ -150,7 +150,7 @@ and
    (psi_{k,o},chi_{l,e}), (psi_{k,o},gamma_mu*chi_{l,e}).
 
 The first of these contribute to the hopping terms Aoe,Aeo to/from b0',b1'
-and the second to those to/from b0,b1. 
+and the second to those to/from b0,b1.
 
 
 Assignment of the hopping terms
@@ -173,23 +173,23 @@ The mapping of the scalar products is thus
 
 ibn=0:
 
-   (psi_{k,o},chi_{l,e}), ..   are assigned to Aoe[m+ifc],Aeo[m+ifc] where 
-                               m=grd.idx[n0] and ifc=2*mu+1 if b0 is odd or 
+   (psi_{k,o},chi_{l,e}), ..   are assigned to Aoe[m+ifc],Aeo[m+ifc] where
+                               m=grd.idx[n0] and ifc=2*mu+1 if b0 is odd or
                                m=grd.idx[n1] and ifc=2*mu   if b0 is even.
 
 ibn=1:
 
-   (psi_{k,o},chi_{l,e}), ..   are assigned to Aoe[m+ifc],Aeo[m+ifc] where 
+   (psi_{k,o},chi_{l,e}), ..   are assigned to Aoe[m+ifc],Aeo[m+ifc] where
                                m=grd.idx[n0] and ifc=2*mu+1 if b0 is odd.
 
-   (psi_{k,o}',chi_{l,e}'), .. are assigned to Aoe[m+ifc],Aeo[m+ifc] where 
+   (psi_{k,o}',chi_{l,e}'), .. are assigned to Aoe[m+ifc],Aeo[m+ifc] where
                                m=grd.idx[n1'] and ifc=2*mu if b1' is odd.
 
-   If b0 and/or b1' is even, the scalar products must be copied to the 
+   If b0 and/or b1' is even, the scalar products must be copied to the
    neighbouring processes in direction +mu and -mu respectively. They are
    first assigned to matrices at the end of the Aoe and Aeo arrays and
    eventually (after all pairs of blocks are processed) are communicated
-   by the program cpAoe_ext_bnd().   
+   by the program cpAoe_ext_bnd().
 
 
 Even-odd preconditioned operator

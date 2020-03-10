@@ -3,12 +3,12 @@
 *
 * File check3.c
 *
-* Copyright (C) 2005, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2005-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the SW term for abelian background fields.
+* Check of the SW term for Abelian background fields.
 *
 *******************************************************************************/
 
@@ -35,9 +35,9 @@
 #define N2 (NPROC2*L2)
 #define N3 (NPROC3*L3)
 
-static int bc,np[4];
+static int bc,is,np[4];
 static double t[3],a[4],p[4],inp[4];
-static double (*Fhat)[3];
+static double (*Fhat)[3],(*cup)[3][3],(*cdn)[3][3];
 static const su3_dble ud0={{0.0}};
 static spinor_dble ws;
 
@@ -46,8 +46,19 @@ static void alloc_Fhat(void)
 {
    Fhat=amalloc(VOLUME*sizeof(*Fhat),3);
 
-   error(Fhat==NULL,1,"alloc_Fhat [check3.c]",
-         "Unable to allocate auxiliary array");
+   if (is)
+   {
+      cup=amalloc(2*VOLUME*sizeof(*cup),3);
+      cdn=cup+VOLUME;
+   }
+   else
+   {
+      cup=NULL;
+      cdn=NULL;
+   }
+
+   error((Fhat==NULL)||((is)&&(cup==NULL)),1,"alloc_Fhat [check3.c]",
+         "Unable to allocate auxiliary arrays");
 }
 
 
@@ -223,10 +234,28 @@ static void set_ud(void)
 }
 
 
+static void set_c2zero(void)
+{
+   int ix,k,l;
+
+   for (ix=0;ix<VOLUME;ix++)
+   {
+      for (k=0;k<3;k++)
+      {
+         for (l=0;l<3;l++)
+         {
+            cup[ix][k][l]=0.0;
+            cdn[ix][k][l]=0.0;
+         }
+      }
+   }
+}
+
+
 static void compute_Fhat(int mu,int nu)
 {
    int bo[4],x[4];
-   int x0,x1,x2,x3,ix;
+   int k,x0,x1,x2,x3,ix;
    double ftp[4][3];
 
    bo[0]=cpr[0]*L0;
@@ -267,6 +296,57 @@ static void compute_Fhat(int mu,int nu)
                   Fhat[ix][0]=0.0;
                   Fhat[ix][1]=0.0;
                   Fhat[ix][2]=0.0;
+               }
+
+               if ((is)&&(mu<nu))
+               {
+                  if (mu==0)
+                  {
+                     k=nu-1;
+                     cup[ix][k][0]+=Fhat[ix][0];
+                     cup[ix][k][1]+=Fhat[ix][1];
+                     cup[ix][k][2]+=Fhat[ix][2];
+
+                     cdn[ix][k][0]+=Fhat[ix][0];
+                     cdn[ix][k][1]+=Fhat[ix][1];
+                     cdn[ix][k][2]+=Fhat[ix][2];
+                  }
+                  else if (mu==1)
+                  {
+                     if (nu==2)
+                     {
+                        k=2;
+                        cup[ix][k][0]-=Fhat[ix][0];
+                        cup[ix][k][1]-=Fhat[ix][1];
+                        cup[ix][k][2]-=Fhat[ix][2];
+
+                        cdn[ix][k][0]+=Fhat[ix][0];
+                        cdn[ix][k][1]+=Fhat[ix][1];
+                        cdn[ix][k][2]+=Fhat[ix][2];
+                     }
+                     else
+                     {
+                        k=1;
+                        cup[ix][k][0]+=Fhat[ix][0];
+                        cup[ix][k][1]+=Fhat[ix][1];
+                        cup[ix][k][2]+=Fhat[ix][2];
+
+                        cdn[ix][k][0]-=Fhat[ix][0];
+                        cdn[ix][k][1]-=Fhat[ix][1];
+                        cdn[ix][k][2]-=Fhat[ix][2];
+                     }
+                  }
+                  else if (mu==2)
+                  {
+                     k=0;
+                     cup[ix][k][0]-=Fhat[ix][0];
+                     cup[ix][k][1]-=Fhat[ix][1];
+                     cup[ix][k][2]-=Fhat[ix][2];
+
+                     cdn[ix][k][0]+=Fhat[ix][0];
+                     cdn[ix][k][1]+=Fhat[ix][1];
+                     cdn[ix][k][2]+=Fhat[ix][2];
+                  }
                }
             }
          }
@@ -428,11 +508,15 @@ static void muladd_pauli(double csw,int mu,int nu,
 
 static void mul_swd(double m0,double csw,spinor_dble *pk,spinor_dble *pl)
 {
-   int mu,nu;
-   double c;
+   int mu,nu,k,l;
+   double c0,c1,cu[3],cd[3],su[3],sd[3];
+   double (*rup)[3][3],(*rdn)[3][3];
    spinor_dble *pm;
 
    set_sd2zero(VOLUME,pl);
+
+   if (is)
+      set_c2zero();
 
    for (mu=0;mu<3;mu++)
    {
@@ -440,22 +524,105 @@ static void mul_swd(double m0,double csw,spinor_dble *pk,spinor_dble *pl)
          muladd_pauli(2.0*csw,mu,nu,pk,pl);
    }
 
-   pm=pk+VOLUME;
-   c=4.0+m0;
-
-   for (;pk<pm;pk++)
+   if (is)
    {
-      _vector_mulr_assign((*pl).c1,c,(*pk).c1);
-      _vector_mulr_assign((*pl).c2,c,(*pk).c2);
-      _vector_mulr_assign((*pl).c3,c,(*pk).c3);
-      _vector_mulr_assign((*pl).c4,c,(*pk).c4);
+      pm=pk+VOLUME;
+      rup=cup;
+      rdn=cdn;
+      c0=4.0+m0;
+      c1=0.5*csw/c0;
 
-      pl+=1;
+      for (;pk<pm;pk++)
+      {
+         for (k=0;k<3;k++)
+         {
+            su[k]=0.0;
+            sd[k]=0.0;
+
+            for (l=0;l<3;l++)
+            {
+               su[k]+=(*rup)[l][k]*(*rup)[l][k];
+               sd[k]+=(*rdn)[l][k]*(*rdn)[l][k];
+            }
+
+            su[k]=c1*sqrt(su[k]);
+            sd[k]=c1*sqrt(sd[k]);
+
+            cu[k]=c0*cosh(su[k]);
+            cd[k]=c0*cosh(sd[k]);
+
+            if (su[k]!=0.0)
+               su[k]=sinh(su[k])/su[k];
+            else
+               su[k]=1.0;
+
+            if (sd[k]!=0.0)
+               sd[k]=sinh(sd[k])/sd[k];
+            else
+               sd[k]=1.0;
+         }
+
+         (*pl).c1.c1.re=cu[0]*(*pk).c1.c1.re+su[0]*(*pl).c1.c1.re;
+         (*pl).c1.c1.im=cu[0]*(*pk).c1.c1.im+su[0]*(*pl).c1.c1.im;
+
+         (*pl).c1.c2.re=cu[1]*(*pk).c1.c2.re+su[1]*(*pl).c1.c2.re;
+         (*pl).c1.c2.im=cu[1]*(*pk).c1.c2.im+su[1]*(*pl).c1.c2.im;
+
+         (*pl).c1.c3.re=cu[2]*(*pk).c1.c3.re+su[2]*(*pl).c1.c3.re;
+         (*pl).c1.c3.im=cu[2]*(*pk).c1.c3.im+su[2]*(*pl).c1.c3.im;
+
+         (*pl).c2.c1.re=cu[0]*(*pk).c2.c1.re+su[0]*(*pl).c2.c1.re;
+         (*pl).c2.c1.im=cu[0]*(*pk).c2.c1.im+su[0]*(*pl).c2.c1.im;
+
+         (*pl).c2.c2.re=cu[1]*(*pk).c2.c2.re+su[1]*(*pl).c2.c2.re;
+         (*pl).c2.c2.im=cu[1]*(*pk).c2.c2.im+su[1]*(*pl).c2.c2.im;
+
+         (*pl).c2.c3.re=cu[2]*(*pk).c2.c3.re+su[2]*(*pl).c2.c3.re;
+         (*pl).c2.c3.im=cu[2]*(*pk).c2.c3.im+su[2]*(*pl).c2.c3.im;
+
+
+         (*pl).c3.c1.re=cd[0]*(*pk).c3.c1.re+sd[0]*(*pl).c3.c1.re;
+         (*pl).c3.c1.im=cd[0]*(*pk).c3.c1.im+sd[0]*(*pl).c3.c1.im;
+
+         (*pl).c3.c2.re=cd[1]*(*pk).c3.c2.re+sd[1]*(*pl).c3.c2.re;
+         (*pl).c3.c2.im=cd[1]*(*pk).c3.c2.im+sd[1]*(*pl).c3.c2.im;
+
+         (*pl).c3.c3.re=cd[2]*(*pk).c3.c3.re+sd[2]*(*pl).c3.c3.re;
+         (*pl).c3.c3.im=cd[2]*(*pk).c3.c3.im+sd[2]*(*pl).c3.c3.im;
+
+         (*pl).c4.c1.re=cd[0]*(*pk).c4.c1.re+sd[0]*(*pl).c4.c1.re;
+         (*pl).c4.c1.im=cd[0]*(*pk).c4.c1.im+sd[0]*(*pl).c4.c1.im;
+
+         (*pl).c4.c2.re=cd[1]*(*pk).c4.c2.re+sd[1]*(*pl).c4.c2.re;
+         (*pl).c4.c2.im=cd[1]*(*pk).c4.c2.im+sd[1]*(*pl).c4.c2.im;
+
+         (*pl).c4.c3.re=cd[2]*(*pk).c4.c3.re+sd[2]*(*pl).c4.c3.re;
+         (*pl).c4.c3.im=cd[2]*(*pk).c4.c3.im+sd[2]*(*pl).c4.c3.im;
+
+         pl+=1;
+         rup+=1;
+         rdn+=1;
+      }
+   }
+   else
+   {
+      pm=pk+VOLUME;
+      c0=4.0+m0;
+
+      for (;pk<pm;pk++)
+      {
+         _vector_mulr_assign((*pl).c1,c0,(*pk).c1);
+         _vector_mulr_assign((*pl).c2,c0,(*pk).c2);
+         _vector_mulr_assign((*pl).c3,c0,(*pk).c3);
+         _vector_mulr_assign((*pl).c4,c0,(*pk).c4);
+
+         pl+=1;
+      }
    }
 }
 
 
-static void bnd_corr(double *cF,spinor_dble *pk,spinor_dble *pl)
+static void bnd_corr(double m0,double *cF,spinor_dble *pk,spinor_dble *pl)
 {
    int ix,s;
    double c;
@@ -475,10 +642,21 @@ static void bnd_corr(double *cF,spinor_dble *pk,spinor_dble *pl)
 
       if (c!=0.0)
       {
-         _vector_mulr_assign(pl[ix].c1,c,pk[ix].c1);
-         _vector_mulr_assign(pl[ix].c2,c,pk[ix].c2);
-         _vector_mulr_assign(pl[ix].c3,c,pk[ix].c3);
-         _vector_mulr_assign(pl[ix].c4,c,pk[ix].c4);
+         if (is)
+         {
+            c=1.0+c/(4.0+m0);
+            _vector_mul(pl[ix].c1,c,pl[ix].c1);
+            _vector_mul(pl[ix].c2,c,pl[ix].c2);
+            _vector_mul(pl[ix].c3,c,pl[ix].c3);
+            _vector_mul(pl[ix].c4,c,pl[ix].c4);
+         }
+         else
+         {
+            _vector_mulr_assign(pl[ix].c1,c,pk[ix].c1);
+            _vector_mulr_assign(pl[ix].c2,c,pk[ix].c2);
+            _vector_mulr_assign(pl[ix].c3,c,pk[ix].c3);
+            _vector_mulr_assign(pl[ix].c4,c,pk[ix].c4);
+         }
       }
    }
 }
@@ -489,6 +667,7 @@ int main(int argc,char *argv[])
    int my_rank,n;
    double phi[2],phi_prime[2],theta[3];
    double d,dmax;
+   qflt rqsm;
    pauli_dble *sw;
    spinor_dble **psd;
    sw_parms_t swp;
@@ -501,7 +680,7 @@ int main(int argc,char *argv[])
    {
       flog=freopen("check3.log","w",stdout);
       printf("\n");
-      printf("Check of the SW term for abelian background fields\n");
+      printf("Check of the SW term for Abelian background fields\n");
       printf("--------------------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
@@ -512,16 +691,24 @@ int main(int argc,char *argv[])
       printf("should be at most 1*10^(-14) or so\n\n");
 
       bc=find_opt(argc,argv,"-bc");
+      is=find_opt(argc,argv,"-sw");
 
       if (bc!=0)
          error_root(sscanf(argv[bc+1],"%d",&bc)!=1,1,"main [check3.c]",
-                    "Syntax: check3 [-bc <type>]");
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
+
+      if (is!=0)
+         error_root(sscanf(argv[is+1],"%d",&is)!=1,1,"main [check3.c]",
+                    "Syntax: check1 [-bc <type>] [-sw <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
+   MPI_Bcast(&is,1,MPI_INT,0,MPI_COMM_WORLD);
+
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,is,1.978);
    print_lat_parms();
 
-   MPI_Bcast(&bc,1,MPI_INT,0,MPI_COMM_WORLD);
    phi[0]=0.123;
    phi[1]=-0.534;
    phi_prime[0]=0.912;
@@ -543,8 +730,15 @@ int main(int argc,char *argv[])
    dmax=0.0;
 
    if (my_rank==0)
-      printf("m0=%.4e, csw=%.4e, cF=%.4e, cF'=%.4e\n\n",
-             swp.m0,swp.csw,swp.cF[0],swp.cF[1]);
+   {
+      printf("Parameters returned by sw_parms():\n");
+      printf("isw=%d, m0=%.4e, csw=%.4e",swp.isw,swp.m0,swp.csw);
+      if (is)
+         printf(" (=> N=%d)\n",sw_order());
+      else
+         printf("\n");
+      printf("cF=%.4e, cF'=%.4e\n\n",swp.cF[0],swp.cF[1]);
+   }
 
    for (n=0;n<4;n++)
    {
@@ -556,11 +750,13 @@ int main(int argc,char *argv[])
       random_sd(VOLUME,psd[0],1.0);
       apply_sw_dble(VOLUME,0.0,sw,psd[0],psd[1]);
       mul_swd(swp.m0,swp.csw,psd[0],psd[2]);
-      bnd_corr(swp.cF,psd[0],psd[2]);
+      bnd_corr(swp.m0,swp.cF,psd[0],psd[2]);
 
       mulr_spinor_add_dble(VOLUME,psd[2],psd[1],-1.0);
-      d=norm_square_dble(VOLUME,1,psd[2])/norm_square_dble(VOLUME,1,psd[0]);
-      d=sqrt(d);
+      rqsm=norm_square_dble(VOLUME,1,psd[2]);
+      d=rqsm.q[0];
+      rqsm=norm_square_dble(VOLUME,1,psd[0]);
+      d=sqrt(d/rqsm.q[0]);
       if (d>dmax)
          dmax=d;
 

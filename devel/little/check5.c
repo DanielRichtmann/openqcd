@@ -3,7 +3,7 @@
 *
 * File check5.c
 *
-* Copyright (C) 2007, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -56,6 +56,7 @@ static double check_vd(int Ns,int nvh)
    int i,j;
    double d,dev;
    complex_dble **vd,z;
+   complex_qflt cqsm;
 
    vd=vdflds();
    dev=0.0;
@@ -64,7 +65,9 @@ static double check_vd(int Ns,int nvh)
    {
       for (j=0;j<=i;j++)
       {
-         z=vprod_dble(nvh,1,vd[i],vd[j]);
+         cqsm=vprod_dble(nvh,1,vd[i],vd[j]);
+         z.re=cqsm.re.q[0];
+         z.im=cqsm.im.q[0];
 
          if (i==j)
             z.re-=1.0;
@@ -84,6 +87,7 @@ static double check_Awvd(int Ns,int nvh)
 {
    int i;
    double d,dev;
+   qflt rqsm;
    complex_dble **vd,**wvd,z;
 
    vd=vdflds();
@@ -98,7 +102,10 @@ static double check_Awvd(int Ns,int nvh)
       assign_vd2vd(nvh,vd[i],wvd[0]);
       Awhat_dble(wvd[0],wvd[1]);
       mulc_vadd_dble(nvh,wvd[1],vd[i]+nvh,z);
-      d=vnorm_square_dble(nvh,1,wvd[1])/vnorm_square_dble(nvh,1,vd[i]+nvh);
+      rqsm=vnorm_square_dble(nvh,1,wvd[1]);
+      d=rqsm.q[0];
+      rqsm=vnorm_square_dble(nvh,1,vd[i]+nvh);
+      d/=rqsm.q[0];
 
       if (d>dev)
          dev=d;
@@ -115,6 +122,7 @@ static double check_ltl_matrix(int Ns,int nvh)
    int i,j,ie;
    double dev;
    complex_dble **vd,*amat,*bmat,*cmat,z;
+   complex_qflt cqsm;
 
    vd=vdflds();
    amat=ltl_matrix();
@@ -126,7 +134,11 @@ static double check_ltl_matrix(int Ns,int nvh)
    for (i=0;i<Ns;i++)
    {
       for (j=0;j<Ns;j++)
-         bmat[i*Ns+j]=vprod_dble(nvh,1,vd[i],vd[j]+nvh);
+      {
+         cqsm=vprod_dble(nvh,1,vd[i],vd[j]+nvh);
+         bmat[i*Ns+j].re=cqsm.re.q[0];
+         bmat[i*Ns+j].im=cqsm.im.q[0];
+      }
    }
 
    cmat_mul_dble(Ns,amat,bmat,cmat);
@@ -166,6 +178,7 @@ static double check_vflds(int Ns,int nvh)
 {
    int i;
    double d,dev;
+   qflt rqsm;
    complex **v;
    complex_dble **vd,**wvd,z;
 
@@ -181,8 +194,10 @@ static double check_vflds(int Ns,int nvh)
    {
       assign_v2vd(nvh,v[i],wvd[0]);
       mulc_vadd_dble(nvh,wvd[0],vd[i],z);
-      d=vnorm_square_dble(nvh,1,wvd[0]);
-      d/=vnorm_square_dble(nvh,1,vd[i]);
+      rqsm=vnorm_square_dble(nvh,1,wvd[0]);
+      d=rqsm.q[0];
+      rqsm=vnorm_square_dble(nvh,1,vd[i]);
+      d/=rqsm.q[0];
       if (d>dev)
          dev=d;
    }
@@ -191,8 +206,10 @@ static double check_vflds(int Ns,int nvh)
    {
       assign_v2vd(nvh,v[i]+nvh,wvd[0]);
       mulc_vadd_dble(nvh,wvd[0],vd[i]+nvh,z);
-      d=vnorm_square_dble(nvh,1,wvd[0]);
-      d/=vnorm_square_dble(nvh,1,vd[i]+nvh);
+      rqsm=vnorm_square_dble(nvh,1,wvd[0]);
+      d=rqsm.q[0];
+      rqsm=vnorm_square_dble(nvh,1,vd[i]+nvh);
+      d/=rqsm.q[0];
       if (d>dev)
          dev=d;
    }
@@ -207,6 +224,7 @@ static double check_mds(int Ns,int nvh)
 {
    int nv,k,l;
    double d,dev;
+   qflt rqsm;
    complex **vs;
    complex_dble **vd,**wvd;
    spinor **mds,**ws;
@@ -240,7 +258,8 @@ static double check_mds(int Ns,int nvh)
       for (l=0;l<Ns;l++)
          vproject_dble(nvh,1,wvd[0],vd[l]);
 
-      d=vnorm_square_dble(nvh,1,wvd[0]);
+      rqsm=vnorm_square_dble(nvh,1,wvd[0]);
+      d=rqsm.q[0];
       d/=(double)(vnorm_square(nvh,1,vs[Ns+k]));
       if (d>dev)
          dev=d;
@@ -290,7 +309,8 @@ int main(int argc,char *argv[])
                     "Syntax: check5 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);

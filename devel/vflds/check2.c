@@ -3,12 +3,12 @@
 *
 * File check2.c
 *
-* Copyright (C) 2005, 2011 Martin Luescher
+* Copyright (C) 2005, 2011, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Check of the programs in the module vinit.c
+* Check of the programs in the module vinit.c.
 *
 *******************************************************************************/
 
@@ -38,20 +38,21 @@ int main(int argc,char *argv[])
    int my_rank,ie,k,ix;
    int bs[4],Ns,nb,nv;
    double var,var_all,d,dmax;
+   qflt rqsm;
    complex z;
    complex_dble zd;
    complex **wv;
    complex_dble **wvd;
-   FILE *fin=NULL,*flog=NULL;  
+   FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 
    if (my_rank==0)
    {
-      flog=freopen("check2.log","w",stdout); 
+      flog=freopen("check2.log","w",stdout);
       fin=freopen("check1.in","r",stdin);
-      
+
       printf("\n");
       printf("Check of the programs in the module vinit\n");
       printf("-----------------------------------------\n\n");
@@ -66,20 +67,21 @@ int main(int argc,char *argv[])
 
       printf("bs = %d %d %d %d\n",bs[0],bs[1],bs[2],bs[3]);
       printf("Ns = %d\n\n",Ns);
-      fflush(flog);      
+      fflush(flog);
    }
 
+   check_machine();
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
    MPI_Bcast(&Ns,1,MPI_INT,0,MPI_COMM_WORLD);
-   
+
    start_ranlux(0,12345);
    geometry();
    set_dfl_parms(bs,Ns);
-   
+
    alloc_wv(2*NFLDS);
    alloc_wvd(2*NFLDS);
    wv=reserve_wv(2*NFLDS);
-   wvd=reserve_wvd(2*NFLDS);   
+   wvd=reserve_wvd(2*NFLDS);
 
    nb=VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
    nv=Ns*nb;
@@ -89,7 +91,7 @@ int main(int argc,char *argv[])
 
    if (my_rank==0)
    {
-      printf("Choose random single-precision fields\n");   
+      printf("Choose random single-precision fields\n");
       ranlxs(sig,NFLDS);
    }
 
@@ -105,10 +107,10 @@ int main(int argc,char *argv[])
                         wv[k][ix].im*wv[k][ix].im));
 
       MPI_Reduce(&var,&var_all,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      
+
       if (my_rank==0)
       {
-         var_all/=((double)(NPROC)*(double)(nv));               
+         var_all/=((double)(NPROC)*(double)(nv));
          printf("<s[%d]^2> = %.4e (sigma^2 = %.4e)\n",
                 k,var_all,sig[k]*sig[k]);
       }
@@ -117,12 +119,12 @@ int main(int argc,char *argv[])
    if (my_rank==0)
    {
       printf("\n");
-      printf("Choose random double-precision fields\n");   
+      printf("Choose random double-precision fields\n");
       ranlxd(sigd,NFLDS);
    }
 
    MPI_Bcast(sigd,NFLDS,MPI_DOUBLE,0,MPI_COMM_WORLD);
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_vd(nv,wvd[k],sigd[k]);
@@ -132,7 +134,7 @@ int main(int argc,char *argv[])
          var+=(wvd[k][ix].re*wvd[k][ix].re+wvd[k][ix].im*wvd[k][ix].im);
 
       MPI_Reduce(&var,&var_all,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-      
+
       if (my_rank==0)
       {
          var_all/=((double)(NPROC)*(double)(nv));
@@ -151,8 +153,8 @@ int main(int argc,char *argv[])
       z.re=-1.0f;
       zd.re=-1.0;
       mulc_vadd(nv,wv[k],wv[k+NFLDS],z);
-      mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);      
-      
+      mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);
+
       for (ix=0;ix<nv;ix++)
       {
          if ((wv[k][ix].re!=0.0f)||(wv[k][ix].im!=0.0f))
@@ -185,7 +187,7 @@ int main(int argc,char *argv[])
          "assign_v2vd() or assign_vd2v() is incorrect");
 
    dmax=0.0;
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_v(nv,wv[k],1.0f);
@@ -193,13 +195,15 @@ int main(int argc,char *argv[])
       assign_vd2vd(nv,wvd[k],wvd[k+NFLDS]);
 
       add_v2vd(nv,wv[k],wvd[k]);
-      d=vnorm_square_dble(nv,1,wvd[k]);
+      rqsm=vnorm_square_dble(nv,1,wvd[k]);
+      d=rqsm.q[0];
       zd.re=-1.0;
       mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);
       assign_v2vd(nv,wv[k],wvd[k+NFLDS]);
       mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);
 
-      d=vnorm_square_dble(nv,1,wvd[k])/d;
+      rqsm=vnorm_square_dble(nv,1,wvd[k]);
+      d/=rqsm.q[0];
       if (d>dmax)
          dmax=d;
    }
@@ -210,9 +214,9 @@ int main(int argc,char *argv[])
       printf("Relative deviations (should be less than 1.0e-7 or so):\n");
       printf("add_v2vd():  %.1e\n",sqrt(dmax));
    }
-   
+
    dmax=0.0;
-   
+
    for (k=0;k<NFLDS;k++)
    {
       random_vd(nv,wvd[k],1.0);
@@ -221,11 +225,13 @@ int main(int argc,char *argv[])
       diff_vd2v(nv,wvd[k],wvd[k+NFLDS],wv[k]);
       zd.re=-1.0;
       mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);
-      d=vnorm_square_dble(nv,1,wvd[k]);
+      rqsm=vnorm_square_dble(nv,1,wvd[k]);
+      d=rqsm.q[0];
       assign_v2vd(nv,wv[k],wvd[k+NFLDS]);
       mulc_vadd_dble(nv,wvd[k],wvd[k+NFLDS],zd);
 
-      d=vnorm_square_dble(nv,1,wvd[k])/d;
+      rqsm=vnorm_square_dble(nv,1,wvd[k]);
+      d/=rqsm.q[0];
       if (d>dmax)
          dmax=d;
    }
@@ -236,6 +242,6 @@ int main(int argc,char *argv[])
       fclose(flog);
    }
 
-   MPI_Finalize();   
+   MPI_Finalize();
    exit(0);
 }

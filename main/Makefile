@@ -18,18 +18,21 @@ all: rmxeq mkdep mkxeq
 
 # main programs and modules to be compiled
 
-MAIN = ym1 qcd1 ms1 ms2 ms3 ms4
+MAIN = cvt1 ms1 ms2 ms3 ms4 qcd1 qcd2 xms1 xms2 ym1 ym2
 
-ARCHIVE = archive sarchive
+ARCHIVE = archive marchive sarchive
 
 BLOCK = block blk_grid map_u2blk map_sw2blk map_s2blk
 
 DFL = dfl_geometry dfl_subspace ltl_gcr dfl_sap_gcr dfl_modes
 
+DFT = dft4d dft_com dft_shuf fft small_dft
+
 DIRAC = Dw_dble Dw Dw_bnd
 
-FLAGS = flags action_parms dfl_parms force_parms hmc_parms lat_parms \
-        mdint_parms rat_parms rw_parms sap_parms solver_parms
+FLAGS = flags action_parms dfl_parms dft4d_parms dft_parms force_parms \
+        hmc_parms lat_parms mdint_parms parms rat_parms rw_parms sap_parms \
+        smd_parms solver_parms
 
 FORCES = force0 force1 force2 force3 force4 force5 \
          frcfcts genfrc tmcg tmcgm xtensor
@@ -44,34 +47,37 @@ LITTLE = Aw_gen Aw_com Aw_ops Aw_dble Aw ltl_modes
 
 MDFLDS = mdflds fcom
 
+MSFCTS = farchive fldops latavg pt2pt
+
 RANDOM = ranlux ranlxs ranlxd gauss
 
 RATFCTS = elliptic zolotarev ratfcts
 
 SAP = sap_com sap_gcr sap blk_solv
 
-SFLDS = sflds scom sdcom Pbnd Pbnd_dble
+SFLDS = sflds scom sdcom Pbnd Pbnd_dble unorm
 
 SU3FCTS = chexp su3prod su3ren cm3x3 random_su3
 
-SW_TERM = pauli pauli_dble swflds sw_term
+SW_TERM = pauli pauli_dble swalg swexp swflds sw_term
 
 TCHARGE = ftcom ftensor tcharge ym_action
 
 UFLDS = plaq_sum uflds udcom bstap
 
-UPDATE = chrono mdsteps counters mdint hmc rwtm rwtmeo rwrat
+UPDATE = chrono counters mdsteps mdint msize hmc rwtm rwtmeo rwrat \
+         sanity smd update wsize
 
-UTILS = endian error hsum mutils utils wspace
+UTILS = array endian error mutils qsum utils wspace
 
 VFLDS = vflds vinit vcom vdcom
 
 WFLOW = wflow
 
-MODULES = $(ARCHIVE) $(BLOCK) $(DFL) $(DIRAC) $(FLAGS) $(FORCES) \
-          $(LATTICE) $(LINALG) $(LINSOLV) $(LITTLE) $(MDFLDS) $(RANDOM) \
-          $(RATFCTS) $(SAP) $(SFLDS) $(SU3FCTS) $(SW_TERM) $(TCHARGE) \
-          $(UFLDS) $(UPDATE) $(UTILS) $(VFLDS) $(WFLOW)
+MODULES = $(ARCHIVE) $(BLOCK) $(DFL) $(DFT) $(DIRAC) $(FLAGS) $(FORCES) \
+          $(LATTICE) $(LINALG) $(LINSOLV) $(LITTLE) $(MDFLDS) $(MSFCTS) \
+          $(RANDOM) $(RATFCTS) $(SAP) $(SFLDS) $(SU3FCTS) $(SW_TERM) \
+          $(TCHARGE) $(UFLDS) $(UPDATE) $(UTILS) $(VFLDS) $(WFLOW)
 
 
 # Logging option (-mpilog or -mpitrace or -mpianim)
@@ -83,12 +89,13 @@ LOGOPTION =
 
 MDIR = ../modules
 
-VPATH = .:$(MDIR)/flags:$(MDIR)/lattice:$(MDIR)/archive:$(MDIR)/linalg:\
-          $(MDIR)/random:$(MDIR)/uflds:$(MDIR)/mdflds:$(MDIR)/su3fcts:\
-          $(MDIR)/utils:$(MDIR)/forces:$(MDIR)/sflds:$(MDIR)/dirac:\
-	  $(MDIR)/sw_term:$(MDIR)/tcharge:$(MDIR)/block:$(MDIR)/sap:\
-	  $(MDIR)/linsolv:$(MDIR)/dfl:$(MDIR)/vflds:$(MDIR)/little:\
-          $(MDIR)/update:$(MDIR)/wflow:$(MDIR)/ratfcts
+VPATH = .:$(MDIR)/archive:$(MDIR)/block:$(MDIR)/dirac:$(MDIR)/dfl:\
+          $(MDIR)/dft:$(MDIR)/flags:$(MDIR)/forces:$(MDIR)/lattice:\
+          $(MDIR)/linalg:$(MDIR)/linsolv:$(MDIR)/little:$(MDIR)/mdflds:\
+          $(MDIR)/msfcts:$(MDIR)/random:$(MDIR)/ratfcts:$(MDIR)/sap:\
+          $(MDIR)/sflds:$(MDIR)/su3fcts:$(MDIR)/sw_term:$(MDIR)/tcharge:\
+          $(MDIR)/uflds:$(MDIR)/update:$(MDIR)/utils:$(MDIR)/vflds:\
+          $(MDIR)/wflow
 
 
 # additional include directories
@@ -105,19 +112,20 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 
-# See the README in the top directory for alternative choices of the
-# optimization options -O -mno-avx -Dx64 -DPM.
+# These CFLAGS options are recommended if the gcc compiler is used on a
+# x86-64 machine supporting AVX and FMA3 instructions. See the README in
+# the top directory for alternative choices of the optimization options.
 #
 # The available debugging flags are
 #
-# -DCGNE_DBG -DFGCR_DBG -FGCR4VD_DBG -DMSCG_DBG
-# -DDFL_MODES_DBG -DMDINT_DBG -DRWRAT_DBG
+# -DCGNE_DBG -DFGCR_DBG -DFGCR4VD_DBG -DFORCE_DBG -DMSCG_DBG
+# -DDFL_MODES_DBG -DMDINT_DBG -DRWRAT_DBG -DIGNORE_ERRORS
 #
 # Add these (or some of these) to CFLAGS if debugging output is desired.
 

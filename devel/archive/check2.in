@@ -1,1 +1,2 @@
-cnfg_dir  /home/data/openQCD/cnfg
+
+cnfg_dir     /home/data/openQCD/cnfg   # Configuration directory

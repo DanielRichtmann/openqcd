@@ -3,7 +3,7 @@
 *
 * File tmcgm.c
 *
-* Copyright (C) 2012, 2013 Martin Luescher
+* Copyright (C) 2012, 2013, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -11,16 +11,11 @@
 * Multi-shift CG solver for the normal even-odd preconditioned Wilson-Dirac
 * equation (Dwhat^dag*Dwhat+mu^2)*psi=eta with a twisted-mass term.
 *
-* The externally accessible function is
-*
-*   void tmcgm(int nmx,double *res,int nmu,double *mu,
+*   void tmcgm(int nmx,int istop,double *res,int nmu,double *mu,
 *              spinor_dble *eta,spinor_dble **psi,int *status)
 *     Obtains approximate solutions psi[0],..,psi[nmu-1] of the normal
 *     even-odd preconditioned Wilson-Dirac equation for given source eta
-*     and nmu values of the twisted-mass parameter mu. See the notes for
-*     the explanation of the parameters of the program.
-*
-* Notes:
+*     and nmu values of the twisted-mass parameter mu.
 *
 * The program is based on the multi-shift CG algorithm (see linsolv/mscg.c).
 * It assumes that the improvement coefficients and the quark mass in the
@@ -31,6 +26,8 @@
 *
 *   nmx     Maximal total number of CG iterations that may be performed.
 *
+*   istop   Stopping criterion (0: L_2 norm based, 1: uniform norm based).
+*
 *   res     Array of the desired maximal relative residues of the
 *           calculated solutions (nmu elements)
 *
@@ -38,12 +35,11 @@
 *
 *   mu      Array of the twisted masses (nmu elements)
 *
-*   eta     Source field. Note that source fields must respect the chosen
-*           boundary conditions at time 0 and NPR0C0*L0-1, as has to be the
-*           the case for physical quark fields (see doc/dirac.pdf).
+*   eta     Source field. On exit eta is unchanged.
 *
 *   psi     Array of the calculated approximate solutions of the Dirac
 *           equations (Dwhat^dag*Dwhat+mu^2)*psi=eta (nmu elements).
+*           The fields psi[0],..,psi[nmu-1] must be different from eta.
 *
 *   status  If the program was able to solve the Dirac equations to the
 *           desired accuracy, status[0] reports the total number of CG
@@ -51,13 +47,15 @@
 *           the program failed (-1: the algorithm did not converge, -2:
 *           the inversion of the SW term on the odd points was not safe).
 *
-* The source field eta must be different from psi[0],..,psi[nmu-1]. If
-* status[0]>=-1 the calculated approximate solutions are returned. In
-* all other cases, the fields are set to zero.
+* The fields eta and psi must be such that the Dirac operator can act on
+* them (see main/README.global). Moreover, the source eta is assumed to
+* respect the chosen boundary conditions (see doc/dirac.pdf).
 *
-* The SW term is recalculated when needed. Evidently the solver is a global
-* program that must be called on all processes simultaneously. The required
-* workspace is
+* If status[0]>=-1 the calculated approximate solutions are returned. The
+* fields are otherwise set to zero.
+*
+* The SW term is recalculated when needed. The solver is a global program that
+* must be called on all processes simultaneously. The required workspace is
 *
 *  spinor_dble         3+nmu (5 if nmu=1)
 *
@@ -70,11 +68,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "mpi.h"
-#include "su3.h"
-#include "flags.h"
 #include "utils.h"
-#include "uflds.h"
 #include "sflds.h"
 #include "linalg.h"
 #include "sw_term.h"
@@ -98,10 +92,11 @@ static void Dop_dble(double mu,spinor_dble *s,spinor_dble *r)
 }
 
 
-void tmcgm(int nmx,double *res,int nmu,double *mu,
+void tmcgm(int nmx,int istop,double *res,int nmu,double *mu,
            spinor_dble *eta,spinor_dble **psi,int *status)
 {
    int ifail,k;
+   double rho0;
    spinor_dble **wsd;
 
    ifail=sw_term(ODD_PTS);
@@ -115,12 +110,32 @@ void tmcgm(int nmx,double *res,int nmu,double *mu,
    }
    else
    {
-      if (nmu==1)
-         wsd=reserve_wsd(5);
-      else
-         wsd=reserve_wsd(3+nmu);
+      rho0=unorm_dble(VOLUME/2,1,eta);
 
-      mscg(VOLUME/2,1,nmu,mu,Dop_dble,wsd,nmx,res,eta,psi,status);
-      release_wsd();
+      if (rho0!=0.0)
+      {
+         if (nmu==1)
+            wsd=reserve_wsd(5);
+         else
+            wsd=reserve_wsd(3+nmu);
+
+         assign_sd2sd(VOLUME/2,eta,wsd[0]+(VOLUME/2));
+         scale_dble(VOLUME/2,1.0/rho0,eta);
+
+         mscg(VOLUME/2,1,nmu,mu,Dop_dble,wsd,nmx,istop,res,eta,psi,status);
+
+         for (k=0;k<nmu;k++)
+            scale_dble(VOLUME/2,rho0,psi[k]);
+
+         assign_sd2sd(VOLUME/2,wsd[0]+(VOLUME/2),eta);
+         release_wsd();
+      }
+      else
+      {
+         status[0]=0;
+
+         for (k=0;k<nmu;k++)
+            set_sd2zero(VOLUME/2,psi[k]);
+      }
    }
 }

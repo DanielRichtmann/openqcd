@@ -3,7 +3,7 @@
 *
 * File check3.c
 *
-* Copyright (C) 2007, 2011-2013, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -56,12 +56,13 @@ int main(int argc,char *argv[])
 {
    int my_rank,bc;
    int bs[4],Ns,nb,nv;
+   int ieo,im0,imu;
    double phi[2],phi_prime[2],theta[3];
-   double mu,dev;
+   double m0[2],mu[2],dev;
+   qflt rqsm;
    complex **wv,z;
    complex_dble **wvd,zd;
    spinor **ws;
-   spinor_dble **wsd;
    FILE *fin=NULL,*flog=NULL;
 
    MPI_Init(&argc,&argv);
@@ -94,7 +95,8 @@ int main(int argc,char *argv[])
                     "Syntax: check3 [-bc <type>]");
    }
 
-   set_lat_parms(5.5,1.0,0,NULL,1.978);
+   check_machine();
+   set_lat_parms(5.5,1.0,0,NULL,0,1.978);
    print_lat_parms();
 
    MPI_Bcast(bs,4,MPI_INT,0,MPI_COMM_WORLD);
@@ -110,61 +112,84 @@ int main(int argc,char *argv[])
    set_bc_parms(bc,1.0,1.0,0.9012,1.2034,phi,phi_prime,theta);
    print_bc_parms(2);
 
-   set_sw_parms(-0.0123);
    set_dfl_parms(bs,Ns);
-   mu=0.0376;
-
    start_ranlux(0,123456);
    geometry();
 
    alloc_ws(Ns+2);
-   alloc_wsd(2);
    alloc_wv(3);
-   alloc_wvd(3);
+   alloc_wvd(2);
 
    ws=reserve_ws(2);
-   wsd=reserve_wsd(2);
    wv=reserve_wv(3);
-   wvd=reserve_wvd(3);
+   wvd=reserve_wvd(2);
    nb=VOLUME/(bs[0]*bs[1]*bs[2]*bs[3]);
    nv=Ns*nb;
 
    random_ud();
    set_ud_phase();
    random_basis(Ns);
-   set_Aw(mu);
-   sw_term(NO_PTS);
-   assign_ud2u();
-   assign_swd2sw();
 
-   random_vd(nv,wvd[0],1.0);
-   Aw_dble(wvd[0],wvd[1]);
-   dfl_vd2sd(wvd[0],wsd[0]);
-   Dw_dble(mu,wsd[0],wsd[1]);
-   dfl_sd2vd(wsd[1],wvd[2]);
+   m0[0]=-0.0123;
+   m0[1]= 0.0257;
 
-   zd.re=-1.0;
-   zd.im=0.0;
-   mulc_vadd_dble(nv,wvd[2],wvd[1],zd);
-   dev=vnorm_square_dble(nv,1,wvd[2])/vnorm_square_dble(nv,1,wvd[1]);
+   mu[0]=0.0157;
+   mu[1]=0.0239;
 
-   if (my_rank==0)
-      printf("Relative deviation (Aw_dble) = %.1e\n",sqrt(dev));
+   for (ieo=0;ieo<2;ieo++)
+   {
+      set_tm_parms(ieo);
 
-   random_v(nv,wv[0],1.0f);
-   Aw(wv[0],wv[1]);
-   dfl_v2s(wv[0],ws[0]);
-   Dw((float)(mu),ws[0],ws[1]);
-   dfl_s2v(ws[1],wv[2]);
+      for (im0=0;im0<2;im0++)
+      {
+         set_sw_parms(m0[im0]);
 
-   z.re=-1.0f;
-   z.im=0.0f;
-   mulc_vadd(nv,wv[2],wv[1],z);
-   dev=(double)(vnorm_square(nv,1,wv[2])/vnorm_square(nv,1,wv[1]));
+         for (imu=0;imu<2;imu++)
+         {
+            set_Aw(mu[imu]);
+
+            random_v(nv,wv[0],1.0f);
+            assign_v2vd(nv,wv[0],wvd[0]);
+            Aw_dble(wvd[0],wvd[1]);
+            Aw(wv[0],wv[1]);
+            assign_v2vd(nv,wv[1],wvd[0]);
+
+            zd.re=-1.0;
+            zd.im=0.0;
+            mulc_vadd_dble(nv,wvd[0],wvd[1],zd);
+            rqsm=vnorm_square_dble(nv,1,wvd[0]);
+            dev=rqsm.q[0];
+            rqsm=vnorm_square_dble(nv,1,wvd[1]);
+            dev/=rqsm.q[0];
+
+            if (my_rank==0)
+               printf("Relative deviations (ieo=%d,im0=%d,imu=%d): "
+                      "Aw_dble vs Aw = %.1e",ieo,im0,imu,sqrt(dev));
+
+            random_v(nv,wv[0],1.0f);
+            Aw(wv[0],wv[1]);
+
+            sw_term(NO_PTS);
+            assign_ud2u();
+            assign_swd2sw();
+            dfl_v2s(wv[0],ws[0]);
+            Dw((float)(mu[imu]),ws[0],ws[1]);
+            dfl_s2v(ws[1],wv[2]);
+
+            z.re=-1.0f;
+            z.im=0.0f;
+            mulc_vadd(nv,wv[2],wv[1],z);
+            dev=(double)(vnorm_square(nv,1,wv[2])/vnorm_square(nv,1,wv[1]));
+
+            if (my_rank==0)
+               printf(", Aw vs Dw = %.1e\n",sqrt(dev));
+         }
+      }
+   }
 
    if (my_rank==0)
    {
-      printf("Relative deviation (Aw)      = %.1e\n\n",sqrt(dev));
+      printf("\n");
       fclose(flog);
    }
 

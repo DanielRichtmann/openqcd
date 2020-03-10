@@ -83,9 +83,9 @@ distinguished (assuming x and y are as above):
     not part of the local gauge field. Their total number is equal to half the
     number of points on the face.
 
-(2) The link variables U(y,nu) where nu!=mu. None of these is contained in the
-    local gauge field. Their total number is 3 times the number of points on
-    the face.
+(2) The link variables U(y,nu) where nu!=mu. None of these are contained in
+    the local gauge field. Their total number is 3 times the number of points
+    on the face.
 
 The number of all these link variables on the faces in direction +0,+1,+2 and
 +3 is thus equal to BNDRY/4+3*BNDRY/2=7*BNDRY/4.

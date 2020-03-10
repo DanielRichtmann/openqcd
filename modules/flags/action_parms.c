@@ -10,8 +10,6 @@
 *
 * Action parameter data base.
 *
-* The externally accessible functions are
-*
 *   action_parms_t set_action_parms(int iact,action_t action,int ipf,
 *                                   int im0,int *irat,int *imu,int *isp)
 *     Sets the parameters in the action parameter set number iact and returns
@@ -53,8 +51,6 @@
 *     on the file fdat on MPI process 0, assuming the latter were written
 *     to the file by the program write_action_parms().
 *
-* Notes:
-*
 * For a description of the supported actions and their parameters see
 * forces/README.forces.
 *
@@ -86,7 +82,7 @@
 *
 *   irat    Indices specifying a rational function (see ratfcts/ratfcts.c),
 *
-*   imu     Twisted mass indices (see flags/hmc_parms.c),
+*   imu     Twisted mass indices (see flags/{hmc,smd}_parms.c),
 *
 *   isp     Solver parameter set indices (see flags/solver_parms.c).
 *
@@ -96,9 +92,12 @@
 * read from the arrays imu and isp passed to the program.
 *
 * The number of twisted mass indices and solver parameter set indices is
-* 1 and 2 in the case of the actions ACF_TM1* and ACF_TM2*, where isp[k] is
-* the solver parameter set used for the solution of the Dirac equation with
-* twisted mass index imu[k].
+* 1 and 2 in the case of the actions ACF_TM1* and ACF_TM2*, respectively,
+* where isp[k] is the solver parameter set used for the solution of the
+* Dirac equation with twisted mass index imu[k]. Two solver parameter set
+* indices are also required for the actions ACF_RAT*, the first being used
+* when the action is computed and the other when the pseudo-fermion field
+* is generated.
 *
 * Up to 32 action parameter sets, labeled by an index iact=0,1,..,31, can
 * be specified. Once a set is specified, it cannot be changed by calling
@@ -123,8 +122,6 @@
 #define IACMAX 32
 
 static int init=0;
-static action_t action[]={ACG,ACF_TM1,ACF_TM1_EO,ACF_TM1_EO_SDET,
-                          ACF_TM2,ACF_TM2_EO,ACF_RAT,ACF_RAT_SDET};
 static action_parms_t ap[IACMAX+1]={{ACTIONS,0,0,{0,0,0},{0,0,0,0},{0,0,0,0}}};
 
 
@@ -180,6 +177,7 @@ action_parms_t set_action_parms(int iact,action_t action,
       rat[1]=irat[1];
       rat[2]=irat[2];
       sp[0]=isp[0];
+      sp[1]=isp[1];
    }
 
    if (NPROC>1)
@@ -276,6 +274,7 @@ void read_action_parms(int iact)
    char line[NAME_SIZE];
 
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+
    ida=0;
    ipf=0;
    im0=0;
@@ -296,9 +295,11 @@ void read_action_parms(int iact)
 
       read_line("action","%s",line);
 
-      if (strcmp(line,"ACF_TM1")==0)
+      if (strcmp(line,"ACG")==0)
+         ida=(int)(ACG);
+      else if (strcmp(line,"ACF_TM1")==0)
       {
-         ida=1;
+         ida=(int)(ACF_TM1);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -306,7 +307,7 @@ void read_action_parms(int iact)
       }
       else if (strcmp(line,"ACF_TM1_EO")==0)
       {
-         ida=2;
+         ida=(int)(ACF_TM1_EO);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -314,7 +315,7 @@ void read_action_parms(int iact)
       }
       else if (strcmp(line,"ACF_TM1_EO_SDET")==0)
       {
-         ida=3;
+         ida=(int)(ACF_TM1_EO_SDET);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d",imu);
@@ -322,15 +323,15 @@ void read_action_parms(int iact)
       }
       else if (strcmp(line,"ACF_TM2")==0)
       {
-         ida=4;
+         ida=(int)(ACF_TM2);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d %d",imu,imu+1);
          read_line("isp","%d %d",isp,isp+1);
       }
-     else if (strcmp(line,"ACF_TM2_EO")==0)
+      else if (strcmp(line,"ACF_TM2_EO")==0)
       {
-         ida=5;
+         ida=(int)(ACF_TM2_EO);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("imu","%d %d",imu,imu+1);
@@ -338,23 +339,26 @@ void read_action_parms(int iact)
       }
       else if (strcmp(line,"ACF_RAT")==0)
       {
-         ida=6;
+         ida=(int)(ACF_RAT);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
-         read_line("isp","%d",isp);
+         read_line("isp","%d %d",isp,isp+1);
       }
       else if (strcmp(line,"ACF_RAT_SDET")==0)
       {
-         ida=7;
+         ida=(int)(ACF_RAT_SDET);
          read_line("ipf","%d",&ipf);
          read_line("im0","%d",&im0);
          read_line("irat","%d %d %d",irat,irat+1,irat+2);
-         read_line("isp","%d",isp);
+         read_line("isp","%d %d",isp,isp+1);
       }
-      else if (strcmp(line,"ACG")!=0)
+      else
+      {
+         ida=(int)(ACTIONS);
          error_root(1,1,"read_action_parms [action_parms.c]",
                     "Unknown action %s",line);
+      }
    }
 
    if (NPROC>1)
@@ -367,7 +371,7 @@ void read_action_parms(int iact)
       MPI_Bcast(isp,4,MPI_INT,0,MPI_COMM_WORLD);
    }
 
-   set_action_parms(iact,action[ida],ipf,im0,irat,imu,isp);
+   set_action_parms(iact,(action_t)(ida),ipf,im0,irat,imu,isp);
 }
 
 
@@ -434,7 +438,7 @@ void print_action_parms(void)
                printf("im0 = %d\n",ap[i].im0);
                printf("irat = %d %d %d\n",
                       ap[i].irat[0],ap[i].irat[1],ap[i].irat[2]);
-               printf("isp = %d\n\n",ap[i].isp[0]);
+               printf("isp = %d %d\n\n",ap[i].isp[0],ap[i].isp[1]);
             }
             else if (ap[i].action==ACF_RAT_SDET)
             {
@@ -443,7 +447,7 @@ void print_action_parms(void)
                printf("im0 = %d\n",ap[i].im0);
                printf("irat = %d %d %d\n",
                       ap[i].irat[0],ap[i].irat[1],ap[i].irat[2]);
-               printf("isp = %d\n\n",ap[i].isp[0]);
+               printf("isp = %d %d\n\n",ap[i].isp[0],ap[i].isp[1]);
             }
             else
                printf("UNKNOWN action\n\n");

@@ -19,11 +19,11 @@ all: rmxeq mkdep mkxeq
 
 # main programs and required modules
 
-MAIN = check1 check2
+MAIN = check1 check2 check3 check4
 
 RANDOM = ranlxs ranlxd gauss
 
-UTILS = utils endian mutils
+UTILS = array endian mutils qsum utils
 
 MODULES = $(RANDOM) $(UTILS)
 
@@ -32,7 +32,7 @@ MODULES = $(RANDOM) $(UTILS)
 
 MDIR = ../../../modules
 
-VPATH = $(MDIR)/nompi/utils:$(MDIR)/random
+VPATH = $(MDIR)/nompi/utils:$(MDIR)/random:$(MDIR)/utils
 
 
 # additional include directories
@@ -42,16 +42,16 @@ INCPATH = ../../../include/nompi ../../../include
 
 # additional libraries to be included
 
-LIBS = m
+LIBS = m gmp
 
 LIBPATH =
 
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

@@ -21,7 +21,10 @@ all: rmxeq mkdep mkxeq
 
 MAIN = check1 check2 check3 check4 check5 check6
 
-FLAGS = flags lat_parms hmc_parms dfl_parms
+DFT = dft4d dft_com dft_shuf fft small_dft
+
+FLAGS = action_parms dfl_parms dft_parms dft4d_parms flags hmc_parms \
+        lat_parms smd_parms
 
 FORCES = force0
 
@@ -30,6 +33,8 @@ LATTICE = bcnds uidx ftidx geometry
 LINALG = liealg cmatrix_dble
 
 MDFLDS = mdflds fcom
+
+MSFCTS = fldops latavg
 
 RANDOM = ranlux ranlxs ranlxd gauss random_su3
 
@@ -41,12 +46,12 @@ TCHARGE = ftcom ftensor tcharge ym_action
 
 UFLDS = plaq_sum shift uflds udcom bstap
 
-UTILS = error endian hsum mutils utils wspace
+UTILS = array error endian mutils qsum utils wspace
 
 WFLOW = wflow
 
-MODULES = $(FLAGS) $(FORCES) $(LATTICE) $(LINALG) $(MDFLDS) \
-          $(RANDOM) $(SFLDS) $(SU3FCTS) $(TCHARGE) $(UFLDS)  \
+MODULES = $(DFT) $(FLAGS) $(FORCES) $(LATTICE) $(LINALG) $(MDFLDS) \
+          $(MSFCTS) $(RANDOM) $(SFLDS) $(SU3FCTS) $(TCHARGE) $(UFLDS) \
           $(UTILS) $(WFLOW)
 
 
@@ -59,10 +64,10 @@ LOGOPTION =
 
 MDIR = ../../modules
 
-VPATH = .:$(MDIR)/flags:$(MDIR)/forces:$(MDIR)/lattice:$(MDIR)/linalg:\
-          $(MDIR)/mdflds:$(MDIR)/random:$(MDIR)/su3fcts:$(MDIR)/sflds:\
-          $(MDIR)/su3fcts:$(MDIR)/uflds:$(MDIR)/utils:$(MDIR)/tcharge:\
-          $(MDIR)/wflow
+VPATH = .:$(MDIR)/dft:$(MDIR)/flags:$(MDIR)/forces:$(MDIR)/lattice:\
+          $(MDIR)/linalg:$(MDIR)/mdflds:$(MDIR)/msfcts:$(MDIR)/random:\
+          $(MDIR)/su3fcts:$(MDIR)/sflds:$(MDIR)/su3fcts:$(MDIR)/uflds:\
+          $(MDIR)/utils:$(MDIR)/tcharge:$(MDIR)/wflow
 
 
 # additional include directories
@@ -79,9 +84,9 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing \
-         -Wall -Wno-long-long -Wstrict-prototypes -Werror \
-         -O -mno-avx -Dx64 -DPM
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall -Wno-long-long \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

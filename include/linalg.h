@@ -17,6 +17,10 @@
 #include "su3.h"
 #endif
 
+#ifndef UTILS_H
+#include "utils.h"
+#endif
+
 /* CMATRIX_C */
 extern void cmat_vec(int n,complex *a,complex *v,complex *w);
 extern void cmat_vec_assign(int n,complex *a,complex *v,complex *w);
@@ -41,12 +45,13 @@ extern int cmat_inv_dble(int n,complex_dble *a,complex_dble *b,double *k);
 
 /* LIEALG_C */
 extern void random_alg(int vol,su3_alg_dble *X);
-extern double norm_square_alg(int vol,int icom,su3_alg_dble *X);
-extern double scalar_prod_alg(int vol,int icom,su3_alg_dble *X,su3_alg_dble *Y);
+extern qflt norm_square_alg(int vol,int icom,su3_alg_dble *X);
+extern qflt scalar_prod_alg(int vol,int icom,su3_alg_dble *X,su3_alg_dble *Y);
+extern double unorm_alg(int vol,int icom,su3_alg_dble *X);
 extern void set_alg2zero(int vol,su3_alg_dble *X);
 extern void set_ualg2zero(int vol,u3_alg_dble *X);
 extern void assign_alg2alg(int vol,su3_alg_dble *X,su3_alg_dble *Y);
-extern void swap_alg(int vol,su3_alg_dble *X,su3_alg_dble *Y);
+extern void flip_assign_alg2alg(int vol,su3_alg_dble *X,su3_alg_dble *Y);
 extern void muladd_assign_alg(int vol,double r,su3_alg_dble *X,su3_alg_dble *Y);
 
 /* SALG_C */
@@ -63,13 +68,13 @@ extern void mulg5(int vol,spinor *s);
 extern void mulmg5(int vol,spinor *s);
 
 /* SALG_DBLE_C */
-extern complex_dble spinor_prod_dble(int vol,int icom,spinor_dble *s,
+extern complex_qflt spinor_prod_dble(int vol,int icom,spinor_dble *s,
                                      spinor_dble *r);
-extern double spinor_prod_re_dble(int vol,int icom,spinor_dble *s,
-                                  spinor_dble *r);
-extern complex_dble spinor_prod5_dble(int vol,int icom,spinor_dble *s,
+extern qflt spinor_prod_re_dble(int vol,int icom,spinor_dble *s,
+                                spinor_dble *r);
+extern complex_qflt spinor_prod5_dble(int vol,int icom,spinor_dble *s,
                                       spinor_dble *r);
-extern double norm_square_dble(int vol,int icom,spinor_dble *s);
+extern qflt norm_square_dble(int vol,int icom,spinor_dble *s);
 extern void mulc_spinor_add_dble(int vol,spinor_dble *s,spinor_dble *r,
                                  complex_dble z);
 extern void mulr_spinor_add_dble(int vol,spinor_dble *s,spinor_dble *r,
@@ -93,8 +98,8 @@ extern float vnormalize(int n,int icom,complex *v);
 extern void vrotate(int n,int nv,complex **pv,complex *a);
 
 /* VALG_DBLE_C */
-extern complex_dble vprod_dble(int n,int icom,complex_dble *v,complex_dble *w);
-extern double vnorm_square_dble(int n,int icom,complex_dble *v);
+extern complex_qflt vprod_dble(int n,int icom,complex_dble *v,complex_dble *w);
+extern qflt vnorm_square_dble(int n,int icom,complex_dble *v);
 extern void mulc_vadd_dble(int n,complex_dble *v,complex_dble *w,
                            complex_dble z);
 extern void vproject_dble(int n,int icom,complex_dble *v,complex_dble *w);

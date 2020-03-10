@@ -3,7 +3,7 @@
 *
 * File table1.c
 *
-* Copyright (C) 2012 Martin Luescher
+* Copyright (C) 2012, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -56,8 +56,8 @@ int main(void)
    FILE *dat=NULL;
 
    printf("\n");
-   printf("Relative error of the Zolotorave approximation to 1/|x|\n");
-   printf("-------------------------------------------------------\n\n");
+   printf("Relative error of the Zolotarev approximation to 1/|x|\n");
+   printf("------------------------------------------------------\n\n");
 
    printf("Range [a,b] of |x| = ");
 
@@ -119,7 +119,6 @@ int main(void)
    }
    
    fclose(dat);
-
    printf("Printed data to file table1.dat\n\n");
    exit(0);
 }

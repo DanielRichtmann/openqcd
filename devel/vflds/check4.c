@@ -3,7 +3,7 @@
 *
 * File check4.c
 *
-* Copyright (C) 2007, 2011, 2013, 2016 Martin Luescher
+* Copyright (C) 2007-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
@@ -228,8 +228,8 @@ static int chk_int_bnd(complex_dble *v,complex_dble *w)
 int main(int argc,char *argv[])
 {
    int my_rank,bc,i,ie;
-   double d;
    double phi[2],phi_prime[2],theta[3];
+   qflt rqsm;
    complex_dble **wv,z;
    dfl_grid_t dfl_grid;
    FILE *fin=NULL,*flog=NULL;
@@ -306,9 +306,8 @@ int main(int argc,char *argv[])
       assign_vd2vd(nv,wv[i],wv[i+1]);
       cpvd_int_bnd(wv[i]);
       mulc_vadd_dble(nv,wv[i+1],wv[i],z);
-      d=vnorm_square_dble(nv,1,wv[i+1]);
-
-      error_root(d!=0.0,1,"main [check4.c]",
+      rqsm=vnorm_square_dble(nv,1,wv[i+1]);
+      error_root(rqsm.q[0]!=0.0,1,"main [check4.c]",
                  "cpvd_int_bnd() modifies the input field on the local grid");
 
       ie=chk_ext_bnd(wv[i]);
@@ -322,9 +321,8 @@ int main(int argc,char *argv[])
       assign_vd2vd(nvec,wv[i],wv[i+1]);
       cpvd_ext_bnd(wv[i]);
       mulc_vadd_dble(nvec-nv,wv[i]+nv,wv[i+1]+nv,z);
-      d=vnorm_square_dble(nvec-nv,1,wv[i]+nv);
-
-      error_root(d!=0.0,1,"main [check4.c]",
+      rqsm=vnorm_square_dble(nvec-nv,1,wv[i]+nv);
+      error_root(rqsm.q[0]!=0.0,1,"main [check4.c]",
                  "cpvd_ext_bnd() modifies the input field on the boundary");
 
       ie=chk_int_bnd(wv[i],wv[i+1]);

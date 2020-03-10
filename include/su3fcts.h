@@ -87,5 +87,6 @@ extern void u3algxsu3dag(u3_alg_dble *X,su3_dble *u,su3_dble *v);
 extern double prod2su3alg(su3_dble *u,su3_dble *v,su3_alg_dble *X);
 extern void prod2u3alg(su3_dble *u,su3_dble *v,u3_alg_dble *X);
 extern void rotate_su3alg(su3_dble *u,su3_alg_dble *X);
+extern void lieprod_u3alg(u3_alg_dble *X,u3_alg_dble *Y,u3_alg_dble *Z);
 
 #endif

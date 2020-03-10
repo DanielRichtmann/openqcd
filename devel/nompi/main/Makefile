@@ -23,7 +23,7 @@ MAIN = read1 read2
 
 EXTRAS = stat
 
-UTILS = utils mutils endian
+UTILS = array endian mutils parms qsum utils
 
 MODULES = $(EXTRAS) $(UTILS)
 
@@ -32,12 +32,12 @@ MODULES = $(EXTRAS) $(UTILS)
 
 MDIR = ../../../modules
 
-VPATH = .:$(MDIR)/nompi/extras:$(MDIR)/nompi/utils
+VPATH = .:$(MDIR)/nompi/extras:$(MDIR)/nompi/utils:$(MDIR)/utils
 
 
 # additional include directories
 
-INCPATH = ../../../include/nompi
+INCPATH = ../../../include/nompi ../../../include
 
 
 # additional libraries to be included
@@ -49,8 +49,9 @@ LIBPATH =
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fno-strict-aliasing \
-         -Wall -Wstrict-prototypes -Werror -O
+CFLAGS = -std=c89 -pedantic -fstrict-aliasing -Wall \
+         -Wno-format-overflow -Wstrict-prototypes -Werror \
+         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS =
 

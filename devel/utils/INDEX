@@ -1,5 +1,10 @@
 
 Utility programs
 
-check1        Copying of files
+check1        Copying of files.
+
+check2        Checks of the quadruple-precision summation programs.
+
+The program check2 assumes that the GNU Multiple Precision (gmp) library
+<https://gmplib.org> is installed.
 

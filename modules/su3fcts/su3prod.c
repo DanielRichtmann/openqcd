@@ -3,14 +3,12 @@
 *
 * File su3prod.c
 *
-* Copyright (C) 2005, 2009-2013, 2016 Martin Luescher
+* Copyright (C) 2005, 2009-2013, 2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
 * Products of double-precision 3x3 matrices.
-*
-* The externally accessible functions are
 *
 *   void su3xsu3(su3_dble *u,su3_dble *v,su3_dble *w)
 *     Computes w=u*v assuming that w is different from u.
@@ -48,7 +46,8 @@
 *     Replaces X by u*X*u^dag. The matrix u must be unitary but its
 *     determinant may be different from 1.
 *
-* Notes:
+*   void lieprod_u3alg(u3_alg_dble *X,u3_alg_dble *Y,u3_alg_dble *Z)
+*     Assigns the commutator [X,Y] to Z.
 *
 * Unless stated otherwise, the matrices of type su3_dble are not assumed to
 * be unitary or unimodular. They are just treated as general 3x3 complex
@@ -2468,3 +2467,52 @@ void rotate_su3alg(su3_dble *u,su3_alg_dble *X)
 }
 
 #endif
+
+void lieprod_u3alg(u3_alg_dble *X,u3_alg_dble *Y,u3_alg_dble *Z)
+{
+   double r1,r2,r3,r4,r5,r6,r7,r8;
+
+   r1=(*X).c4*(*Y).c5-(*X).c5*(*Y).c4;
+   r2=(*X).c7*(*Y).c6-(*X).c6*(*Y).c7;
+   r3=(*X).c8*(*Y).c9-(*X).c9*(*Y).c8;
+
+   (*Z).c1=2.0*(r1-r2);
+   (*Z).c2=2.0*(r3-r1);
+   (*Z).c3=2.0*(r2-r3);
+
+   r1=(*X).c1*(*Y).c4-(*X).c4*(*Y).c1;
+   r2=(*X).c1*(*Y).c5-(*X).c5*(*Y).c1;
+   r3=(*X).c2*(*Y).c4-(*X).c4*(*Y).c2;
+   r4=(*X).c2*(*Y).c5-(*X).c5*(*Y).c2;
+   r5=(*X).c6*(*Y).c8-(*X).c8*(*Y).c6;
+   r6=(*X).c6*(*Y).c9-(*X).c9*(*Y).c6;
+   r7=(*X).c7*(*Y).c8-(*X).c8*(*Y).c7;
+   r8=(*X).c7*(*Y).c9-(*X).c9*(*Y).c7;
+
+   (*Z).c4=r4-r2-r5-r8;
+   (*Z).c5=r1-r3+r6-r7;
+
+   r1=(*X).c1*(*Y).c6-(*X).c6*(*Y).c1;
+   r2=(*X).c1*(*Y).c7-(*X).c7*(*Y).c1;
+   r3=(*X).c3*(*Y).c6-(*X).c6*(*Y).c3;
+   r4=(*X).c3*(*Y).c7-(*X).c7*(*Y).c3;
+   r5=(*X).c4*(*Y).c8-(*X).c8*(*Y).c4;
+   r6=(*X).c4*(*Y).c9-(*X).c9*(*Y).c4;
+   r7=(*X).c5*(*Y).c8-(*X).c8*(*Y).c5;
+   r8=(*X).c5*(*Y).c9-(*X).c9*(*Y).c5;
+
+   (*Z).c6=r4-r8+r5-r2;
+   (*Z).c7=r1+r7+r6-r3;
+
+   r1=(*X).c2*(*Y).c8-(*X).c8*(*Y).c2;
+   r2=(*X).c2*(*Y).c9-(*X).c9*(*Y).c2;
+   r3=(*X).c3*(*Y).c8-(*X).c8*(*Y).c3;
+   r4=(*X).c3*(*Y).c9-(*X).c9*(*Y).c3;
+   r5=(*X).c4*(*Y).c6-(*X).c6*(*Y).c4;
+   r6=(*X).c4*(*Y).c7-(*X).c7*(*Y).c4;
+   r7=(*X).c5*(*Y).c6-(*X).c6*(*Y).c5;
+   r8=(*X).c5*(*Y).c7-(*X).c7*(*Y).c5;
+
+   (*Z).c8=r4-r5-r8-r2;
+   (*Z).c9=r1-r3-r6+r7;
+}

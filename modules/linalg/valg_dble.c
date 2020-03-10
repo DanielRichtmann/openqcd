@@ -3,20 +3,18 @@
 *
 * File valg_dble.c
 *
-* Copyright (C) 2007, 2011, 2016 Martin Luescher
+* Copyright (C) 2007-2016, 2018 Martin Luescher
 *
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Generic linear algebra routines for double-precision complex fields
+* Generic linear algebra routines for double-precision complex fields.
 *
-* The externally accessible functions are
+*   complex_qflt vprod_dble(int n,int icom,complex_dble *v,complex_dble *w)
+*     Returns the scalar product of the n-vectors v and w.
 *
-*   complex_dble vprod_dble(int n,int icom,complex_dble *v,complex_dble *w)
-*     Computes the scalar product of the n-vectors v and w.
-*
-*   double vnorm_square_dble(int n,int icom,complex_dble *v)
-*     Computes the square of the norm of the n-vector v.
+*   qflt vnorm_square_dble(int n,int icom,complex_dble *v)
+*     Returns the square of the norm of the n-vector v.
 *
 *   void mulc_vadd_dble(int n,complex_dble *v,complex_dble *w,complex_dble z)
 *     Replaces the n-vector v by v+z*w.
@@ -35,7 +33,8 @@
 *     Replaces the n-vectors vk=pv[k], k=0,..,nv-1, by the linear
 *     combinations sum_{j=0}^{nv-1} vj*a[n*j+k].
 *
-* Notes:
+* The quadruple-precision types qflt and complex_qflt are defined in su3.h.
+* See doc/qsum.pdf for further explanations.
 *
 * All these programs operate on complex n-vectors whose base addresses are
 * passed through the arguments. The length n of the arrays is specified by
@@ -43,8 +42,8 @@
 * icom is equal to 1. In this case the calculated values are guaranteed to
 * be exactly the same on all processes.
 *
-* The programs perform no communications except in the case of the scalar
-* products if these are globally summed.
+* The programs perform no communications except in the case of the programs
+* with communication flag icom set to 1.
 *
 *******************************************************************************/
 
@@ -60,7 +59,6 @@
 #include "global.h"
 
 static int nrot=0;
-static int isx,isz,init=0;
 static double smx ALIGNED8;
 static complex_dble smz ALIGNED16;
 static complex_dble *psi;
@@ -79,18 +77,19 @@ static void alloc_wrotate(int n)
 }
 
 
-complex_dble vprod_dble(int n,int icom,complex_dble *v,complex_dble *w)
+complex_qflt vprod_dble(int n,int icom,complex_dble *v,complex_dble *w)
 {
+   double *qsm[2];
+   complex_qflt cqsm;
    complex_dble *vm,*vb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=cqsm.re.q;
+   qsm[1]=cqsm.im.q;
 
-   reset_hsum(isz);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
+   qsm[1][0]=0.0;
+   qsm[1][1]=0.0;
    vm=v+n;
 
    for (vb=v;vb<vm;)
@@ -108,30 +107,27 @@ complex_dble vprod_dble(int n,int icom,complex_dble *v,complex_dble *w)
          w+=1;
       }
 
-      add_to_hsum(isz,(double*)(&smz));
+      acc_qflt(smz.re,qsm[0]);
+      acc_qflt(smz.im,qsm[1]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isz,(double*)(&smz));
-   else
-      local_hsum(isz,(double*)(&smz));
+      global_qsum(2,qsm,qsm);
 
-   return smz;
+   return cqsm;
 }
 
 
-double vnorm_square_dble(int n,int icom,complex_dble *v)
+qflt vnorm_square_dble(int n,int icom,complex_dble *v)
 {
+   double *qsm[1];
+   qflt rqsm;
    complex_dble *vm,*vb;
 
-   if (init==0)
-   {
-      isx=init_hsum(1);
-      isz=init_hsum(2);
-      init=1;
-   }
+   qsm[0]=rqsm.q;
 
-   reset_hsum(isx);
+   qsm[0][0]=0.0;
+   qsm[0][1]=0.0;
    vm=v+n;
 
    for (vb=v;vb<vm;)
@@ -144,15 +140,13 @@ double vnorm_square_dble(int n,int icom,complex_dble *v)
       for (;v<vb;v++)
          smx+=((*v).re*(*v).re+(*v).im*(*v).im);
 
-      add_to_hsum(isx,&smx);
+      acc_qflt(smx,qsm[0]);
    }
 
    if ((icom==1)&&(NPROC>1))
-      global_hsum(isx,&smx);
-   else
-      local_hsum(isx,&smx);
+      global_qsum(1,qsm,qsm);
 
-   return smx;
+   return rqsm;
 }
 
 
@@ -174,10 +168,11 @@ void mulc_vadd_dble(int n,complex_dble *v,complex_dble *w,complex_dble z)
 void vproject_dble(int n,int icom,complex_dble *v,complex_dble *w)
 {
    complex_dble z;
+   complex_qflt qz;
 
-   z=vprod_dble(n,icom,w,v);
-   z.re=-z.re;
-   z.im=-z.im;
+   qz=vprod_dble(n,icom,w,v);
+   z.re=-qz.re.q[0];
+   z.im=-qz.im.q[0];
    mulc_vadd_dble(n,v,w,z);
 }
 
@@ -199,9 +194,10 @@ void vscale_dble(int n,double r,complex_dble *v)
 double vnormalize_dble(int n,int icom,complex_dble *v)
 {
    double r;
+   qflt qr;
 
-   r=vnorm_square_dble(n,icom,v);
-   r=sqrt(r);
+   qr=vnorm_square_dble(n,icom,v);
+   r=sqrt(qr.q[0]);
 
    if (r!=0.0)
       vscale_dble(n,1.0/r,v);
