@@ -339,6 +339,7 @@ int sw_term(ptset_t set)
    pauli_dble *sw;
    u3_alg_dble **ft;
    sw_parms_t swp;
+   int my_rank;
 
    if (NPROC>1)
    {
@@ -356,6 +357,22 @@ int sw_term(ptset_t set)
    c2=-0.5*swp.csw;
    c3[0]=c1+swp.cF[0]-1.0;
    c3[1]=c1+swp.cF[1]-1.0;
+
+   MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
+
+   if (my_rank==0)
+   {
+      printf("Operator coefficients:\n");
+      printf("m0 = %f\n",swp.m0);
+      printf("c1 = 4+m0 = %f\n",c1);
+      printf("isw = %d\n", swp.isw);
+      printf("csw = %f\n", swp.csw);
+      printf("c2 = -0.5*swp.csw = %f\n",c2);
+      printf("cF[0] = %f\n",swp.cF[0]);
+      printf("cF[1] = %f\n",swp.cF[1]);
+      printf("c3[0] = c1+swp.cF[0]-1.0 = 4+m0+swp.cF[0]-1.0 = %f\n", c3[0]);
+      printf("c3[1] = c1+swp.cF[0]-1.0 = 4+m0+swp.cF[0]-1.0 = %f\n", c3[1]);
+   }
 
    if (isw)
    {
