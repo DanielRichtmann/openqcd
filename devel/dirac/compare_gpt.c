@@ -8,7 +8,7 @@
 * This software is distributed under the terms of the GNU General Public
 * License (GPL)
 *
-* Apply Dw_dble() and write fields to files. Used for comparison with gpt.
+* Apply Dirac operator methods and write fields to files. Used for comparison with gpt.
 *
 *******************************************************************************/
 
@@ -35,13 +35,14 @@
 int main(int argc,char *argv[])
 {
    int my_rank,bc;
-   int nflds;
+   int nflds,nsrcs;
    double phi[2],phi_prime[2],theta[3];
    double mu,beta,c0,csw,kappa[1];
    double cG, cG_prime, cF, cF_prime;
    spinor_dble **psd;
    FILE *flog=NULL;
    int i;
+   char fname[NAME_SIZE];
 
    MPI_Init(&argc,&argv);
    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -51,7 +52,7 @@ int main(int argc,char *argv[])
       flog=freopen("compare_gpt.log","w",stdout);
 
       printf("\n");
-      printf("Apply Dw_dble() and write fields to files. Used for comparison with gpt.\n");
+      printf("Apply Dirac operator methods and write fields to files. Used for comparison with gpt.\n");
       printf("------------------------------------\n\n");
 
       printf("%dx%dx%dx%d lattice, ",NPROC0*L0,NPROC1*L1,NPROC2*L2,NPROC3*L3);
@@ -135,22 +136,53 @@ int main(int argc,char *argv[])
    mu=0.0;
 
    random_ud();
-   export_cnfg("field_gauge.bin");
+   sprintf(fname,"gauge.bc_%d.bin",bc); export_cnfg(fname);
 
    set_ud_phase();
    sw_term(NO_PTS);
 
-   nflds=2;
+   nflds=13; /* 6 source vectors and dst vectors, 1 temporary */
+   nsrcs=nflds/2;
    alloc_wsd(nflds);
    psd=reserve_wsd(nflds);
 
+   /* set all fields to random values */
    for (i=0;i<nflds;i++)
-      random_sd(VOLUME,psd[i],1.0);
+      random_sd(NSPIN,psd[i],1.0);
 
-   Dw_dble(mu,psd[0],psd[1]);
+   /* use same source for all kernels */
+   for (i=1;i<nsrcs;i++)
+      assign_sd2sd(NSPIN,psd[0],psd[i]);
 
-   export_sfld("field_src.bin",0,psd[0]);
-   export_sfld("field_dst.bin",0,psd[1]);
+   /* set destination fields to zero */
+   for (i=nsrcs;i<nflds;i++)
+      set_sd2zero(NSPIN,psd[i]);
+
+   /* apply Dirac operator methods */
+   Dw_dble(mu,psd[0],psd[6]);
+   Dwoo_dble(mu,psd[1],psd[7]);
+   Dwee_dble(mu,psd[2],psd[8]);
+   Dwoe_dble(psd[3],psd[9]);
+
+   /* this is special since it does r=r_in-Dweo*s -> extract Dweo*s = r_in-r */
+   assign_sd2sd(NSPIN,psd[10],psd[12]); /* use last as temporary */
+   Dweo_dble(psd[4],psd[10]);
+   mulr_spinor_add_dble(VOLUME/2,psd[12],psd[10],-1.0);
+   assign_sd2sd(NSPIN,psd[12],psd[10]);
+
+   /* use Mdag = g5*M*g5 */
+   assign_sd2sd(NSPIN,psd[5],psd[12]);
+   mulg5_dble(VOLUME,psd[12]);
+   Dw_dble(mu,psd[12],psd[11]);
+   mulg5_dble(VOLUME,psd[11]);
+
+   sprintf(fname,"src.bc_%d.bin",bc); export_sfld(fname,0,psd[0]);
+   sprintf(fname,"dst_Dw_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[6]);
+   sprintf(fname,"dst_Dwoo_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[7]);
+   sprintf(fname,"dst_Dwee_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[8]);
+   sprintf(fname,"dst_Dwoe_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[9]);
+   sprintf(fname,"dst_Dweo_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[10]);
+   sprintf(fname,"dst_Dwdag_dble.bc_%d.bin",bc); export_sfld(fname,0,psd[11]);
 
    fclose(flog);
 
