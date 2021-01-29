@@ -20,10 +20,10 @@
 #define NPROC2 1
 #define NPROC3 1
 
-#define L0 16
-#define L1 8
-#define L2 8
-#define L3 8
+#define L0 4
+#define L1 4
+#define L2 4
+#define L3 4
 
 #define NPROC0_BLK 1
 #define NPROC1_BLK 1
